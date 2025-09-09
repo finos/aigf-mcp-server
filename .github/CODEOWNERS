@@ -1,0 +1,24 @@
+# CODEOWNERS
+# This file defines the code owners for this repository
+# Code owners are automatically requested for review when someone opens a pull request
+
+# Global owner - all files
+* @hugocalderon
+
+# Core source code
+/src/ @hugocalderon
+
+# Tests and validation
+/tests/ @hugocalderon
+
+# Documentation
+*.md @hugocalderon
+/docs/ @hugocalderon
+
+# Configuration files
+pyproject.toml @hugocalderon
+requirements*.txt @hugocalderon
+config/ci/pre-commit-config.yaml @hugocalderon
+
+# GitHub configuration
+/.github/ @hugocalderon

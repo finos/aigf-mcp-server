@@ -1,0 +1,299 @@
+name: Security Analysis & Code Quality
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*', 'hotfix/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    # Allow manual triggering
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  security-scan:
+    name: Security & Quality Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Full history needed for some security scanners
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[security,dev]
+        pip install lxml  # Required for MyPy report generation
+
+    - name: Create directories
+      run: |
+        mkdir -p security-reports
+        mkdir -p coverage-reports
+
+    # Static Analysis with Bandit - STRICT: Will fail on high/medium severity issues
+    - name: Run Bandit Security Scanner
+      id: bandit
+      run: |
+        echo "Running Bandit security scanner..."
+        python -m bandit -c config/security/bandit.yml -r src/ \
+          --format json \
+          --output security-reports/bandit-report.json \
+          --severity-level low \
+          --confidence-level medium
+
+        # Check if any HIGH or MEDIUM severity issues were found
+        HIGH_ISSUES=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' security-reports/bandit-report.json)
+        MEDIUM_ISSUES=$(jq '[.results[] | select(.issue_severity == "MEDIUM")] | length' security-reports/bandit-report.json)
+
+        echo "Bandit found $HIGH_ISSUES high severity and $MEDIUM_ISSUES medium severity issues"
+
+        if [ "$HIGH_ISSUES" -gt 0 ]; then
+          echo "❌ CRITICAL: Bandit found $HIGH_ISSUES high severity security issues"
+          jq '.results[] | select(.issue_severity == "HIGH")' security-reports/bandit-report.json
+          exit 1
+        fi
+
+        if [ "$MEDIUM_ISSUES" -gt 3 ]; then
+          echo "❌ FAILURE: Bandit found $MEDIUM_ISSUES medium severity issues (threshold: 3)"
+          exit 1
+        fi
+
+        echo "✅ Bandit security scan passed"
+
+    # Static Analysis with Semgrep - STRICT: Will fail on ERROR level findings
+    - name: Run Semgrep Static Analysis
+      id: semgrep
+      run: |
+        echo "Running Semgrep static analysis..."
+        semgrep --config config/security/semgrep.yml src/ \
+          --json \
+          --output security-reports/semgrep-report.json \
+          --metrics=off
+
+        # Check for ERROR level findings
+        ERROR_ISSUES=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' security-reports/semgrep-report.json)
+        WARNING_ISSUES=$(jq '[.results[] | select(.extra.severity == "WARNING")] | length' security-reports/semgrep-report.json)
+
+        echo "Semgrep found $ERROR_ISSUES errors and $WARNING_ISSUES warnings"
+
+        if [ "$ERROR_ISSUES" -gt 0 ]; then
+          echo "❌ CRITICAL: Semgrep found $ERROR_ISSUES critical security issues"
+          jq '.results[] | select(.extra.severity == "ERROR")' security-reports/semgrep-report.json
+          exit 1
+        fi
+
+        echo "✅ Semgrep security scan passed"
+
+    # Code Quality with Pylint - STRICT: Will fail below minimum score
+    - name: Run Pylint Code Analysis
+      id: pylint
+      run: |
+        echo "Running Pylint code quality analysis..."
+        python -m pylint src/finos_mcp \
+          --output-format=json \
+          --reports=yes \
+          --score=yes > security-reports/pylint-report.json
+
+        # Pylint will exit with non-zero code if score < fail-under (8.5)
+        PYLINT_EXIT_CODE=$?
+
+        if [ $PYLINT_EXIT_CODE -ne 0 ]; then
+          echo "❌ CRITICAL: Pylint score below 8.5 threshold (exit code: $PYLINT_EXIT_CODE)"
+          exit 1
+        fi
+
+        echo "✅ Pylint code quality check passed"
+
+    # Code Quality with Ruff - STRICT: Will fail on any issues
+    - name: Run Ruff Linter
+      id: ruff
+      run: |
+        echo "Running Ruff linter..."
+        ruff check src/ --output-format=json > security-reports/ruff-report.json
+
+        # Count the number of issues found
+        RUFF_ISSUES=$(jq 'length' security-reports/ruff-report.json)
+        echo "Ruff found $RUFF_ISSUES linting issues"
+
+        # Check formatting
+        echo "Checking code formatting with Ruff..."
+        ruff format --check src/
+
+        echo "✅ Ruff linting and formatting checks passed"
+
+    # Type Checking with MyPy - STRICT: Will fail on type errors
+    - name: Run MyPy Type Checking
+      id: mypy
+      run: |
+        echo "Running MyPy type checking..."
+        python -m mypy src/finos_mcp \
+          --show-error-codes \
+          --show-error-context \
+          --txt-report security-reports/mypy-report \
+          --strict-optional \
+          --warn-redundant-casts \
+          --warn-unused-ignores
+
+        echo "✅ MyPy type checking passed - no type errors found"
+
+    # Run actual tests - STRICT: Must pass
+    - name: Run Unit Tests
+      id: tests
+      run: |
+        echo "Running unit tests..."
+        if [ -d "tests" ]; then
+          python -m pytest tests/ \
+            --cov=src/finos_mcp \
+            --cov-report=json:coverage-reports/coverage.json \
+            --cov-report=xml:coverage-reports/coverage.xml \
+            --cov-report=html:coverage-reports/html \
+            --junit-xml=coverage-reports/pytest.xml \
+            --cov-fail-under=65 \
+            -v
+        else
+          echo "⚠️  No tests directory found - creating basic smoke test"
+          python -c "
+          import sys
+          sys.path.insert(0, 'src')
+          try:
+              import finos_mcp
+              from finos_mcp.server import main
+              print('✅ Basic import test passed')
+          except Exception as e:
+              print(f'❌ Import test failed: {e}')
+              sys.exit(1)
+          "
+        fi
+
+        echo "✅ All tests passed"
+
+    # Dependency Vulnerability Scanning - STRICT: Will fail on known vulnerabilities
+    - name: Run pip-audit Dependency Scanner
+      id: pip-audit
+      run: |
+        echo "Running pip-audit dependency vulnerability scanner..."
+        pip freeze > security-reports/requirements.txt
+
+        # Install pip-audit (Python Packaging Authority's official tool)
+        python -m pip install pip-audit
+
+        # Run pip-audit scan - fail on any known vulnerabilities
+        pip-audit --format json --output security-reports/pip-audit-report.json
+
+        # Check for vulnerabilities
+        VULNS=$(jq '.dependencies | map(select(.vulns | length > 0)) | length' security-reports/pip-audit-report.json)
+
+        if [ "$VULNS" -gt 0 ]; then
+          echo "❌ CRITICAL: Found vulnerabilities in $VULNS dependencies"
+          jq '.dependencies | map(select(.vulns | length > 0))' security-reports/pip-audit-report.json
+          exit 1
+        fi
+
+        echo "✅ No known vulnerabilities found in dependencies"
+
+    # Upload Security Reports as Artifacts (only if we get this far)
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-reports-py${{ matrix.python-version }}
+        path: security-reports/
+        retention-days: 30
+
+    # Upload Coverage Reports
+    - name: Upload Coverage Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-reports-py${{ matrix.python-version }}
+        path: coverage-reports/
+        retention-days: 30
+
+    # Final Security Summary - Only runs if all checks passed
+    - name: Security Analysis Summary
+      if: success()
+      run: |
+        echo "## ✅ Security Analysis Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All security and quality checks passed successfully!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Results:" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔒 **Bandit**: No critical security issues" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔍 **Semgrep**: No security vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "- 📋 **Pylint**: Code quality standards met" >> $GITHUB_STEP_SUMMARY
+        echo "- ⚡ **Ruff**: Code style and linting passed" >> $GITHUB_STEP_SUMMARY
+        echo "- 🎯 **MyPy**: Type checking passed" >> $GITHUB_STEP_SUMMARY
+        echo "- 🧪 **Tests**: All tests passed" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔐 **pip-audit**: No known vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 Detailed reports available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+
+  # Only run if security scan job succeeded
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: success()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+
+    - name: Run Integration Tests
+      run: |
+        echo "Running integration tests..."
+        # Test that the MCP server can actually start and respond
+        timeout 30 python -c "
+        import asyncio
+        import sys
+        sys.path.insert(0, 'src')
+
+        async def test_server_startup():
+            try:
+                from finos_mcp.server import main
+                from finos_mcp.content.service import get_content_service
+                print('✅ Server imports successful')
+
+                # Test service initialization
+                service = await get_content_service()
+                print('✅ Content service initialization successful')
+
+                print('✅ Integration tests passed')
+            except Exception as e:
+                print(f'❌ Integration test failed: {e}')
+                sys.exit(1)
+
+        asyncio.run(test_server_startup())
+        "

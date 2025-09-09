@@ -1,0 +1,103 @@
+version: 2
+updates:
+  # Python package dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    target-branch: "develop"
+    reviewers:
+      - "@finos/ai-governance-mcp-maintainers"
+    assignees:
+      - "@finos/ai-governance-mcp-maintainers"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "automated-pr"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+
+    # Separate direct and development dependencies
+    groups:
+      production-dependencies:
+        patterns:
+          - "mcp*"
+          - "httpx*"
+          - "pydantic*"
+          - "pyyaml*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      development-dependencies:
+        patterns:
+          - "pytest*"
+          - "ruff*"
+          - "mypy*"
+          - "black*"
+          - "bandit*"
+          - "coverage*"
+          - "pre-commit*"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Ignore major version updates for core dependencies (require manual review)
+    ignore:
+      - dependency-name: "mcp"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "httpx"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pydantic"
+        update-types: ["version-update:semver-major"]
+
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "UTC"
+    target-branch: "develop"
+    reviewers:
+      - "@finos/ai-governance-mcp-maintainers"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "github-actions"
+      - "automated-pr"
+    open-pull-requests-limit: 3
+
+    # Group related GitHub Actions updates
+    groups:
+      github-actions:
+        patterns:
+          - "actions/*"
+          - "github/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Docker dependencies (if we add Dockerfile later)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+      timezone: "UTC"
+    target-branch: "develop"
+    commit-message:
+      prefix: "docker"
+    labels:
+      - "docker"
+      - "automated-pr"

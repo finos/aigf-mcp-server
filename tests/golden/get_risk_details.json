@@ -1,0 +1,67 @@
+{
+  "ri-1": {
+    "id": "ri-1",
+    "title": "Information Leaked To Hosted Model",
+    "sequence": 1,
+    "doc_status": "Approved-Specification",
+    "content_length": 4516,
+    "metadata_fields": [
+      "sequence",
+      "title",
+      "layout",
+      "doc-status",
+      "type",
+      "owasp-llm_references",
+      "nist-ai-600-1_references",
+      "ffiec-itbooklets_references",
+      "eu-ai-act_references",
+      "related_risks"
+    ],
+    "filename": "ri-1_information-leaked-to-hosted-model.md",
+    "url": "https://raw.githubusercontent.com/finos/ai-governance-framework/main/docs/_risks/ri-1_information-leaked-to-hosted-model.md"
+  },
+  "ri-2": {
+    "id": "ri-2",
+    "title": "Information Leaked to Vector Store",
+    "sequence": 2,
+    "doc_status": "Approved-Specification",
+    "content_length": 5700,
+    "metadata_fields": [
+      "sequence",
+      "title",
+      "layout",
+      "doc-status",
+      "type",
+      "owasp-llm_references",
+      "nist-ai-600-1_references",
+      "ffiec-itbooklets_references",
+      "eu-ai-act_references",
+      "related_risks"
+    ],
+    "filename": "ri-2_information-leaked-to-vector-store.md",
+    "url": "https://raw.githubusercontent.com/finos/ai-governance-framework/main/docs/_risks/ri-2_information-leaked-to-vector-store.md"
+  },
+  "ri-10": {
+    "id": "ri-10",
+    "title": "Prompt Injection",
+    "sequence": 10,
+    "doc_status": "Approved-Specification",
+    "content_length": 5668,
+    "metadata_fields": [
+      "sequence",
+      "title",
+      "layout",
+      "doc-status",
+      "type",
+      "owasp-llm_references",
+      "ffiec-itbooklets_references",
+      "eu-ai-act_references",
+      "related_risks"
+    ],
+    "filename": "ri-10_prompt-injection.md",
+    "url": "https://raw.githubusercontent.com/finos/ai-governance-framework/main/docs/_risks/ri-10_prompt-injection.md"
+  },
+  "ri-999": {
+    "error": "Risk ri-999 not found"
+  }
+}

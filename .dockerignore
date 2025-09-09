@@ -1,0 +1,71 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.pytest_cache
+.coverage
+htmlcov/
+.tox/
+.venv/
+venv/
+env/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation and development
+docs/
+*.md
+!README.md
+LICENSE
+CHANGELOG.md
+CODE_OF_CONDUCT.md
+
+# Testing
+tests/
+.pytest_cache/
+coverage.xml
+.coverage
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Configuration files
+.env
+.env.*
+*.yaml
+*.yml
+!docker-compose.yml
+.secrets.baseline
+
+# Security and linting
+.bandit
+.pylintrc
+.semgrep.yml
+bandit.yaml
+.pre-commit-config.yaml
+
+# GitHub
+.github/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.log

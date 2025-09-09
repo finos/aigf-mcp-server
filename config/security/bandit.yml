@@ -1,0 +1,73 @@
+# Bandit configuration for FINOS AI Governance MCP Server
+# Security linting configuration for Python code
+
+# Tests to skip (minimal approach - run most tests by default)
+skips:
+  - B101  # Skip assert_used - allowed in test files
+
+# Paths to analyze
+include:
+  - 'src'
+
+# Paths to exclude
+exclude_dirs:
+  - 'tests'
+  - '.venv'
+  - '__pycache__'
+  - '.git'
+  - 'dist'
+  - 'build'
+  - '.pytest_cache'
+
+# File patterns to exclude
+exclude:
+  - '*.pyc'
+  - '*.pyo'
+  - '*.pyd'
+  - '.DS_Store'
+
+# Confidence levels to report (LOW, MEDIUM, HIGH)
+confidence:
+  - HIGH
+  - MEDIUM
+  - LOW
+
+# Severity levels to report (LOW, MEDIUM, HIGH)
+severity:
+  - HIGH
+  - MEDIUM
+  - LOW
+
+# Output format options: csv, custom, html, json, screen, txt, xml, yaml
+output_format: json
+
+# Aggregate output by vulnerability type
+aggregate_vuln_by_type: true
+
+# Show code context in reports
+number_of_lines_context: 3
+
+# Plugin configuration for specific security frameworks
+plugins:
+  # Enable AI/ML security plugins if available
+  - bandit_ml_security
+
+# Custom patterns for FINOS-specific security checks
+patterns:
+  # MCP server specific patterns
+  - 'finos_mcp\..*\.password'
+  - 'finos_mcp\..*\.secret'
+  - 'finos_mcp\..*\.token'
+  - 'finos_mcp\..*\.key'
+
+# Baseline comparison (if using bandit with baseline)
+baseline: null
+
+# Max lines to analyze (0 = unlimited)
+max_lines_per_file: 0
+
+# Progress reporting
+progress: true
+
+# Verbose output for debugging
+verbose: false
