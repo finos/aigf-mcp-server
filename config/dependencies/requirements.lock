@@ -11,8 +11,7 @@ coverage==7.10.6
 dill==0.4.0
 distlib==0.4.0
 filelock==3.19.1
-# Editable Git install with no remote (finos-ai-governance-mcp-server==0.1.0.dev0)
--e /Users/hugocalderon/SRC/finos-mcp-server
+# Note: Local package is installed separately in CI with 'pip install -e .'
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
@@ -60,3 +59,7 @@ typing_extensions==4.14.1
 uvicorn==0.35.0
 virtualenv==20.34.0
 wheel==0.45.1
+# Security scanning tools for CI pipeline
+bandit==1.8.0
+pip-audit==2.9.0
+detect-secrets==1.5.0
