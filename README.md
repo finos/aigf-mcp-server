@@ -16,36 +16,36 @@ Transform your AI governance workflow with enterprise-grade access to the [FINOS
 
 ## 📋 Table of Contents
 
-- [🎯 What It Does](#-what-it-does)
-- [⚡ Quick Start](#-quick-start)
-- [🔌 Client Integration](#-client-integration)
-- [✨ Features](#-features)
-- [🛠️ Technology Stack](#️-technology-stack)
-- [📚 Documentation](#-documentation)
+- [What It Does](#what-it-does)
+- [Quick Start](#quick-start)
+- [Client Integration](#client-integration)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [Documentation](#documentation)
 - [🔧 Development](#-development)
-- [📄 About](#-about)
+- [About](#about)
 
 ---
 
-## 🎯 What It Does
+## What It Does
 
 This enterprise-ready MCP server exposes comprehensive AI governance content through a modern, async protocol:
 
-### 📊 **Governance Content Access**
+### Governance Content Access
 - 🛡️ **17 AI Governance Mitigations** (mi-1 through mi-17)
 - ⚠️ **23 AI Risk Assessments** (ri-1 through ri-23)
 - 🔍 **Intelligent Search** across all governance documentation
 - 📈 **Real-time Content Updates** from FINOS repository
 
-### 🏗️ **Enterprise Features**
+### Enterprise Features
 - ⚡ **Async Performance** with intelligent caching
 - 🔒 **Security-First** design with rate limiting
 - 📊 **Health Monitoring** and diagnostics
 - 🔧 **Type-Safe** implementation with strict MyPy checking
 
-## ⚡ Quick Start
+## Quick Start
 
-### 🚀 **Installation** (< 2 minutes)
+### Installation (< 2 minutes)
 
 ```bash
 # 1️⃣ Clone and setup
@@ -63,7 +63,7 @@ pip install -e .
 finos-mcp --help
 ```
 
-### 🔌 **Claude Code Integration**
+### Claude Code Integration
 
 Add to your Claude Code MCP settings:
 ```json
@@ -78,7 +78,7 @@ Add to your Claude Code MCP settings:
 }
 ```
 
-### ⚡ **Instant Test**
+### Instant Test
 ```bash
 # Quick verification
 python -c "import finos_mcp; print('✅ Ready to use!')"
@@ -89,7 +89,7 @@ finos-mcp --version
 
 Connect your FINOS AI Governance MCP Server to popular development environments and AI assistants:
 
-> **📦 Installation Note**: This package is currently in development. Install from source using the [Quick Start](#-quick-start) instructions above.
+> **📦 Installation Note**: This package is currently in development. Install from source using the [Quick Start](#quick-start) instructions above.
 
 <div align="center">
 
@@ -126,7 +126,7 @@ The most straightforward integration for Anthropic's desktop application.
 ```
 
 **Steps**:
-1. Install the MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+1. Install the MCP server: Clone and install from source - see [Quick Start](#quick-start)
 2. Add the configuration above to your Claude Desktop config file
 3. Restart Claude Desktop completely
 4. Start using AI governance tools in your conversations
@@ -154,7 +154,7 @@ Perfect for development workflows in VS Code.
 
 **Steps**:
 1. Install Claude Code extension in VS Code
-2. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+2. Install MCP server: Clone and install from source - see [Quick Start](#quick-start)
 3. Create configuration file as shown above
 4. Restart VS Code and activate Claude Code
 
@@ -181,7 +181,7 @@ AI-powered coding with governance integration.
 ```
 
 **Steps**:
-1. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+1. Install MCP server: Clone and install from source - see [Quick Start](#quick-start)
 2. Open Cursor settings → Extensions → MCP
 3. Add server configuration
 4. Restart Cursor
@@ -208,7 +208,7 @@ Popular VS Code extension for AI-powered development.
 
 **Steps**:
 1. Install Continue.dev extension in VS Code
-2. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+2. Install MCP server: Clone and install from source - see [Quick Start](#quick-start)
 3. Configure through Continue settings
 4. Add MCP server configuration
 
@@ -235,7 +235,7 @@ Modern, high-performance editor with growing AI ecosystem.
 ```
 
 **Steps**:
-1. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+1. Install MCP server: Clone and install from source - see [Quick Start](#quick-start)
 2. Open Zed settings
 3. Add MCP configuration
 4. Restart Zed
@@ -262,7 +262,7 @@ AI-assisted development environment.
 ```
 
 **Steps**:
-1. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+1. Install MCP server: Clone and install from source - see [Quick Start](#quick-start)
 2. Configure through Windsurf's MCP integration settings
 3. Add server as shown in configuration
 4. Restart Windsurf
@@ -289,11 +289,11 @@ Using MCP through compatible extensions.
 
 **Steps**:
 1. Install MCP-compatible extension
-2. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+2. Install MCP server: Clone and install from source - see [Quick Start](#quick-start)
 3. Configure through extension settings
 4. Restart VS Code
 
-### 🏢 **Enterprise & Specialized Integrations**
+### Enterprise & Specialized Integrations
 
 #### JetBrains IDEs (IntelliJ, PyCharm, WebStorm)
 ![JetBrains](https://img.shields.io/badge/JetBrains-000000?style=flat-square&logo=jetbrains&logoColor=white)
@@ -349,7 +349,7 @@ mcp_servers:
     description: AI governance framework access
 ```
 
-### 🛠️ **Advanced Configuration**
+### Advanced Configuration
 
 #### Environment Variables
 
@@ -400,18 +400,18 @@ python -m finos_mcp.server stdio --help
 echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "clientInfo": {"name": "test", "version": "1.0"}}}' | python -m finos_mcp.server stdio
 ```
 
-### 📖 **Need More Help?**
+### Need More Help?
 
 For comprehensive setup instructions, troubleshooting, and advanced configuration options, see our [**🔌 Complete Integration Guide**](docs/integration-guide.md).
 
-## ✨ Features
+## Features
 
 <table>
 <tr>
 <td width="50%">
 
-### 🔍 **Search & Discovery**
-- 🎯 **Intelligent Search** - Natural language queries
+### Search & Discovery
+- **Intelligent Search** - Natural language queries
 - 🏷️ **Tag-based Filtering** - Precise content targeting
 - 📊 **Fuzzy Matching** - Find relevant content easily
 - ⚡ **Real-time Results** - Sub-second response times
@@ -419,7 +419,7 @@ For comprehensive setup instructions, troubleshooting, and advanced configuratio
 </td>
 <td width="50%">
 
-### 📚 **Content Management**
+### Content Management
 - 📖 **Direct Access** - Get content by ID (mi-1, ri-10)
 - 📋 **Bulk Listing** - All mitigations and risks
 - 🔄 **Auto-sync** - Latest FINOS framework updates
@@ -429,7 +429,7 @@ For comprehensive setup instructions, troubleshooting, and advanced configuratio
 </tr>
 </table>
 
-### 🛠️ **Available MCP Tools**
+### Available MCP Tools
 
 | Tool | Description | Example |
 |------|-------------|---------|
@@ -440,7 +440,7 @@ For comprehensive setup instructions, troubleshooting, and advanced configuratio
 | `list_all_mitigations` | 📋 List all mitigations | All 17 mitigations |
 | `list_all_risks` | 📊 List all risks | All 23 risks |
 
-### 💡 **Usage Examples**
+### Usage Examples
 ```python
 # 🔍 Search for specific governance topics
 search_mitigations(query="data leakage prevention")
@@ -455,7 +455,7 @@ list_all_mitigations()  # Browse complete catalog
 list_all_risks()        # Full risk assessment library
 ```
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 <div align="center">
 
@@ -467,14 +467,14 @@ list_all_risks()        # Full risk assessment library
 
 </div>
 
-### 🏗️ **Architecture Highlights**
+### Architecture Highlights
 - **🔄 Async-First Design**: Built on Python asyncio for high performance
 - **🛡️ Type Safety**: Strict MyPy checking with comprehensive annotations
 - **🔧 Modern HTTP**: httpx client with connection pooling and resilience
 - **⚡ Smart Caching**: TTL-based caching with LRU eviction
 - **📊 Health Monitoring**: Built-in diagnostics and metrics
 
-### ⚙️ **Configuration**
+### Configuration
 
 Create a `.env` file for customization:
 
@@ -500,13 +500,13 @@ For comprehensive configuration options including security settings, monitoring,
 
 </details>
 
-## 🔧 Development
+## Development
 
 <table>
 <tr>
 <td width="50%">
 
-### 🧪 **Quality Assurance**
+### Quality Assurance
 ```bash
 # Quick verification
 python -c "import finos_mcp; print('✅ Ready!')"
@@ -522,17 +522,17 @@ pytest --cov=finos_mcp
 </td>
 <td width="50%">
 
-### 📊 **Project Health**
+### Project Health
 - ✅ **237 Tests Passing** (80%+ coverage)
 - 🔒 **Security Scanned** (Bandit + Semgrep)
-- 🎯 **Type Safe** (Strict MyPy)
+- **Type Safe** (Strict MyPy)
 - 🚀 **CI/CD Pipeline** (GitHub Actions)
 
 </td>
 </tr>
 </table>
 
-### 🛠️ **Development Quick Start**
+### Development Quick Start
 ```bash
 # Setup development environment
 ./scripts/dev-setup.sh
@@ -544,11 +544,11 @@ python -m pytest tests/unit/ -v
 ./scripts/quality-check.sh
 ```
 
-## 📚 Documentation
+## Documentation
 
 <div align="center">
 
-| 📖 **Guide** | 🎯 **Audience** | 📄 **Description** |
+| **Guide** | **Audience** | **Description** |
 |-------------|------------------|-------------------|
 | [📚 Complete Docs](docs/README.md) | Everyone | Master navigation hub |
 | [🔌 Integration Guide](docs/integration-guide.md) | Users | Client setup & configuration |
@@ -558,11 +558,11 @@ python -m pytest tests/unit/ -v
 
 </div>
 
-## 📄 About
+## About
 
 <div align="center">
 
-**🎯 Mission**: *Making AI governance knowledge accessible to everyone through simple, modern tools*
+**Mission**: *Making AI governance knowledge accessible to everyone through simple, modern tools*
 
 </div>
 
@@ -570,7 +570,7 @@ This initiative bridges the gap between comprehensive AI governance frameworks a
 
 **Content Attribution**: AI governance content is sourced from the FINOS AI Governance Framework by FINOS and contributors, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
-### 🌟 **Why We Built This**
+### Why We Built This
 - **📚 Knowledge Sharing**: Transform complex governance documents into accessible, searchable tools
 - **🔗 Bridge Building**: Connect governance frameworks with day-to-day development practices
 - **⚡ Simplicity First**: Make AI governance guidance available right where developers work
@@ -580,20 +580,20 @@ This initiative bridges the gap between comprehensive AI governance frameworks a
 
 <div align="center">
 
-### 📜 **License**
+### License
 
 [![Software License](https://img.shields.io/badge/software-Apache%202.0-blue.svg)](LICENSE)
 [![Content License](https://img.shields.io/badge/content-CC%20BY%204.0-green.svg)](FINOS-LICENSE.md)
 
 **Dual License Structure:**
-- **Software Code**: Apache 2.0 License ([LICENSE](LICENSE))
-- **FINOS Content**: CC BY 4.0 License ([FINOS-LICENSE.md](FINOS-LICENSE.md))
+- **Software Code**: Apache 2.0 License - see [LICENSE](LICENSE)
+- **FINOS Content**: CC BY 4.0 License - see [FINOS-LICENSE.md](FINOS-LICENSE.md)
 
 This project provides software under Apache 2.0 that accesses AI governance content from the [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework), which is licensed under Creative Commons Attribution 4.0 International License.
 
 ---
 
-**⭐ Star this project** | **🍴 Fork & Contribute** | **📢 Share with your team**
+**Star this project** | **Fork & Contribute** | **Share with your team**
 
 Made with ❤️ for the AI governance community
 
