@@ -18,6 +18,7 @@ Transform your AI governance workflow with enterprise-grade access to the [FINOS
 
 - [🎯 What It Does](#-what-it-does)
 - [⚡ Quick Start](#-quick-start)
+- [🔌 Client Integration](#-client-integration)
 - [✨ Features](#-features)
 - [🛠️ Technology Stack](#️-technology-stack)
 - [📚 Documentation](#-documentation)
@@ -50,13 +51,15 @@ This enterprise-ready MCP server exposes comprehensive AI governance content thr
 # 1️⃣ Clone and setup
 git clone https://github.com/hugo-calderon/finos-mcp-server.git
 cd finos-mcp-server
+
+# 2️⃣ Create virtual environment (recommended)
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# 2️⃣ Install dependencies
+# 3️⃣ Install in development mode
 pip install -e .
 
-# 3️⃣ Verify installation
+# 4️⃣ Verify installation
 finos-mcp --help
 ```
 
@@ -81,6 +84,325 @@ Add to your Claude Code MCP settings:
 python -c "import finos_mcp; print('✅ Ready to use!')"
 finos-mcp --version
 ```
+
+## 🔌 Client Integration
+
+Connect your FINOS AI Governance MCP Server to popular development environments and AI assistants:
+
+> **📦 Installation Note**: This package is currently in development. Install from source using the [Quick Start](#-quick-start) instructions above.
+
+<div align="center">
+
+[![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-FF6B35?style=for-the-badge&logo=anthropic&logoColor=white)](#claude-desktop)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-4A90E2?style=for-the-badge&logo=visualstudiocode&logoColor=white)](#claude-code)
+[![Cursor](https://img.shields.io/badge/Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](#cursor)
+[![Continue.dev](https://img.shields.io/badge/Continue.dev-000000?style=for-the-badge&logo=github&logoColor=white)](#continuedev)
+[![Zed](https://img.shields.io/badge/Zed-0F0F0F?style=for-the-badge&logo=zed&logoColor=white)](#zed-editor)
+[![VS Code](https://img.shields.io/badge/VS%20Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](#vs-code)
+
+</div>
+
+### Claude Desktop
+
+The most straightforward integration for Anthropic's desktop application.
+
+**Configuration File**: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%/Claude/claude_desktop_config.json` (Windows)
+
+```json
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO",
+        "FINOS_MCP_ENABLE_CACHE": "true",
+        "FINOS_MCP_HTTP_TIMEOUT": "30",
+        "FINOS_MCP_CACHE_TTL_SECONDS": "3600"
+      }
+    }
+  }
+}
+```
+
+**Steps**:
+1. Install the MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+2. Add the configuration above to your Claude Desktop config file
+3. Restart Claude Desktop completely
+4. Start using AI governance tools in your conversations
+
+### Claude Code
+
+Perfect for development workflows in VS Code.
+
+**Configuration File**: `~/.config/claude-code/mcp_servers.json`
+
+```json
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO",
+        "FINOS_MCP_DEBUG_MODE": "false"
+      }
+    }
+  }
+}
+```
+
+**Steps**:
+1. Install Claude Code extension in VS Code
+2. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+3. Create configuration file as shown above
+4. Restart VS Code and activate Claude Code
+
+### Cursor
+
+AI-powered coding with governance integration.
+
+**Configuration**: Via Cursor's MCP settings or configuration file
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "finos-ai-governance": {
+        "command": "python",
+        "args": ["-m", "finos_mcp.server", "stdio"],
+        "env": {
+          "FINOS_MCP_LOG_LEVEL": "INFO"
+        }
+      }
+    }
+  }
+}
+```
+
+**Steps**:
+1. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+2. Open Cursor settings → Extensions → MCP
+3. Add server configuration
+4. Restart Cursor
+
+### Continue.dev
+
+Popular VS Code extension for AI-powered development.
+
+**Configuration File**: VS Code settings or Continue config
+
+```json
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+**Steps**:
+1. Install Continue.dev extension in VS Code
+2. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+3. Configure through Continue settings
+4. Add MCP server configuration
+
+### Zed Editor
+
+Modern, high-performance editor with growing AI ecosystem.
+
+**Configuration**: Through Zed's extension system
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "finos-ai-governance": {
+        "command": "python",
+        "args": ["-m", "finos_mcp.server", "stdio"],
+        "env": {
+          "FINOS_MCP_LOG_LEVEL": "INFO"
+        }
+      }
+    }
+  }
+}
+```
+
+**Steps**:
+1. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+2. Open Zed settings
+3. Add MCP configuration
+4. Restart Zed
+
+### Windsurf
+
+AI-assisted development environment.
+
+**Configuration File**: Platform-specific MCP configuration
+
+```json
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO",
+        "FINOS_MCP_ENABLE_CACHE": "true"
+      }
+    }
+  }
+}
+```
+
+**Steps**:
+1. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+2. Configure through Windsurf's MCP integration settings
+3. Add server as shown in configuration
+4. Restart Windsurf
+
+### VS Code
+
+Using MCP through compatible extensions.
+
+**Prerequisites**: Install an MCP-compatible extension (like Claude Code or similar)
+
+```json
+{
+  "mcp.servers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+**Steps**:
+1. Install MCP-compatible extension
+2. Install MCP server: Clone and install from source (see [Quick Start](#-quick-start))
+3. Configure through extension settings
+4. Restart VS Code
+
+### 🏢 **Enterprise & Specialized Integrations**
+
+#### JetBrains IDEs (IntelliJ, PyCharm, WebStorm)
+![JetBrains](https://img.shields.io/badge/JetBrains-000000?style=flat-square&logo=jetbrains&logoColor=white)
+
+**Status**: Via MCP-compatible plugins
+**Use Case**: Professional Java, Python, JavaScript development
+
+```json
+{
+  "mcp.servers": {
+    "finos-ai-governance": {
+      "command": "python", 
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### Replit Agent
+![Replit](https://img.shields.io/badge/Replit-667881?style=flat-square&logo=replit&logoColor=white)
+
+**Status**: Beta MCP support
+**Use Case**: Cloud development, education, prototyping
+
+```json
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_ENABLE_CACHE": "true"
+      }
+    }
+  }
+}
+```
+
+#### GitHub Copilot Enterprise
+![GitHub Copilot](https://img.shields.io/badge/GitHub%20Copilot-000000?style=flat-square&logo=github&logoColor=white)
+
+**Status**: Custom integration via GitHub Apps
+**Use Case**: Enterprise development workflows
+
+```yaml
+# .github/copilot-extensions.yml
+mcp_servers:
+  - name: finos-ai-governance
+    command: python -m finos_mcp.server stdio
+    description: AI governance framework access
+```
+
+### 🛠️ **Advanced Configuration**
+
+#### Environment Variables
+
+Customize your MCP server behavior:
+
+```bash
+# Logging
+FINOS_MCP_LOG_LEVEL=INFO          # DEBUG, INFO, WARNING, ERROR
+FINOS_MCP_DEBUG_MODE=false        # Enable debug mode
+
+# Performance  
+FINOS_MCP_ENABLE_CACHE=true       # Enable content caching
+FINOS_MCP_CACHE_TTL_SECONDS=3600  # Cache TTL (1 hour)
+FINOS_MCP_HTTP_TIMEOUT=30         # HTTP timeout seconds
+
+# GitHub API (recommended)
+FINOS_MCP_GITHUB_TOKEN=ghp_...    # Personal access token for higher rate limits
+```
+
+#### Troubleshooting
+
+**Common Issues**:
+
+1. **Server not appearing in client**
+   - Verify Python installation and module accessibility
+   - Check configuration file syntax
+   - Restart client application completely
+
+2. **Connection errors**
+   - Ensure `finos_mcp` module is installed: `python -c "import finos_mcp"`
+   - Test server directly: `python -m finos_mcp.server stdio --help`
+   - Check environment variables and paths
+
+3. **Rate limiting issues**
+   - Add `FINOS_MCP_GITHUB_TOKEN` for higher GitHub API limits
+   - Enable caching: `FINOS_MCP_ENABLE_CACHE=true`
+
+**Verification Commands**:
+
+```bash
+# Test installation
+python -c "import finos_mcp; print('✅ Module installed')"
+
+# Test server startup
+python -m finos_mcp.server stdio --help
+
+# Test MCP protocol
+echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "clientInfo": {"name": "test", "version": "1.0"}}}' | python -m finos_mcp.server stdio
+```
+
+### 📖 **Need More Help?**
+
+For comprehensive setup instructions, troubleshooting, and advanced configuration options, see our [**🔌 Complete Integration Guide**](docs/integration-guide.md).
 
 ## ✨ Features
 
@@ -229,6 +551,7 @@ python -m pytest tests/unit/ -v
 | 📖 **Guide** | 🎯 **Audience** | 📄 **Description** |
 |-------------|------------------|-------------------|
 | [📚 Complete Docs](docs/README.md) | Everyone | Master navigation hub |
+| [🔌 Integration Guide](docs/integration-guide.md) | Users | Client setup & configuration |
 | [👥 User Guide](docs/user/README.md) | End Users | Installation & usage |
 | [🛠️ Developer Guide](docs/developer/README.md) | Contributors | Development & contributing |
 | [🚀 Operations Guide](docs/operations/README.md) | DevOps Teams | Production deployment |
