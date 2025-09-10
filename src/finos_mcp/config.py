@@ -19,6 +19,7 @@ support and validation. Settings are loaded from environment variables with opti
 .env file support.
 """
 
+import ipaddress
 import logging
 from pathlib import Path
 from typing import Optional
@@ -45,7 +46,9 @@ class Settings(BaseSettings):
     # Network Configuration
     http_timeout: PositiveInt = Field(
         default=30,
-        description="HTTP client timeout in seconds",
+        ge=5,
+        le=300,
+        description="HTTP client timeout in seconds (5-300s range for security)",
     )
 
     # Repository Configuration
@@ -62,17 +65,23 @@ class Settings(BaseSettings):
 
     cache_max_size: PositiveInt = Field(
         default=1000,
-        description="Maximum number of documents to cache in memory",
+        ge=10,
+        le=50000,
+        description="Maximum number of documents to cache in memory (10-50000 range)",
     )
 
     cache_ttl_seconds: PositiveInt = Field(
         default=3600,
-        description="Default time-to-live for cached documents in seconds (1 hour)",
+        ge=60,
+        le=86400,
+        description="Default time-to-live for cached documents in seconds (1min-24hrs)",
     )
 
     cache_cleanup_interval: PositiveInt = Field(
         default=60,
-        description="Background cleanup interval for expired cache entries in seconds",
+        ge=10,
+        le=3600,
+        description="Background cleanup interval for expired cache entries (10s-1hr)",
     )
 
     # Development Configuration
@@ -154,24 +163,68 @@ class Settings(BaseSettings):
         if v is None or v.strip() == "":
             return None
 
-        # Basic format validation for GitHub personal access tokens
+        # Comprehensive format validation for all GitHub token types
         token = v.strip()
 
-        # Classic tokens start with 'ghp_' and are 40 characters total
-        # Fine-grained tokens start with 'github_pat_' and are longer
+        # GitHub token types and their specifications:
+        # ghp_ - Classic Personal Access Token (40 chars)
+        # gho_ - OAuth App token (40 chars)
+        # ghu_ - GitHub App user token (varies)
+        # ghs_ - GitHub App server token (varies)
+        # ghr_ - GitHub App refresh token (varies)
+        # ghv_ - GitHub App installation token (varies)
+        # github_pat_ - Fine-grained personal access token (93+ chars)
+
         if token.startswith("ghp_"):
+            # Classic Personal Access Token
             if len(token) != 40:
                 raise ValueError(
                     "GitHub classic token (ghp_) must be exactly 40 characters"
                 )
             if not token[4:].replace("_", "").isalnum():
                 raise ValueError("GitHub token contains invalid characters")
+
+        elif token.startswith("gho_"):
+            # OAuth App token
+            if len(token) != 40:
+                raise ValueError(
+                    "GitHub OAuth token (gho_) must be exactly 40 characters"
+                )
+            if not token[4:].replace("_", "").isalnum():
+                raise ValueError("GitHub token contains invalid characters")
+
+        elif token.startswith(("ghu_", "ghs_", "ghr_", "ghv_")):
+            # GitHub App tokens (variable length, typically 87+ characters)
+            if len(token) < 50:
+                raise ValueError(
+                    f"GitHub App token ({token[:4]}) appears too short (minimum 50 characters)"
+                )
+            if len(token) > 255:
+                raise ValueError(
+                    f"GitHub App token ({token[:4]}) exceeds maximum length (255 characters)"
+                )
+            if not token[4:].replace("_", "").isalnum():
+                raise ValueError("GitHub token contains invalid characters")
+
         elif token.startswith("github_pat_"):
-            if len(token) < 50:  # Fine-grained tokens are longer
-                raise ValueError("GitHub fine-grained token appears too short")
+            # Fine-grained Personal Access Token
+            if len(token) < 93:
+                raise ValueError(
+                    "GitHub fine-grained token (github_pat_) must be at least 93 characters"
+                )
+            if len(token) > 255:
+                raise ValueError(
+                    "GitHub fine-grained token exceeds maximum length (255 characters)"
+                )
+            # More flexible character validation for fine-grained tokens
+            if not all(c.isalnum() or c in "_-" for c in token[11:]):
+                raise ValueError("GitHub token contains invalid characters")
+
         else:
             raise ValueError(
-                "GitHub token must start with 'ghp_' (classic) or 'github_pat_' (fine-grained). "
+                "GitHub token must start with a valid prefix: "
+                "'ghp_' (classic), 'gho_' (OAuth), 'ghu_'/'ghs_'/'ghr_'/'ghv_' (App), "
+                "or 'github_pat_' (fine-grained). "
                 "Create at: https://github.com/settings/tokens"
             )
 
@@ -180,29 +233,109 @@ class Settings(BaseSettings):
     @field_validator("base_url")
     @classmethod
     def validate_base_url(cls, v: str) -> str:
-        """Validate base URL is a proper HTTP/HTTPS URL."""
+        """Validate base URL with SSRF protection."""
         parsed = urlparse(v)
+
+        # Basic validation
         if not parsed.scheme or parsed.scheme not in ["http", "https"]:
             raise ValueError("Base URL must be a valid HTTP or HTTPS URL")
         if not parsed.netloc:
             raise ValueError("Base URL must include a domain")
+
+        # SSRF Protection - prevent requests to internal/private networks
+        if parsed.hostname:
+            hostname_lower = parsed.hostname.lower()
+
+            # Check for forbidden local/internal hostnames first
+            forbidden_hosts = {
+                "localhost",
+                "127.0.0.1",
+                "::1",
+                "local",
+                "internal",
+                "broadcasthost",
+            }
+            if hostname_lower in forbidden_hosts or hostname_lower.endswith(".local"):
+                raise ValueError(
+                    "Base URL cannot point to localhost or local domains for security"
+                ) from None
+
+            # Try to parse as IP address to check for private/internal IPs
+            try:
+                ip = ipaddress.ip_address(parsed.hostname)
+                if (
+                    ip.is_private
+                    or ip.is_loopback
+                    or ip.is_link_local
+                    or ip.is_multicast
+                ):
+                    raise ValueError(
+                        "Base URL cannot point to internal, private, or local networks for security"
+                    ) from None
+            except (ipaddress.AddressValueError, ValueError) as e:
+                # Check if this is our security ValueError or an IP parsing error
+                if "does not appear to be an IPv4 or IPv6 address" in str(e):
+                    # It's a domain name (not an IP), which is fine - continue
+                    pass
+                else:
+                    # Re-raise our security validation errors
+                    raise
+
         return v.rstrip("/")  # Remove trailing slash for consistency
 
     @field_validator("config_file", mode="before")
     @classmethod
     def validate_config_file(cls, v: str | None) -> Path | None:
-        """Validate config file path exists if provided."""
+        """Validate config file path with path traversal protection."""
         if v is None:
             return v
 
         path = Path(v) if isinstance(v, str) else v
 
-        if not path.exists():
-            raise ValueError(f"Configuration file does not exist: {path}")
-        if not path.is_file():
-            raise ValueError(f"Configuration path is not a file: {path}")
+        # Path traversal protection
+        try:
+            resolved_path = path.resolve()
 
-        return path
+            # Define allowed base directories for config files
+            allowed_dirs = [
+                Path.cwd(),  # Current working directory
+                Path.home() / ".config",  # User config directory
+                Path.home() / ".finos-mcp",  # App-specific config directory
+                Path("/etc/finos-mcp")
+                if Path("/etc/finos-mcp").exists()
+                else None,  # System config
+            ]
+            # Filter out None values
+            allowed_dirs = [d for d in allowed_dirs if d is not None]
+
+            # Check if resolved path is within allowed directories
+            path_allowed = False
+            for allowed_dir in allowed_dirs:
+                if allowed_dir is None:  # Skip None entries
+                    continue
+                try:
+                    resolved_path.relative_to(allowed_dir.resolve())
+                    path_allowed = True
+                    break
+                except ValueError:
+                    # Path is not relative to this allowed directory
+                    continue
+
+            if not path_allowed:
+                allowed_paths = ", ".join(str(d) for d in allowed_dirs)
+                raise ValueError(
+                    f"Configuration file must be within allowed directories: {allowed_paths}"
+                )
+
+        except (OSError, ValueError, RuntimeError) as e:
+            raise ValueError(f"Invalid configuration file path: {e}") from e
+
+        if not resolved_path.exists():
+            raise ValueError(f"Configuration file does not exist: {resolved_path}")
+        if not resolved_path.is_file():
+            raise ValueError(f"Configuration path is not a file: {resolved_path}")
+
+        return resolved_path
 
     @property
     def mitigations_url(self) -> str:
@@ -260,6 +393,21 @@ class Settings(BaseSettings):
 
         if self.http_timeout <= 0:
             errors.append("http_timeout must be positive")
+
+        # Additional security-focused validations
+        if self.cache_max_size > 100000:
+            errors.append("cache_max_size too large (potential memory exhaustion)")
+
+        if self.cache_ttl_seconds > 604800:  # 7 days
+            errors.append("cache_ttl_seconds too large (potential stale data)")
+
+        if self.github_api_delay_seconds < 0.1:
+            errors.append(
+                "github_api_delay_seconds too small (potential rate limit abuse)"
+            )
+
+        if self.github_api_max_retries > 50:
+            errors.append("github_api_max_retries too large (potential infinite loops)")
 
         if errors:
             error_msg = "Configuration validation failed:\n" + "\n".join(
