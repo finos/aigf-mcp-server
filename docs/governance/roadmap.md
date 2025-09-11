@@ -8,7 +8,7 @@ The FINOS AI Governance MCP Server provides access to AI governance content from
 
 ### 🏆 **Current Capabilities**
 - **Content Access**: 17 AI governance mitigations (mi-1 through mi-17)
-- **Risk Assessments**: 17 AI risk evaluations (ri-1 through ri-23)
+- **Risk Assessments**: 23 AI risk evaluations (ri-1 through ri-23)
 - **Search Functionality**: Intelligent search across all governance content
 - **MCP Protocol**: Full compliance with MCP 2024-11-05 specification
 - **Caching**: Intelligent caching for improved performance
@@ -87,7 +87,7 @@ The FINOS AI Governance MCP Server provides access to AI governance content from
 
 ### **Content Coverage**
 - **Mitigations**: 17 comprehensive AI governance strategies  
-- **Risk Assessments**: 17 detailed AI risk evaluations
+- **Risk Assessments**: 23 detailed AI risk evaluations
 - **Framework Alignment**: ISO 42001, NIST AI RMF, OWASP LLM Top 10, EU AI Act
 - **Update Frequency**: Synchronized with FINOS AI Governance Framework releases
 

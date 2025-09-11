@@ -40,6 +40,7 @@ from mcp.types import (
 )
 from pydantic import AnyUrl
 
+from . import __version__
 from .config import validate_settings_on_startup
 from .content.service import get_content_service
 from .health import get_health_monitor
@@ -710,7 +711,7 @@ async def main_async() -> None:
             write_stream,
             InitializationOptions(
                 server_name="finos-ai-governance-mcp",
-                server_version="1.0.0",
+                server_version=__version__,
                 capabilities=ServerCapabilities(
                     tools=ToolsCapability(listChanged=False),
                     resources=ResourcesCapability(subscribe=False, listChanged=False),

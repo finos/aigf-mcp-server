@@ -5,7 +5,7 @@ the FINOS AI Governance Framework repository, specifically exposing risks and mi
 
 This package provides structured access to:
 - 17 AI governance mitigation strategies (mi-1 through mi-17)
-- 17 AI governance risk assessments (ri-1 through ri-23, with some gaps)
+- 23 AI governance risk assessments (ri-1 through ri-23)
 
 The server implements the MCP protocol for seamless integration with AI assistants
 and applications that need access to enterprise-grade AI governance knowledge.

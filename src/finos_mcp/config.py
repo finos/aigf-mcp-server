@@ -29,6 +29,11 @@ from pydantic import Field, field_validator
 from pydantic.types import PositiveInt
 from pydantic_settings import BaseSettings
 
+try:
+    from ._version import __version__
+except ImportError:
+    __version__ = "unknown"
+
 
 class Settings(BaseSettings):
     """Application settings with environment variable support.
@@ -97,7 +102,7 @@ class Settings(BaseSettings):
     )
 
     server_version: str = Field(
-        default="0.1.0-dev",
+        default=__version__,
         description="MCP server version",
     )
 

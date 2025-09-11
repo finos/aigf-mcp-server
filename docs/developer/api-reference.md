@@ -33,8 +33,8 @@ Complete API reference for developers working with the FINOS AI Governance MCP S
   "capabilities": {
     "tools": {},
     "resources": {
-      "subscribe": true,
-      "listChanged": true
+      "subscribe": false,
+      "listChanged": false
     }
   }
 }

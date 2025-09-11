@@ -188,7 +188,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
             ),
             follow_redirects=True,
             headers={
-                "User-Agent": f"finos-mcp/{getattr(self.settings, 'server_version', '0.1.0-dev')}"
+                "User-Agent": f"finos-mcp/{self.settings.server_version}"
             },
         )
 
