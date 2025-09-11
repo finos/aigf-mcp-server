@@ -20,7 +20,7 @@ def test_console_script_startup() -> bool:
         # Prefer virtual environment script if available
         import os
         venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
-        
+
         if os.path.exists(venv_script):
             script_path = venv_script
         else:
@@ -151,7 +151,7 @@ def test_console_script_startup() -> bool:
 def test_console_script_vs_direct_module() -> bool:
     """Test that console script and direct module execution have same behavior"""
     print("\n🔄 Testing Console Script vs Direct Module Execution...")
-    
+
     # Get script path (same logic as in startup test)
     import os
     venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
@@ -217,7 +217,7 @@ def test_console_script_vs_direct_module() -> bool:
 def test_console_script_error_handling() -> bool:
     """Test that console script handles errors gracefully"""
     print("\n🛡️  Testing Error Handling...")
-    
+
     # Get script path (same logic as in startup test)
     import os
     venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")

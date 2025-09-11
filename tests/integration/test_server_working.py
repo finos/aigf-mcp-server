@@ -20,7 +20,7 @@ async def test_server_basic() -> bool:
         import os
         venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
         script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
-        
+
         process = subprocess.Popen(
             [script_path],
             stdin=subprocess.PIPE,
