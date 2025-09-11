@@ -16,10 +16,11 @@ import time
 from pathlib import Path
 
 # Ensure UTF-8 encoding for Windows compatibility
-if os.name == 'nt':  # Windows
+if os.name == "nt":  # Windows
     import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, "strict")
+    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer, "strict")
 
 
 def run_test_script(script_path: Path | str, description: str) -> bool:

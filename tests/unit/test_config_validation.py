@@ -14,6 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from finos_mcp.config import Settings, get_settings, validate_settings_on_startup
+from finos_mcp._version import __version__
 
 
 @pytest.fixture
@@ -59,7 +60,7 @@ class TestSettingsValidation:
         assert settings.cache_max_size == 1000
         assert settings.debug_mode is False
         assert settings.server_name == "finos-ai-governance"
-        assert settings.server_version == "0.1.0-dev"
+        assert settings.server_version == __version__
         assert settings.config_file is None
 
     def test_environment_variable_override(self, clean_env):
@@ -107,7 +108,6 @@ class TestSettingsValidation:
         """Test valid base URLs."""
         valid_urls = [
             "https://example.com",
-            "http://localhost:8000",
             "https://raw.githubusercontent.com/user/repo/main/docs",
         ]
 
@@ -121,10 +121,11 @@ class TestSettingsValidation:
         """Test invalid base URLs are rejected."""
         invalid_urls = [
             "not-a-url",
-            "ftp://example.com",
+            "ftp://example.com", 
             "https://",
             "",
             "file:///local/path",
+            "http://localhost:8000",  # localhost URLs are rejected for security
         ]
 
         for url in invalid_urls:

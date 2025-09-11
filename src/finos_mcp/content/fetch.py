@@ -187,9 +187,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                 keepalive_expiry=30.0,
             ),
             follow_redirects=True,
-            headers={
-                "User-Agent": f"finos-mcp/{self.settings.server_version}"
-            },
+            headers={"User-Agent": f"finos-mcp/{self.settings.server_version}"},
         )
 
     def _get_circuit_breaker(self, url: str) -> CircuitBreaker:

@@ -825,7 +825,9 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                     # Sanitize error message to avoid information disclosure
                     "error": str(e)[:200] if str(e) else "Unknown error",
                     # Include traceback only in debug mode to avoid information leakage
-                    "debug_traceback": traceback.format_exc() if self.settings.debug_mode else None,
+                    "debug_traceback": traceback.format_exc()
+                    if self.settings.debug_mode
+                    else None,
                 },
             )
 

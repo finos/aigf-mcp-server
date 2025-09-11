@@ -18,6 +18,7 @@ async def test_server_basic() -> bool:
         # Start server using console script (real user experience)
         # Prefer virtual environment script if available
         import os
+
         venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
         script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
 

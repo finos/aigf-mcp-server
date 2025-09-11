@@ -19,6 +19,7 @@ def test_console_script_startup() -> bool:
         # Test 1: Console script exists and is executable
         # Prefer virtual environment script if available
         import os
+
         venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
 
         if os.path.exists(venv_script):
@@ -29,9 +30,13 @@ def test_console_script_startup() -> bool:
             )
 
             if result.returncode != 0:
-                print("❌ Console script 'finos-mcp' not found in PATH or virtual environment")
+                print(
+                    "❌ Console script 'finos-mcp' not found in PATH or virtual environment"
+                )
                 print("   Make sure you ran 'pip install -e .' first")
-                raise AssertionError("Console script 'finos-mcp' not found in PATH or virtual environment")
+                raise AssertionError(
+                    "Console script 'finos-mcp' not found in PATH or virtual environment"
+                )
 
             script_path = result.stdout.strip()
         print(f"✅ Console script found at: {script_path}")
@@ -40,7 +45,7 @@ def test_console_script_startup() -> bool:
         print("🚀 Testing server startup (should not crash immediately)...")
 
         process = subprocess.Popen(
-[script_path],
+            [script_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -154,6 +159,7 @@ def test_console_script_vs_direct_module() -> bool:
 
     # Get script path (same logic as in startup test)
     import os
+
     venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
     script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
 
@@ -220,13 +226,14 @@ def test_console_script_error_handling() -> bool:
 
     # Get script path (same logic as in startup test)
     import os
+
     venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
     script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
 
     try:
         # Test with invalid JSON input
         process = subprocess.Popen(
-[script_path],
+            [script_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

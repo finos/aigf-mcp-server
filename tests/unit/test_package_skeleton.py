@@ -267,7 +267,7 @@ class PackageSkeletonTester:
                 return False
 
             # Check for essential build requirements (setuptools_scm is optional but valid)
-            if 'setuptools>=61.0' not in content or 'wheel' not in content:
+            if "setuptools>=61.0" not in content or "wheel" not in content:
                 self.log_test("PEP 518 Compliance", False, "Invalid build requirements")
                 return False
 
