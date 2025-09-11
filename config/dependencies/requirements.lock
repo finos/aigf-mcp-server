@@ -62,7 +62,7 @@ wheel==0.45.1
 # Security-focused validation libraries (required by package)
 bleach==6.2.0
 pathvalidate==3.2.1
-python-slugify==8.0.5
+python-slugify==8.0.4
 # Security scanning tools for CI pipeline
 bandit==1.8.0
 pip-audit==2.9.0
