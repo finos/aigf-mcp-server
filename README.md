@@ -63,73 +63,32 @@ pip install -e .
 finos-mcp --help
 ```
 
-### Claude Code Integration
-
-Add to your Claude Code MCP settings:
-```json
-{
-  "mcpServers": {
-    "finos-ai-governance": {
-      "command": "finos-mcp",
-      "args": [],
-      "description": "FINOS AI Governance Framework access"
-    }
-  }
-}
-```
-
-### Instant Test
-```bash
-# Quick verification
-python -c "import finos_mcp; print('✅ Ready to use!')"
-finos-mcp --version
-```
-
 ## 🔌 Client Integration
 
 Ready to integrate with your favorite development environment? The FINOS AI Governance MCP Server supports all major AI assistants and code editors.
 
+### 📋 Supported Clients
+
 <div align="center">
 
-[![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-FF6B35?style=for-the-badge&logo=anthropic&logoColor=white)](docs/integration-guide.md#claude-desktop)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-4A90E2?style=for-the-badge&logo=visualstudiocode&logoColor=white)](docs/integration-guide.md#claude-code)
-[![Cursor](https://img.shields.io/badge/Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](docs/integration-guide.md#cursor)
-[![Continue.dev](https://img.shields.io/badge/Continue.dev-000000?style=for-the-badge&logo=github&logoColor=white)](docs/integration-guide.md#continuedev)
-[![Zed](https://img.shields.io/badge/Zed-0F0F0F?style=for-the-badge&logo=zed&logoColor=white)](docs/integration-guide.md#zed-editor)
+| Client | Status | Configuration | Difficulty |
+|--------|--------|---------------|------------|
+| ![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-FF6B35?style=flat-square&logo=anthropic&logoColor=white) | ✅ **Native Support** | JSON Config | ⭐ Easy |
+| ![Claude Code](https://img.shields.io/badge/Claude%20Code-4A90E2?style=flat-square&logo=visualstudiocode&logoColor=white) | ✅ **Full Support** | JSON Config | ⭐ Easy |
+| ![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white) | ✅ **MCP Support** | Settings UI | ⭐⭐ Medium |
+| ![Windsurf](https://img.shields.io/badge/Windsurf-0084FF?style=flat-square&logo=codestream&logoColor=white) | ✅ **Compatible** | Extension Config | ⭐⭐ Medium |
+| ![VS Code](https://img.shields.io/badge/VS%20Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white) | ⚠️ **Via Extensions** | Extension Required | ⭐⭐⭐ Hard |
+| ![Continue.dev](https://img.shields.io/badge/Continue.dev-000000?style=flat-square&logo=github&logoColor=white) | ✅ **MCP Ready** | VS Code Extension | ⭐⭐ Medium |
+| ![Zed](https://img.shields.io/badge/Zed-0F0F0F?style=flat-square&logo=zed&logoColor=white) | ✅ **Growing Support** | Settings Config | ⭐⭐ Medium |
+| ![JetBrains](https://img.shields.io/badge/JetBrains-000000?style=flat-square&logo=jetbrains&logoColor=white) | ⚠️ **Plugin Required** | Plugin Config | ⭐⭐⭐ Hard |
+| ![Replit](https://img.shields.io/badge/Replit-667881?style=flat-square&logo=replit&logoColor=white) | 🧪 **Beta Support** | Cloud Config | ⭐⭐ Medium |
 
 </div>
-
-### Quick Integration Examples
-
-**Claude Desktop** (2 minutes setup):
-```json
-{
-  "mcpServers": {
-    "finos-ai-governance": {
-      "command": "python",
-      "args": ["-m", "finos_mcp.server", "stdio"],
-      "env": {"FINOS_MCP_LOG_LEVEL": "INFO"}
-    }
-  }
-}
-```
-
-**Claude Code** (VS Code):
-```json
-{
-  "mcpServers": {
-    "finos-ai-governance": {
-      "command": "python", 
-      "args": ["-m", "finos_mcp.server", "stdio"]
-    }
-  }
-}
-```
 
 ### 📖 **[Complete Integration Guide →](docs/integration-guide.md)**
 
 Get step-by-step setup instructions for:
-- **8 Supported Clients** with detailed configuration
+- **9 Supported Clients** with detailed configuration
 - **Troubleshooting Guide** for common issues  
 - **Advanced Configuration** for enterprise deployments
 - **Performance Tuning** and optimization tips
