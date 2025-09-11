@@ -59,6 +59,10 @@ typing_extensions==4.14.1
 uvicorn==0.35.0
 virtualenv==20.34.0
 wheel==0.45.1
+# Security-focused validation libraries (required by package)
+bleach==6.2.0
+pathvalidate==3.2.1
+python-slugify==8.0.5
 # Security scanning tools for CI pipeline
 bandit==1.8.0
 pip-audit==2.9.0

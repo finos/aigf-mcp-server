@@ -17,23 +17,30 @@ def test_console_script_startup() -> bool:
 
     try:
         # Test 1: Console script exists and is executable
-        result = subprocess.run(
-            ["which", "finos-mcp"], capture_output=True, text=True, timeout=10
-        )
+        # Prefer virtual environment script if available
+        import os
+        venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
+        
+        if os.path.exists(venv_script):
+            script_path = venv_script
+        else:
+            result = subprocess.run(
+                ["which", "finos-mcp"], capture_output=True, text=True, timeout=10
+            )
 
-        if result.returncode != 0:
-            print("❌ Console script 'finos-mcp' not found in PATH")
-            print("   Make sure you ran 'pip install -e .' first")
-            raise AssertionError("Console script 'finos-mcp' not found in PATH")
+            if result.returncode != 0:
+                print("❌ Console script 'finos-mcp' not found in PATH or virtual environment")
+                print("   Make sure you ran 'pip install -e .' first")
+                raise AssertionError("Console script 'finos-mcp' not found in PATH or virtual environment")
 
-        script_path = result.stdout.strip()
+            script_path = result.stdout.strip()
         print(f"✅ Console script found at: {script_path}")
 
         # Test 2: Console script starts without immediate errors
         print("🚀 Testing server startup (should not crash immediately)...")
 
         process = subprocess.Popen(
-            ["finos-mcp"],
+[script_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -144,6 +151,11 @@ def test_console_script_startup() -> bool:
 def test_console_script_vs_direct_module() -> bool:
     """Test that console script and direct module execution have same behavior"""
     print("\n🔄 Testing Console Script vs Direct Module Execution...")
+    
+    # Get script path (same logic as in startup test)
+    import os
+    venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
+    script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
 
     def start_and_test(command: list[str], description: str) -> tuple[bool, str]:
         """Helper to start server and test basic behavior"""
@@ -184,7 +196,7 @@ def test_console_script_vs_direct_module() -> bool:
             return False, str(e)
 
     # Test console script
-    console_success, console_msg = start_and_test(["finos-mcp"], "console script")
+    console_success, console_msg = start_and_test([script_path], "console script")
     print(f"   Console Script: {'✅' if console_success else '❌'} {console_msg}")
 
     # Test direct module
@@ -205,11 +217,16 @@ def test_console_script_vs_direct_module() -> bool:
 def test_console_script_error_handling() -> bool:
     """Test that console script handles errors gracefully"""
     print("\n🛡️  Testing Error Handling...")
+    
+    # Get script path (same logic as in startup test)
+    import os
+    venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
+    script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
 
     try:
         # Test with invalid JSON input
         process = subprocess.Popen(
-            ["finos-mcp"],
+[script_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
