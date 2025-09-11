@@ -13,8 +13,8 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from finos_mcp.config import Settings, get_settings, validate_settings_on_startup
 from finos_mcp._version import __version__
+from finos_mcp.config import Settings, get_settings, validate_settings_on_startup
 
 
 @pytest.fixture
@@ -121,7 +121,7 @@ class TestSettingsValidation:
         """Test invalid base URLs are rejected."""
         invalid_urls = [
             "not-a-url",
-            "ftp://example.com", 
+            "ftp://example.com",
             "https://",
             "",
             "file:///local/path",

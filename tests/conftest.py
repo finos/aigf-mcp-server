@@ -9,7 +9,8 @@ import json
 import subprocess
 import sys
 import time
-from typing import Any, AsyncGenerator, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 
 import pytest
 
@@ -58,7 +59,7 @@ def mcp_server_process() -> Generator[subprocess.Popen, None, None]:
 
 
 @pytest.fixture
-def mcp_initialization_request() -> Dict[str, Any]:
+def mcp_initialization_request() -> dict[str, Any]:
     """Standard MCP initialization request.
 
     Returns:
@@ -85,7 +86,9 @@ def mcp_request_factory():
     """
     request_id = 1
 
-    def make_request(method: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    def make_request(
+        method: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         nonlocal request_id
         request_id += 1
 
@@ -138,7 +141,7 @@ async def mcp_initialized_server(
 @pytest.fixture
 def mcp_server_direct() -> Generator[subprocess.Popen, None, None]:
     """Start MCP server via direct module execution for comparison testing.
-    
+
     Yields:
         Running subprocess.Popen instance for the MCP server (direct module)
     """
@@ -151,15 +154,15 @@ def mcp_server_direct() -> Generator[subprocess.Popen, None, None]:
         text=True,
         bufsize=0,
     )
-    
+
     # Wait for server to start
     time.sleep(0.5)
-    
+
     # Ensure server is running
     if process.poll() is not None:
         stdout, stderr = process.communicate()
         raise RuntimeError(f"MCP server (direct module) failed to start: {stderr}")
-    
+
     try:
         yield process
     finally:
