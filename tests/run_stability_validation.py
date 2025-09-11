@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Stability Validation Master Script
 
@@ -13,6 +14,13 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import os
+
+# Ensure UTF-8 encoding for Windows compatibility
+if os.name == 'nt':  # Windows
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 
 def run_test_script(script_path: Path | str, description: str) -> bool:
