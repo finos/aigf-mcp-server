@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Stability Validation Master Script
 
@@ -10,11 +9,11 @@ that any future modification must be tested before considering it stable.
 Run this before every step transition to ensure no regressions.
 """
 
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-import os
 
 # Ensure UTF-8 encoding for Windows compatibility
 if os.name == 'nt':  # Windows

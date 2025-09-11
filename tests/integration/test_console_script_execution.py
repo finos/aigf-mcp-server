@@ -11,7 +11,7 @@ import sys
 import time
 
 
-def test_console_script_startup() -> None:
+def test_console_script_startup() -> bool:
     """Test that finos-mcp console script starts without errors"""
     print("🧪 Testing Console Script Startup...")
 
@@ -130,7 +130,8 @@ def test_console_script_startup() -> None:
                 process.wait()
 
         # Test completed successfully
-        assert True  # Explicit assertion instead of return
+        print("✅ Server responded to MCP initialization")
+        return True
 
     except subprocess.TimeoutExpired:
         print("❌ Console script test timed out")
@@ -140,7 +141,7 @@ def test_console_script_startup() -> None:
         raise AssertionError(f"Console script test failed with error: {e}") from None
 
 
-def test_console_script_vs_direct_module() -> None:
+def test_console_script_vs_direct_module() -> bool:
     """Test that console script and direct module execution have same behavior"""
     print("\n🔄 Testing Console Script vs Direct Module Execution...")
 
@@ -195,13 +196,13 @@ def test_console_script_vs_direct_module() -> None:
     # Both should succeed
     if console_success and module_success:
         print("✅ Both execution methods work consistently")
-        assert True  # Explicit assertion instead of return
+        return True
     else:
         print("❌ Inconsistent behavior between execution methods")
         raise AssertionError("Inconsistent behavior between execution methods")
 
 
-def test_console_script_error_handling() -> None:
+def test_console_script_error_handling() -> bool:
     """Test that console script handles errors gracefully"""
     print("\n🛡️  Testing Error Handling...")
 
@@ -246,7 +247,7 @@ def test_console_script_error_handling() -> None:
             process.wait()
 
         # Test passed
-        assert True  # Explicit assertion instead of return
+        return True
 
     except Exception as e:
         print(f"❌ Error handling test failed: {e}")

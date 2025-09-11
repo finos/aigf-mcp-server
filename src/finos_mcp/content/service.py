@@ -33,7 +33,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from ..config import get_settings
 from ..health import get_health_monitor
@@ -471,21 +471,34 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             Fetched content or None if failed
 
         """
-        async with self.fetch_boundary.protect():
-            http_client = await self._get_http_client()
-            content = await http_client.fetch_text(url)
+        try:
+            async with self.fetch_boundary.protect():
+                http_client = await self._get_http_client()
+                content = await http_client.fetch_text(url)
 
+                self.logger.debug(
+                    "Content fetched successfully: %s characters",
+                    len(content),
+                    extra={
+                        "operation_id": context.operation_id,
+                        "url": url,
+                        "content_length": len(content),
+                    },
+                )
+
+                return content
+
+        except Exception as e:
             self.logger.debug(
-                "Content fetched successfully: %s characters",
-                len(content),
+                "Failed to fetch content: %s",
+                str(e),
                 extra={
                     "operation_id": context.operation_id,
                     "url": url,
-                    "content_length": len(content),
+                    "error_type": type(e).__name__,
                 },
             )
-
-            return content
+            return None
 
     async def _parse_content_with_boundary(
         self, content: str, context: OperationContext
@@ -638,7 +651,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             if doc_type == "mitigation"
             else self.settings.risks_url
         )
-        
+
         # Secure URL construction to prevent path injection
         # Validate filename contains no path traversal attempts
         if ".." in filename or "/" in filename or "\\" in filename:
@@ -653,7 +666,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                 },
             )
             return None
-            
+
         # Use urljoin for safe URL construction
         url = urljoin(base_url.rstrip("/") + "/", filename)
 

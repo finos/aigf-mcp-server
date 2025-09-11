@@ -210,7 +210,7 @@ class PackageSkeletonTester:
             # Check for key fields
             required_fields = [
                 'name = "finos-ai-governance-mcp-server"',
-                'version = "0.1.0-dev"',
+                'dynamic = ["version"]',
                 'finos-mcp = "finos_mcp.server:main"',
             ]
 
@@ -266,7 +266,8 @@ class PackageSkeletonTester:
                 self.log_test("PEP 518 Compliance", False, "Invalid build backend")
                 return False
 
-            if 'requires = ["setuptools>=61.0", "wheel"]' not in content:
+            # Check for essential build requirements (setuptools_scm is optional but valid)
+            if 'setuptools>=61.0' not in content or 'wheel' not in content:
                 self.log_test("PEP 518 Compliance", False, "Invalid build requirements")
                 return False
 
