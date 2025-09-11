@@ -83,10 +83,10 @@ python -c "import finos_mcp; print('✅ Ready!')"
 1. **Install MCP Server**
    ```bash
    git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
+   cd finos-mcp-server
+   python -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   pip install -e .
    ```
 
 2. **Create/Edit Configuration**
@@ -142,10 +142,10 @@ pip install -e .
 2. **Install MCP Server**
    ```bash
    git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
+   cd finos-mcp-server
+   python -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   pip install -e .
    ```
 
 3. **Create Configuration Directory**
@@ -174,10 +174,10 @@ pip install -e .
 1. **Install MCP Server**
    ```bash
    git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
+   cd finos-mcp-server
+   python -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   pip install -e .
    ```
 
 2. **Open Cursor Settings**
@@ -247,10 +247,10 @@ Windsurf supports MCP through its extension system or built-in configuration:
 1. **Install MCP Server**
    ```bash
    git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
+   cd finos-mcp-server
+   python -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   pip install -e .
    ```
 
 2. **Configure via Windsurf Settings**
@@ -306,10 +306,10 @@ Depends on the extension, but typically:
 2. **Install MCP Server**
    ```bash
    git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
+   cd finos-mcp-server
+   python -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   pip install -e .
    ```
 
 3. **Configure Through Extension**
