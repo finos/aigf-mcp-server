@@ -15,7 +15,7 @@ Complete guide for using the FINOS AI Governance MCP Server to access AI governa
 
 The FINOS AI Governance MCP Server provides access to comprehensive AI governance content including:
 - **17 Mitigations** (mi-1 through mi-17): AI governance strategies and controls
-- **17 Risk Assessments** (ri-1 through ri-23): AI risk evaluations and frameworks
+- **23 Risk Assessments** (ri-1 through ri-23): AI risk evaluations and frameworks
 
 All content is sourced from the official [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework).
 

@@ -240,7 +240,7 @@ List all available risk assessments with metadata.
       "uri": "finos://risks/ri-10_llm05-prompt-injection-and-jailbreaking.md"
     }
   ],
-  "total_count": 17
+  "total_count": 23
 }
 ```
 

@@ -22,7 +22,7 @@ Transform your AI governance workflow with enterprise-grade access to the [FINOS
 - [Features](#features)
 - [Technology Stack](#technology-stack)
 - [Documentation](#documentation)
-- [🔧 Development](#-development)
+- [🔧 Development](#development)
 - [About](#about)
 
 ---

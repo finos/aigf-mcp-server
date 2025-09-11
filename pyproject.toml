@@ -31,6 +31,10 @@ dependencies = [
     "PyYAML>=6.0.0",
     "pydantic>=2.0.0",
     "tenacity>=8.0.0",
+    # Security-focused validation libraries
+    "pathvalidate>=3.2.0",
+    "bleach>=6.1.0", 
+    "python-slugify>=8.0.0",
 ]
 
 [project.optional-dependencies]

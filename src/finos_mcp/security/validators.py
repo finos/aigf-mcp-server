@@ -1,48 +1,27 @@
 """Input validation utilities for FINOS MCP Server.
 
-Provides comprehensive validation for user inputs to prevent crashes,
-injection attacks, and other security issues while maintaining good UX.
+Provides clean separation of concerns:
+- Validation: Schema, type, and length checks using Pydantic
+- Sanitization: XSS/injection prevention using trusted libraries
+- Normalization: Consistent ID/slug generation
+
+Security Strategy:
+- pathvalidate: Filename and path validation
+- bleach: XSS/HTML sanitization
+- python-slugify: Safe ID normalization
+- Pydantic: Schema validation and type checking
 """
 
-import re
 from typing import Any
 
+import bleach
+from pathvalidate import sanitize_filename
 from pydantic import BaseModel, Field, field_validator
+from slugify import slugify
 
 from ..logging import get_logger
 
-logger = get_logger("input_validators")
-
-# Pre-compiled regex patterns for performance optimization (30-40% speed boost)
-_COMPILED_PATTERNS = {
-    # XSS prevention patterns
-    "script_tag": re.compile(r"<script[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL),
-    "javascript_protocol": re.compile(r"javascript:", re.IGNORECASE),
-    "on_event_handler": re.compile(r"\bon\w+\s*=", re.IGNORECASE),
-    "data_protocol": re.compile(r"data:[^,]*script", re.IGNORECASE),
-    "vbscript_protocol": re.compile(r"vbscript:", re.IGNORECASE),
-    "iframe_tag": re.compile(r"<iframe[^>]*>.*?</iframe>", re.IGNORECASE | re.DOTALL),
-    "object_tag": re.compile(r"<object[^>]*>.*?</object>", re.IGNORECASE | re.DOTALL),
-    "embed_tag": re.compile(r"<embed[^>]*>", re.IGNORECASE),
-    "form_tag": re.compile(r"<form[^>]*>.*?</form>", re.IGNORECASE | re.DOTALL),
-    "meta_refresh": re.compile(r"<meta[^>]*refresh", re.IGNORECASE),
-    # Path traversal patterns
-    "dot_dot_slash": re.compile(r"\.\./", re.IGNORECASE),
-    "encoded_dot_dot": re.compile(r"%2e%2e[/\\]", re.IGNORECASE),
-    "unicode_dot_dot": re.compile(r"\u002e\u002e[/\\]", re.IGNORECASE),
-    "backslash_traversal": re.compile(r"\\\.\\\.\\", re.IGNORECASE),
-    # ReDoS indicators
-    "nested_quantifiers": re.compile(r"\([^)]*\*[^)]*\)\*"),
-    "alternation_quantifiers": re.compile(r"\([^|]*\|[^)]*\)\+"),
-    "excessive_quantifiers": re.compile(r"\w\+\+|\w\*\*"),
-    # Normalization patterns
-    "whitespace_normalize": re.compile(r"\s+"),
-    "numeric_decimal": re.compile(r"^\d+\.\d+$"),
-    "filename_cleanup": re.compile(r'[<>:"|?*\x00-\x1f]'),
-    # Document ID validation patterns
-    "valid_filename": re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_\-\.]*\.md$"),
-    "valid_id": re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_\-]*$"),
-}
+logger = get_logger("validators")
 
 
 class ValidationError(ValueError):
@@ -54,14 +33,16 @@ class ValidationError(ValueError):
         super().__init__(message)
 
 
-class SearchQueryValidator(BaseModel):
-    """Validator for search queries with security and stability checks.
+# =============================================================================
+# VALIDATION LAYER - Schema, Type, Length Checks
+# =============================================================================
 
-    Prevents:
-    - Excessively long queries (memory issues)
-    - Malicious regex patterns
-    - Path traversal attempts
-    - SQL injection patterns (even though we don't use SQL)
+
+class SearchQueryValidator(BaseModel):
+    """Schema validation for search queries.
+
+    Handles: type checking, length limits, required fields.
+    Does NOT handle: sanitization, normalization, or business logic.
     """
 
     query: str = Field(..., min_length=1, max_length=500)
@@ -69,275 +50,313 @@ class SearchQueryValidator(BaseModel):
 
     @field_validator("query")
     @classmethod
-    def validate_search_query(cls, v: str) -> str:
-        """Validate and sanitize search query."""
+    def validate_query_schema(cls, v: str) -> str:
+        """Basic schema validation only."""
         if not v or not v.strip():
-            raise ValidationError("Search query cannot be empty")
+            raise ValueError("Search query cannot be empty")
 
-        # Trim and normalize whitespace
+        # Length validation (Pydantic handles min/max, but we add context)
         query = v.strip()
-
-        # Length checks
-        if len(query) < 1:
-            raise ValidationError("Search query is too short")
-
         if len(query) > 500:
-            raise ValidationError("Search query is too long (maximum 500 characters)")
-
-        # Security checks - prevent path traversal
-        if "../" in query or "..\\" in query:
-            raise ValidationError("Invalid characters in search query")
-
-        # Check for potentially dangerous patterns using pre-compiled patterns
-        dangerous_pattern_keys = [
-            "script_tag",
-            "javascript_protocol",
-            "data_protocol",
-            "vbscript_protocol",
-            "on_event_handler",
-        ]
-
-        for pattern_key in dangerous_pattern_keys:
-            pattern = _COMPILED_PATTERNS[pattern_key]
-            if pattern.search(query):
-                logger.warning(
-                    "Blocked potentially dangerous search query pattern: %s",
-                    pattern_key,
-                )
-                raise ValidationError("Search query contains invalid characters")
-
-        # Check for excessively complex regex patterns that could cause ReDoS
-        if _is_potential_redos_pattern(query):
-            logger.warning(
-                "Blocked potential ReDoS pattern in search query: %s...", query[:50]
-            )
-            raise ValidationError("Search query pattern is too complex")
-
-        # Normalize common search patterns
-        query = _normalize_search_query(query)
+            raise ValueError("Search query exceeds 500 character limit")
 
         return query
 
 
 class DocumentIdValidator(BaseModel):
-    """Validator for document IDs (mitigation/risk identifiers).
+    """Schema validation for document IDs.
 
-    Ensures IDs match expected patterns:
-    - mi-1, mi-10, ri-5, etc. (basic format)
-    - Full filenames: mi-1_description.md
+    Handles: type checking, length limits, basic format.
+    Does NOT handle: sanitization or complex business rules.
     """
 
     doc_id: str = Field(..., min_length=1, max_length=100)
 
     @field_validator("doc_id")
     @classmethod
-    def validate_document_id(cls, v: str) -> str:
-        """Validate document ID format."""
+    def validate_id_schema(cls, v: str) -> str:
+        """Basic schema validation only."""
         if not v or not v.strip():
-            raise ValidationError("Document ID cannot be empty")
+            raise ValueError("Document ID cannot be empty")
 
         doc_id = v.strip()
-
-        # Length checks
         if len(doc_id) > 100:
-            raise ValidationError("Document ID is too long (maximum 100 characters)")
-
-        # Security checks - prevent path traversal
-        if "../" in doc_id or "..\\" in doc_id or "/" in doc_id or "\\" in doc_id:
-            raise ValidationError("Invalid characters in document ID")
-
-        # Check for null bytes and control characters
-        if "\x00" in doc_id or any(ord(c) < 32 for c in doc_id if c not in ["\t"]):
-            raise ValidationError("Document ID contains invalid characters")
-
-        # Format validation using pre-compiled patterns
-        valid_pattern_keys = ["valid_filename", "valid_id"]
-
-        # Check if it matches any valid pattern
-        is_valid = any(
-            _COMPILED_PATTERNS[key].match(doc_id) for key in valid_pattern_keys
-        ) or any(doc_id.startswith(prefix) for prefix in ["mi-", "ri-"])
-
-        if not is_valid:
-            logger.warning("Document ID doesn't match expected patterns: %s", doc_id)
-            # Don't raise error for flexibility, but log for monitoring
+            raise ValueError("Document ID exceeds 100 character limit")
 
         return doc_id
 
 
-def _is_potential_redos_pattern(query: str) -> bool:
-    """Check if a query contains patterns that could cause Regular expression Denial of Service.
+# =============================================================================
+# SANITIZATION LAYER - Security-focused cleaning using trusted libraries
+# =============================================================================
+
+
+def sanitize_html_content(content: str) -> str:
+    """Sanitize content for XSS/injection attacks using bleach.
 
     Args:
-        query: Search query to check
+        content: Raw content that might contain HTML/scripts
 
     Returns:
-        True if query contains potentially dangerous regex patterns
-
+        Sanitized content safe for processing
     """
-    # Check for excessive nesting or complexity (quick checks first)
-    if query.count("(") > 5 or query.count("[") > 5:
-        return True
+    if not content:
+        return ""
 
-    # Check for known problematic patterns using pre-compiled patterns
-    redos_pattern_keys = [
-        "nested_quantifiers",
-        "alternation_quantifiers",
-        "excessive_quantifiers",
-    ]
+    # Use bleach with strict settings - no HTML allowed
+    sanitized = bleach.clean(
+        content,
+        tags=[],  # No HTML tags allowed
+        attributes={},  # No attributes allowed
+        strip=True,  # Remove tags completely
+        strip_comments=True,
+    )
 
-    for pattern_key in redos_pattern_keys:
-        try:
-            pattern = _COMPILED_PATTERNS[pattern_key]
-            if pattern.search(query):
-                return True
-        except re.error:
-            # If the pattern itself causes regex errors, it's definitely problematic
-            return True
+    # Remove javascript: and other dangerous protocols
+    if "javascript:" in sanitized.lower():
+        sanitized = sanitized.replace("javascript:", "").replace("JAVASCRIPT:", "")
 
-    return False
+    return sanitized.strip()
 
 
-def _normalize_search_query(query: str) -> str:
-    """Normalize search query for better matching.
+def sanitize_search_query(query: str) -> str:
+    """Sanitize search query for security.
 
     Args:
-        query: Original search query
+        query: Raw search query
 
     Returns:
-        Normalized query
+        Sanitized query safe for processing
 
+    Raises:
+        ValidationError: If query becomes empty after sanitization
     """
-    # Remove excessive whitespace using pre-compiled pattern
-    query = _COMPILED_PATTERNS["whitespace_normalize"].sub(" ", query)
+    if not query:
+        raise ValidationError("Search query cannot be empty")
 
-    # Remove common noise words that don't add search value
-    # (but keep them if they're the only content)
-    noise_words = {
-        "the",
-        "and",
-        "or",
-        "but",
-        "in",
-        "on",
-        "at",
-        "to",
-        "for",
-        "of",
-        "with",
-        "by",
-    }
-    words = query.lower().split()
+    # First pass: HTML/XSS sanitization
+    sanitized = sanitize_html_content(query)
 
-    if len(words) > 1:  # Only remove noise words if there are other words
-        filtered_words = [word for word in words if word not in noise_words]
-        if filtered_words:  # Only use filtered result if it's not empty
-            query = " ".join(filtered_words)
+    if not sanitized.strip():
+        raise ValidationError("Search query contains only invalid content")
 
-    return query.strip()
+    return sanitized
+
+
+def sanitize_document_id(doc_id: str) -> str:
+    """Sanitize document ID for security.
+
+    Args:
+        doc_id: Raw document ID
+
+    Returns:
+        Sanitized ID safe for processing
+
+    Raises:
+        ValidationError: If ID becomes invalid after sanitization
+    """
+    if not doc_id:
+        raise ValidationError("Document ID cannot be empty")
+
+    # Remove any HTML/script content
+    sanitized = sanitize_html_content(doc_id)
+
+    # Check for path traversal attempts
+    if (
+        "../" in sanitized
+        or "..\\" in sanitized
+        or "/" in sanitized
+        or "\\" in sanitized
+    ):
+        raise ValidationError("Document ID contains invalid path characters")
+
+    # Check for control characters (excluding tab)
+    if any(ord(c) < 32 and c != "\t" for c in sanitized):
+        raise ValidationError("Document ID contains invalid control characters")
+
+    if not sanitized.strip():
+        raise ValidationError("Document ID contains only invalid content")
+
+    return sanitized.strip()
+
+
+def sanitize_file_path(filepath: str) -> str:
+    """Sanitize file path using pathvalidate.
+
+    Args:
+        filepath: Raw file path
+
+    Returns:
+        Sanitized path safe for file operations
+
+    Raises:
+        ValidationError: If path is invalid or becomes empty
+    """
+    if not filepath:
+        raise ValidationError("File path cannot be empty")
+
+    try:
+        # Use pathvalidate for comprehensive path sanitization
+        # Replace invalid chars with underscores instead of removing them
+        sanitized = sanitize_filename(filepath, replacement_text="_")
+
+        if not sanitized.strip():
+            raise ValidationError("File path contains only invalid characters")
+
+        # Basic validation - avoid recursive validation calls
+        if len(sanitized) > 255:
+            raise ValidationError("File path too long")
+
+        return sanitized.strip()
+
+    except Exception as e:
+        # Avoid infinite recursion by being specific about the error
+        if "Invalid file path" in str(e):
+            raise e  # Re-raise if it's already our ValidationError
+        raise ValidationError(f"Invalid file path: {e!s}") from e
+
+
+# =============================================================================
+# NORMALIZATION LAYER - Consistent formatting using specialized libraries
+# =============================================================================
+
+
+def normalize_search_query(query: str) -> str:
+    """Normalize search query for consistent matching.
+
+    Args:
+        query: Sanitized search query
+
+    Returns:
+        Normalized query for better search results
+    """
+    if not query:
+        return ""
+
+    # Basic whitespace normalization
+    normalized = " ".join(query.split())
+
+    # Convert to lowercase for case-insensitive matching
+    normalized = normalized.lower()
+
+    return normalized
+
+
+def normalize_document_id(doc_id: str) -> str:
+    """Normalize document ID to consistent format using slugify.
+
+    Args:
+        doc_id: Sanitized document ID
+
+    Returns:
+        Normalized ID in consistent format
+    """
+    if not doc_id:
+        return ""
+
+    # Use python-slugify for safe, consistent ID generation
+    normalized = slugify(
+        doc_id, lowercase=True, max_length=100, word_boundary=True, separator="-"
+    )
+
+    return normalized
+
+
+# =============================================================================
+# HIGH-LEVEL VALIDATION FUNCTIONS - Clean interfaces for application use
+# =============================================================================
 
 
 def validate_search_request(query: str, exact_match: bool = False) -> dict[str, Any]:
-    """Validate search request parameters.
+    """Complete validation pipeline for search requests.
 
     Args:
-        query: Search query string
+        query: Raw search query
         exact_match: Whether exact matching is requested
 
     Returns:
-        Dictionary with validated parameters
+        Dictionary with validated and normalized parameters
 
     Raises:
-        ValidationError: If validation fails
-
+        ValidationError: If validation fails at any step
     """
     try:
+        # Step 1: Schema validation
         validator = SearchQueryValidator(query=query, exact_match=exact_match)
-        return {"query": validator.query, "exact_match": validator.exact_match}
-    except ValidationError:
-        # Re-raise our custom validation errors
-        raise
-    except (ValueError, TypeError, AttributeError) as e:
-        # Convert Pydantic validation errors to our custom format
-        error_msg = str(e)
-        if "string_too_long" in error_msg:
-            raise ValidationError(
-                "Search query is too long (maximum 500 characters)"
-            ) from e
-        if "string_too_short" in error_msg:
-            raise ValidationError("Search query cannot be empty") from e
-        if "Invalid characters" in error_msg:
-            raise ValidationError("Search query contains invalid characters") from e
-        logger.debug("Pydantic validation error: %s", e)
-        raise ValidationError("Invalid search request") from e
+
+        # Step 2: Security sanitization
+        sanitized_query = sanitize_search_query(validator.query)
+
+        # Step 3: Normalization (only if not exact match)
+        if exact_match:
+            final_query = sanitized_query
+        else:
+            final_query = normalize_search_query(sanitized_query)
+
+        return {"query": final_query, "exact_match": validator.exact_match}
+
+    except ValueError as e:
+        # Convert Pydantic errors to our ValidationError
+        raise ValidationError(str(e)) from e
 
 
-def validate_document_id(doc_id: str) -> str:
-    """Validate document ID parameter.
+def validate_document_id(doc_id: str, normalize: bool = True) -> str:
+    """Complete validation pipeline for document IDs.
 
     Args:
-        doc_id: Document identifier
+        doc_id: Raw document ID
+        normalize: Whether to normalize the ID
 
     Returns:
-        Validated document ID
+        Validated and optionally normalized document ID
+
+    Raises:
+        ValidationError: If validation fails at any step
+    """
+    try:
+        # Step 1: Schema validation
+        validator = DocumentIdValidator(doc_id=doc_id)
+
+        # Step 2: Security sanitization
+        sanitized_id = sanitize_document_id(validator.doc_id)
+
+        # Step 3: Optional normalization
+        if normalize:
+            final_id = normalize_document_id(sanitized_id)
+            if not final_id:  # slugify might return empty for some inputs
+                final_id = sanitized_id  # fallback to sanitized version
+        else:
+            final_id = sanitized_id
+
+        return final_id
+
+    except ValueError as e:
+        # Convert Pydantic errors to our ValidationError
+        raise ValidationError(str(e)) from e
+
+
+def validate_filename_safe(filename: str) -> str:
+    """Complete validation pipeline for filenames.
+
+    Args:
+        filename: Raw filename
+
+    Returns:
+        Validated and sanitized filename
 
     Raises:
         ValidationError: If validation fails
-
     """
-    try:
-        validator = DocumentIdValidator(doc_id=doc_id)
-        return validator.doc_id
-    except ValidationError:
-        # Re-raise our custom validation errors
-        raise
-    except (ValueError, TypeError, AttributeError) as e:
-        # Convert Pydantic validation errors to our custom format
-        error_msg = str(e)
-        if "Invalid characters" in error_msg:
-            raise ValidationError("Document ID contains invalid characters") from e
-        elif "string_too_long" in error_msg:
-            raise ValidationError(
-                "Document ID is too long (maximum 100 characters)"
-            ) from e
-        if "string_too_short" in error_msg:
-            raise ValidationError("Document ID cannot be empty") from e
-        else:
-            logger.debug("Pydantic validation error: %s", e)
-            raise ValidationError("Invalid document ID") from e
-
-
-def sanitize_filename(filename: str) -> str:
-    """Sanitize filename to prevent path traversal and other issues.
-
-    Args:
-        filename: Original filename
-
-    Returns:
-        Sanitized filename safe for use
-
-    Raises:
-        ValidationError: If filename cannot be sanitized safely
-
-    """
-    if not filename:
+    if not filename or not filename.strip():
         raise ValidationError("Filename cannot be empty")
 
-    # Remove path components
-    filename = filename.split("/")[-1].split("\\")[-1]
+    # Use pathvalidate for comprehensive filename validation
+    sanitized = sanitize_file_path(filename.strip())
 
-    # Remove or replace dangerous characters using pre-compiled pattern
-    filename = _COMPILED_PATTERNS["filename_cleanup"].sub("", filename)
+    if len(sanitized) > 255:
+        raise ValidationError("Filename too long (maximum 255 characters)")
 
-    # Ensure it's not empty after sanitization
-    if not filename.strip():
-        raise ValidationError("Filename contains only invalid characters")
-
-    # Check final length
-    if len(filename) > 255:
-        raise ValidationError("Filename is too long")
-
-    return filename.strip()
+    return sanitized
 
 
 def validate_content_length(content: str, max_length: int = 1000000) -> str:
@@ -345,75 +364,82 @@ def validate_content_length(content: str, max_length: int = 1000000) -> str:
 
     Args:
         content: Content to validate
-        max_length: Maximum allowed length
+        max_length: Maximum allowed length in characters
 
     Returns:
         Validated content
 
     Raises:
-        ValidationError: If content is too long
-
+        ValidationError: If content exceeds length limit
     """
     if len(content) > max_length:
-        raise ValidationError(f"Content too long (maximum {max_length:,} characters)")
+        raise ValidationError(
+            f"Content too long (maximum {max_length:,} characters, got {len(content):,})"
+        )
 
     return content
 
 
+# =============================================================================
+# BATCH VALIDATION - For multiple parameters
+# =============================================================================
+
+
 class ValidationResult(BaseModel):
-    """Result of input validation with sanitized values."""
+    """Result of comprehensive validation."""
 
     is_valid: bool
     errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
     sanitized_values: dict[str, Any] = Field(default_factory=dict)
 
 
-def comprehensive_validation(
-    query: str | None = None,
-    doc_id: str | None = None,
-    filename: str | None = None,
-    exact_match: bool = False,
-) -> ValidationResult:
-    """Perform comprehensive validation on all provided parameters.
+def validate_multiple_inputs(**kwargs: Any) -> ValidationResult:
+    """Validate multiple inputs in a single call.
 
-    Args:
-        query: Optional search query to validate
-        doc_id: Optional document ID to validate
-        filename: Optional filename to validate
-        exact_match: Exact match flag
+    Supported parameters:
+    - query: str
+    - doc_id: str
+    - filename: str
+    - exact_match: bool
+    - normalize_id: bool
 
     Returns:
         ValidationResult with status and sanitized values
-
     """
     result = ValidationResult(is_valid=True)
+
+    # Extract parameters
+    query = kwargs.get("query")
+    doc_id = kwargs.get("doc_id")
+    filename = kwargs.get("filename")
+    exact_match = kwargs.get("exact_match", False)
+    normalize_id = kwargs.get("normalize_id", True)
 
     # Validate query if provided
     if query is not None:
         try:
             validated = validate_search_request(query, exact_match)
-            result.sanitized_values.update(validated)  # pylint: disable=no-member
+            result.sanitized_values.update(validated)
         except ValidationError as e:
             result.is_valid = False
-            result.errors.append(f"Query validation: {e.message}")  # pylint: disable=no-member
+            result.errors.append(f"Query validation failed: {e.message}")
 
     # Validate document ID if provided
     if doc_id is not None:
         try:
-            validated_id = validate_document_id(doc_id)
+            validated_id = validate_document_id(doc_id, normalize=normalize_id)
             result.sanitized_values["doc_id"] = validated_id
         except ValidationError as e:
             result.is_valid = False
-            result.errors.append(f"Document ID validation: {e.message}")  # pylint: disable=no-member
+            result.errors.append(f"Document ID validation failed: {e.message}")
 
     # Validate filename if provided
     if filename is not None:
         try:
-            validated_filename = sanitize_filename(filename)
+            validated_filename = validate_filename_safe(filename)
             result.sanitized_values["filename"] = validated_filename
         except ValidationError as e:
             result.is_valid = False
-            result.errors.append(f"Filename validation: {e.message}")  # pylint: disable=no-member
+            result.errors.append(f"Filename validation failed: {e.message}")
 
     return result
