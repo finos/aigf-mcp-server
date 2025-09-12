@@ -33,6 +33,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
+from urllib.parse import urljoin
 
 from ..config import get_settings
 from ..health import get_health_monitor
@@ -470,21 +471,34 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             Fetched content or None if failed
 
         """
-        async with self.fetch_boundary.protect():
-            http_client = await self._get_http_client()
-            content = await http_client.fetch_text(url)
+        try:
+            async with self.fetch_boundary.protect():
+                http_client = await self._get_http_client()
+                content = await http_client.fetch_text(url)
 
+                self.logger.debug(
+                    "Content fetched successfully: %s characters",
+                    len(content),
+                    extra={
+                        "operation_id": context.operation_id,
+                        "url": url,
+                        "content_length": len(content),
+                    },
+                )
+
+                return content
+
+        except Exception as e:
             self.logger.debug(
-                "Content fetched successfully: %s characters",
-                len(content),
+                "Failed to fetch content: %s",
+                str(e),
                 extra={
                     "operation_id": context.operation_id,
                     "url": url,
-                    "content_length": len(content),
+                    "error_type": type(e).__name__,
                 },
             )
-
-            return content
+            return None
 
     async def _parse_content_with_boundary(
         self, content: str, context: OperationContext
@@ -637,7 +651,24 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             if doc_type == "mitigation"
             else self.settings.risks_url
         )
-        url = f"{base_url}/{filename}"
+
+        # Secure URL construction to prevent path injection
+        # Validate filename contains no path traversal attempts
+        if ".." in filename or "/" in filename or "\\" in filename:
+            self.failed_requests += 1
+            self.logger.error(
+                "Invalid filename with path traversal attempt: %s",
+                filename,
+                extra={
+                    "operation_id": operation_id,
+                    "security_violation": "path_traversal_attempt",
+                    "filename": filename,
+                },
+            )
+            return None
+
+        # Use urljoin for safe URL construction
+        url = urljoin(base_url.rstrip("/") + "/", filename)
 
         context = OperationContext(
             operation_id=operation_id,
@@ -696,8 +727,10 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                     filename,
                     extra={
                         "operation_id": operation_id,
-                        "url": url,
                         "result": OperationResult.FAILURE.value,
+                        # Avoid logging full URL to prevent information disclosure
+                        "doc_type": doc_type,
+                        "filename": filename,
                     },
                 )
 
@@ -789,8 +822,12 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                     "operation_id": operation_id,
                     "result": OperationResult.FAILURE.value,
                     "error_type": type(e).__name__,
-                    "error": str(e),
-                    "traceback": traceback.format_exc(),
+                    # Sanitize error message to avoid information disclosure
+                    "error": str(e)[:200] if str(e) else "Unknown error",
+                    # Include traceback only in debug mode to avoid information leakage
+                    "debug_traceback": traceback.format_exc()
+                    if self.settings.debug_mode
+                    else None,
                 },
             )
 

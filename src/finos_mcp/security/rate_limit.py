@@ -22,12 +22,14 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar
 
 import httpx
 
 from ..config import get_settings
 from ..logging import get_logger
+
+T = TypeVar("T")
 
 logger = get_logger("rate_limiter")
 
@@ -178,8 +180,8 @@ class RateLimiter:
         return min(base_delay, 300)  # Max 5 minutes
 
     async def execute_with_retry(
-        self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any
-    ) -> Any:
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """Execute a function with retry logic and rate limiting.
 
         Args:
@@ -307,6 +309,9 @@ class RateLimiter:
         # All retries exhausted
         if last_exception:
             raise last_exception
+
+        # This should never happen, but satisfy MyPy
+        raise RuntimeError("Function completed without success or exception")
 
 
 class RateLimiterManager:

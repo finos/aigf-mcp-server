@@ -107,9 +107,9 @@ run_test() {
     local command="$2"
     local success_msg="$3"
     local error_msg="$4"
-    
+
     log_info "Running $test_name..."
-    
+
     if eval "$command" > /tmp/dev_test_output 2>&1; then
         log_success "$success_msg"
         return 0
@@ -126,9 +126,9 @@ run_test() {
 # Initialize testing environment
 init_testing() {
     log_section "🧪 FINOS AI Governance MCP Server - Development Testing"
-    
+
     cd "$PROJECT_ROOT"
-    
+
     # Check if we're in a virtual environment
     if [[ -z "${VIRTUAL_ENV:-}" ]]; then
         log_warning "No virtual environment detected"
@@ -141,16 +141,16 @@ init_testing() {
             exit 1
         fi
     fi
-    
+
     log_info "Using Python: $(which python)"
     log_info "Virtual environment: ${VIRTUAL_ENV}"
-    
+
     # Check for pytest
     if ! command_exists pytest; then
         log_error "pytest is not installed. Run 'pip install pytest' or scripts/dev-setup.sh"
         exit 1
     fi
-    
+
     # Show test configuration
     echo
     echo "🎯 Test configuration:"
@@ -167,9 +167,9 @@ test_package_import() {
     if [[ "$RUN_IMPORT_TEST" != true ]]; then
         return 0
     fi
-    
+
     log_section "📦 Package Import Test"
-    
+
     run_test "Package import" \
         "python -c 'import finos_mcp; print(\"Package version:\", finos_mcp.__version__)'" \
         "Package imports successfully" \
@@ -181,19 +181,19 @@ run_unit_tests() {
     if [[ "$RUN_UNIT_TESTS" != true ]]; then
         return 0
     fi
-    
+
     log_section "🔬 Unit Tests"
-    
+
     local pytest_cmd="pytest tests/unit/ -v"
-    
+
     if [[ "$COVERAGE_REPORT" == true ]]; then
         pytest_cmd="$pytest_cmd --cov=finos_mcp --cov-report=term-missing"
     fi
-    
+
     if [[ "$QUICK_MODE" == true ]]; then
         pytest_cmd="$pytest_cmd -x"  # Stop on first failure
     fi
-    
+
     run_test "Unit tests" \
         "$pytest_cmd" \
         "Unit tests passed" \
@@ -205,15 +205,15 @@ run_integration_tests() {
     if [[ "$RUN_INTEGRATION_TESTS" != true ]]; then
         return 0
     fi
-    
+
     log_section "🔗 Integration Tests"
-    
+
     local pytest_cmd="pytest tests/integration/ -v"
-    
+
     if [[ "$QUICK_MODE" == true ]]; then
         pytest_cmd="$pytest_cmd -x"  # Stop on first failure
     fi
-    
+
     # Check if simple test exists and run it first
     if [[ -f "tests/integration/simple_test.py" ]]; then
         run_test "Simple integration test" \
@@ -221,7 +221,7 @@ run_integration_tests() {
             "Simple integration test passed" \
             "Simple integration test failed"
     fi
-    
+
     run_test "Integration tests" \
         "$pytest_cmd" \
         "Integration tests passed" \
@@ -233,21 +233,21 @@ run_basic_validation() {
     if [[ "$RUN_BASIC_VALIDATION" != true ]]; then
         return 0
     fi
-    
+
     log_section "✅ Basic Validation"
-    
+
     # Test console script
     run_test "Console script availability" \
         "finos-mcp --help" \
         "Console script works" \
         "Console script failed"
-    
+
     # Test configuration loading
     run_test "Configuration validation" \
         "python -c 'from finos_mcp.config import get_settings; get_settings(); print(\"Config OK\")'" \
         "Configuration loads successfully" \
         "Configuration loading failed"
-    
+
     # Test basic server functionality (if available)
     if [[ -f "$PROJECT_ROOT/tests/run_stability_validation.py" ]]; then
         log_info "Running smoke test from stability validation..."
@@ -267,14 +267,14 @@ generate_coverage_report() {
     if [[ "$COVERAGE_REPORT" != true ]]; then
         return 0
     fi
-    
+
     log_section "📊 Coverage Report"
-    
+
     if command_exists coverage; then
         log_info "Generating HTML coverage report..."
         coverage html --directory=htmlcov
         log_success "Coverage report generated at htmlcov/index.html"
-        
+
         # Show coverage summary
         if coverage report > /tmp/coverage_summary 2>&1; then
             echo
@@ -289,7 +289,7 @@ generate_coverage_report() {
 # Show development workflow suggestions
 show_development_tips() {
     log_section "💡 Development Workflow Tips"
-    
+
     echo "🚀 Quick development iteration:"
     echo "  1. Make your changes"
     echo "  2. Run: ./scripts/dev-test.sh --quick"
@@ -314,11 +314,11 @@ show_development_tips() {
 print_test_summary() {
     echo
     log_section "📋 Development Test Summary"
-    
+
     local duration="$SECONDS"
     local minutes=$((duration / 60))
     local seconds=$((duration % 60))
-    
+
     if [[ $EXIT_CODE -eq 0 ]]; then
         echo -e "${GREEN}🎉 ALL DEVELOPMENT TESTS PASSED!${NC}"
         echo
@@ -331,7 +331,7 @@ print_test_summary() {
         echo "  • Basic validation: $([ "$RUN_BASIC_VALIDATION" == true ] && echo "✅ Passed" || echo "⏭️  Skipped")"
         echo
         echo -e "${GREEN}🚀 Ready for development! Your changes are working correctly.${NC}"
-        
+
         # Show next steps based on what was run
         if [[ "$QUICK_MODE" == true ]]; then
             echo
@@ -350,7 +350,7 @@ print_test_summary() {
         echo "  • Use debugger: pytest --pdb"
         echo "  • Check logs and error messages carefully"
     fi
-    
+
     show_development_tips
 }
 
@@ -363,23 +363,23 @@ cleanup() {
 main() {
     # Record start time
     local start_time=$SECONDS
-    
+
     # Set up cleanup on exit
     trap cleanup EXIT
-    
+
     init_testing
-    
+
     # Run all requested tests
     test_package_import
     run_unit_tests
     run_integration_tests
     run_basic_validation
     generate_coverage_report
-    
+
     # Calculate duration
     SECONDS=$start_time
     print_test_summary
-    
+
     exit $EXIT_CODE
 }
 

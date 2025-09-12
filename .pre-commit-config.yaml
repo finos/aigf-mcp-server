@@ -3,7 +3,7 @@
 repos:
   # Python code formatting and linting - Ruff handles everything
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.8
+    rev: v0.12.11
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
@@ -11,14 +11,14 @@ repos:
       - id: ruff-format
         types_or: [python, pyi]
 
-  # Python type checking
+  # Python type checking - STRICT (matches CI requirements)
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+    rev: v1.17.1
     hooks:
       - id: mypy
-        additional_dependencies: [types-requests, httpx, mcp, types-PyYAML]
-        args: [--ignore-missing-imports, --no-strict-optional, --python-version=3.10, --disable-error-code=no-untyped-def, --disable-error-code=misc, --disable-error-code=no-any-return, --disable-error-code=dict-item, --disable-error-code=arg-type, --disable-error-code=unreachable]
-        exclude: ^(scripts/|tests/integration/test_live_mcp_server\.py)
+        additional_dependencies: [types-bleach, types-requests, httpx, mcp, types-PyYAML, pathvalidate, python-slugify, tenacity]
+        args: [--show-error-codes, --show-error-context, --strict-optional, --warn-redundant-casts, --warn-unused-ignores]
+        files: ^src/.*\.py$
 
   # Advanced security scanning with Semgrep (Ruff handles basic security via flake8-bandit)
   - repo: https://github.com/semgrep/semgrep

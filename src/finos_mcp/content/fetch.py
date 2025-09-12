@@ -187,9 +187,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                 keepalive_expiry=30.0,
             ),
             follow_redirects=True,
-            headers={
-                "User-Agent": f"finos-mcp/{getattr(self.settings, 'server_version', '0.1.0-dev')}"
-            },
+            headers={"User-Agent": f"finos-mcp/{self.settings.server_version}"},
         )
 
     def _get_circuit_breaker(self, url: str) -> CircuitBreaker:
@@ -480,7 +478,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
         """
         response = await self.get(url, **kwargs)
         response.raise_for_status()
-        return response.json()
+        return response.json()  # type: ignore[no-any-return]
 
     async def fetch_bytes(self, url: str, **kwargs: Any) -> bytes:
         """Fetch binary content from URL.

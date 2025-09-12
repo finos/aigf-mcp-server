@@ -31,6 +31,10 @@ dependencies = [
     "PyYAML>=6.0.0",
     "pydantic>=2.0.0",
     "tenacity>=8.0.0",
+    # Security-focused validation libraries
+    "pathvalidate>=3.2.0",
+    "bleach>=6.1.0",
+    "python-slugify>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +44,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
     "mypy>=1.5.0",
+    "types-bleach>=6.2.0.20250809",
     "pip-tools>=7.0.0",
     "pre-commit>=3.0.0",
 ]
@@ -124,22 +129,39 @@ exclude = [
     "tests/integration/test_live_mcp_server.py", # Complex MCP types need refinement
 ]
 python_version = "3.10"
+strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
-disallow_untyped_decorators = true
+disallow_untyped_decorators = false
+disallow_any_unimported = true
+disallow_subclassing_any = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+show_error_codes = true
+color_output = true
+pretty = true
+follow_imports = "normal"
+ignore_missing_imports = false
+namespace_packages = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "mcp.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pytest.*", "pytest_asyncio.*", "yaml.*", "pre_commit.*", "bandit.*", "ruff.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -154,6 +176,14 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "mcp: MCP protocol tests",
+    "console: Console script tests",
+    "slow: Slow running tests",
+    "asyncio: Async tests",
+]
 
 [tool.coverage.run]
 source = ["src"]

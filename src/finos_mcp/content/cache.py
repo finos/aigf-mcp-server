@@ -318,18 +318,18 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             logger.warning("Compression failed, using original value: %s", e)
             return value, self._estimate_uncompressed_size(value)
 
-    def _decompress_value(self, stored_value: Any) -> Any:
+    def _decompress_value(self, stored_value: Any) -> T:
         """Decompress value if it was compressed."""
         if not self.enable_compression or not isinstance(stored_value, bytes):
-            return stored_value
+            return stored_value  # type: ignore[no-any-return]
 
         try:
             # Try to decompress - if it fails, assume it's not compressed
             decompressed = gzip.decompress(stored_value)
-            return pickle.loads(decompressed)  # nosec B301 - Only internal cache data
+            return pickle.loads(decompressed)  # type: ignore[no-any-return] # nosec B301
         except (gzip.BadGzipFile, pickle.PickleError, TypeError, ValueError):
             # If decompression fails, return as-is (likely not compressed)
-            return stored_value
+            return stored_value  # type: ignore[return-value]
 
     def _estimate_uncompressed_size(self, value: T) -> int:
         """Estimate size of uncompressed value in bytes."""

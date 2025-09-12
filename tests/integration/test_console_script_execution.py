@@ -11,29 +11,41 @@ import sys
 import time
 
 
-def test_console_script_startup() -> None:
+def test_console_script_startup() -> bool:
     """Test that finos-mcp console script starts without errors"""
     print("🧪 Testing Console Script Startup...")
 
     try:
         # Test 1: Console script exists and is executable
-        result = subprocess.run(
-            ["which", "finos-mcp"], capture_output=True, text=True, timeout=10
-        )
+        # Prefer virtual environment script if available
+        import os
 
-        if result.returncode != 0:
-            print("❌ Console script 'finos-mcp' not found in PATH")
-            print("   Make sure you ran 'pip install -e .' first")
-            raise AssertionError("Console script 'finos-mcp' not found in PATH")
+        venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
 
-        script_path = result.stdout.strip()
+        if os.path.exists(venv_script):
+            script_path = venv_script
+        else:
+            result = subprocess.run(
+                ["which", "finos-mcp"], capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode != 0:
+                print(
+                    "❌ Console script 'finos-mcp' not found in PATH or virtual environment"
+                )
+                print("   Make sure you ran 'pip install -e .' first")
+                raise AssertionError(
+                    "Console script 'finos-mcp' not found in PATH or virtual environment"
+                )
+
+            script_path = result.stdout.strip()
         print(f"✅ Console script found at: {script_path}")
 
         # Test 2: Console script starts without immediate errors
         print("🚀 Testing server startup (should not crash immediately)...")
 
         process = subprocess.Popen(
-            ["finos-mcp"],
+            [script_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -130,7 +142,8 @@ def test_console_script_startup() -> None:
                 process.wait()
 
         # Test completed successfully
-        assert True  # Explicit assertion instead of return
+        print("✅ Server responded to MCP initialization")
+        return True
 
     except subprocess.TimeoutExpired:
         print("❌ Console script test timed out")
@@ -140,9 +153,15 @@ def test_console_script_startup() -> None:
         raise AssertionError(f"Console script test failed with error: {e}") from None
 
 
-def test_console_script_vs_direct_module() -> None:
+def test_console_script_vs_direct_module() -> bool:
     """Test that console script and direct module execution have same behavior"""
     print("\n🔄 Testing Console Script vs Direct Module Execution...")
+
+    # Get script path (same logic as in startup test)
+    import os
+
+    venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
+    script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
 
     def start_and_test(command: list[str], description: str) -> tuple[bool, str]:
         """Helper to start server and test basic behavior"""
@@ -183,7 +202,7 @@ def test_console_script_vs_direct_module() -> None:
             return False, str(e)
 
     # Test console script
-    console_success, console_msg = start_and_test(["finos-mcp"], "console script")
+    console_success, console_msg = start_and_test([script_path], "console script")
     print(f"   Console Script: {'✅' if console_success else '❌'} {console_msg}")
 
     # Test direct module
@@ -195,20 +214,26 @@ def test_console_script_vs_direct_module() -> None:
     # Both should succeed
     if console_success and module_success:
         print("✅ Both execution methods work consistently")
-        assert True  # Explicit assertion instead of return
+        return True
     else:
         print("❌ Inconsistent behavior between execution methods")
         raise AssertionError("Inconsistent behavior between execution methods")
 
 
-def test_console_script_error_handling() -> None:
+def test_console_script_error_handling() -> bool:
     """Test that console script handles errors gracefully"""
     print("\n🛡️  Testing Error Handling...")
+
+    # Get script path (same logic as in startup test)
+    import os
+
+    venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
+    script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
 
     try:
         # Test with invalid JSON input
         process = subprocess.Popen(
-            ["finos-mcp"],
+            [script_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -246,7 +271,7 @@ def test_console_script_error_handling() -> None:
             process.wait()
 
         # Test passed
-        assert True  # Explicit assertion instead of return
+        return True
 
     except Exception as e:
         print(f"❌ Error handling test failed: {e}")

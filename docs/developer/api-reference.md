@@ -33,8 +33,8 @@ Complete API reference for developers working with the FINOS AI Governance MCP S
   "capabilities": {
     "tools": {},
     "resources": {
-      "subscribe": true,
-      "listChanged": true
+      "subscribe": false,
+      "listChanged": false
     }
   }
 }
@@ -240,7 +240,7 @@ List all available risk assessments with metadata.
       "uri": "finos://risks/ri-10_llm05-prompt-injection-and-jailbreaking.md"
     }
   ],
-  "total_count": 17
+  "total_count": 23
 }
 ```
 
@@ -277,23 +277,23 @@ interface Configuration {
   // Logging
   LOG_LEVEL: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"
   DEBUG_MODE: boolean
-  
+
   // Network
   HTTP_TIMEOUT: number  // seconds
   BASE_URL: string      // GitHub raw content URL
-  
+
   // Caching
   ENABLE_CACHE: boolean
   CACHE_MAX_SIZE: number
   CACHE_TTL_SECONDS: number
-  
+
   // GitHub API
   GITHUB_TOKEN?: string
   GITHUB_API_DELAY_SECONDS: number
   GITHUB_API_MAX_RETRIES: number
   GITHUB_API_BACKOFF_FACTOR: number
   GITHUB_API_RATE_LIMIT_BUFFER: number
-  
+
   // Server
   SERVER_NAME: string
   SERVER_VERSION: string
@@ -389,7 +389,7 @@ interface DocumentMetadata {
   title: string
   doc_status: "draft" | "approved" | "deprecated"
   type?: "technical" | "process" | "governance"
-  
+
   // Framework mappings (varies by document)
   iso_42001_2023_mapping?: string[]
   nist_ai_rmf_1_0_mapping?: string[]
@@ -474,7 +474,7 @@ async def test_search_api():
             "arguments": {"query": "data privacy"}
         }
     }
-    
+
     # Validate response structure
     response = await send_mcp_request(request)
     assert "result" in response

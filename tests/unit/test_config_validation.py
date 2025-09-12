@@ -6,13 +6,13 @@ and startup validation with various configuration scenarios.
 """
 
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 
+from finos_mcp._version import __version__
 from finos_mcp.config import Settings, get_settings, validate_settings_on_startup
 
 
@@ -59,7 +59,7 @@ class TestSettingsValidation:
         assert settings.cache_max_size == 1000
         assert settings.debug_mode is False
         assert settings.server_name == "finos-ai-governance"
-        assert settings.server_version == "0.1.0-dev"
+        assert settings.server_version == __version__
         assert settings.config_file is None
 
     def test_environment_variable_override(self, clean_env):
@@ -107,7 +107,6 @@ class TestSettingsValidation:
         """Test valid base URLs."""
         valid_urls = [
             "https://example.com",
-            "http://localhost:8000",
             "https://raw.githubusercontent.com/user/repo/main/docs",
         ]
 
@@ -125,6 +124,7 @@ class TestSettingsValidation:
             "https://",
             "",
             "file:///local/path",
+            "http://localhost:8000",  # localhost URLs are rejected for security
         ]
 
         for url in invalid_urls:
@@ -184,20 +184,21 @@ class TestSettingsValidation:
             Settings()
 
         error = exc_info.value.errors()[0]
-        assert "does not exist" in str(error["ctx"]["error"])
+        assert "Invalid configuration file path" in str(error["ctx"]["error"])
 
     def test_config_file_validation_valid(self, clean_env):
         """Test config file validation with valid file."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("# Test config file")
-            temp_path = f.name
+        # Create temp file in project directory (allowed directory)
+        temp_file = Path("test_config.yaml")
+        temp_file.write_text("# Test config file")
 
         try:
-            os.environ["FINOS_MCP_CONFIG_FILE"] = temp_path
+            os.environ["FINOS_MCP_CONFIG_FILE"] = str(temp_file)
             settings = Settings()
-            assert settings.config_file == Path(temp_path)
+            assert settings.config_file == temp_file.resolve()
         finally:
-            Path(temp_path).unlink()
+            if temp_file.exists():
+                temp_file.unlink()
 
 
 @pytest.mark.unit

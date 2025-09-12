@@ -42,30 +42,30 @@ command_exists() {
 # Verify system requirements
 check_requirements() {
     log_info "Checking system requirements..."
-    
+
     # Check Python
     if ! command_exists python3; then
         log_error "Python 3 is not installed. Please install Python 3.9+ first."
         exit 1
     fi
-    
+
     # Check Python version
     PYTHON_ACTUAL_VERSION=$(python3 --version | cut -d ' ' -f 2)
     log_info "Found Python $PYTHON_ACTUAL_VERSION"
-    
+
     # Check git
     if ! command_exists git; then
         log_error "Git is not installed. Please install git first."
         exit 1
     fi
-    
+
     log_success "System requirements satisfied"
 }
 
 # Create and activate virtual environment
 setup_virtual_environment() {
     log_info "Setting up virtual environment..."
-    
+
     if [[ -d "$VENV_PATH" ]]; then
         log_warning "Virtual environment already exists at $VENV_PATH"
         read -p "Remove existing environment? (y/N): " -n 1 -r
@@ -78,15 +78,15 @@ setup_virtual_environment() {
             return 0
         fi
     fi
-    
+
     # Create virtual environment
     python3 -m venv "$VENV_PATH"
     log_success "Virtual environment created at $VENV_PATH"
-    
+
     # Activate virtual environment
     # shellcheck source=/dev/null
     source "$VENV_PATH/bin/activate"
-    
+
     # Upgrade pip
     pip install --upgrade pip
     log_success "Virtual environment activated and pip upgraded"
@@ -95,13 +95,13 @@ setup_virtual_environment() {
 # Install dependencies
 install_dependencies() {
     log_info "Installing dependencies..."
-    
+
     # Ensure virtual environment is activated
     if [[ "$VIRTUAL_ENV" != "$VENV_PATH" ]]; then
         # shellcheck source=/dev/null
         source "$VENV_PATH/bin/activate"
     fi
-    
+
     # Install development dependencies from lock file
     if [[ -f "$PROJECT_ROOT/config/dependencies/requirements.lock" ]]; then
         log_info "Installing from requirements.lock..."
@@ -110,28 +110,28 @@ install_dependencies() {
         log_warning "requirements.lock not found, installing from pyproject.toml"
         pip install -e "[$PROJECT_ROOT]"
     fi
-    
+
     # Install package in development mode
     pip install -e "$PROJECT_ROOT"
-    
+
     log_success "Dependencies installed successfully"
 }
 
 # Setup pre-commit hooks
 setup_pre_commit() {
     log_info "Setting up pre-commit hooks..."
-    
+
     if [[ ! -f "$PROJECT_ROOT/config/ci/pre-commit-config.yaml" ]]; then
         log_error "Pre-commit configuration not found at config/ci/pre-commit-config.yaml"
         return 1
     fi
-    
+
     # Install pre-commit if not already installed
     pip install pre-commit
-    
+
     # Install hooks from the enterprise config location
     pre-commit install --config "$PROJECT_ROOT/config/ci/pre-commit-config.yaml"
-    
+
     # Run hooks once to verify setup
     log_info "Running initial pre-commit check..."
     if pre-commit run --all-files --config "$PROJECT_ROOT/config/ci/pre-commit-config.yaml"; then
@@ -144,14 +144,14 @@ setup_pre_commit() {
 # Create development configuration
 setup_dev_config() {
     log_info "Setting up development configuration..."
-    
+
     local env_file="$PROJECT_ROOT/.env.dev"
-    
+
     if [[ -f "$env_file" ]]; then
         log_info "Development configuration already exists at $env_file"
         return 0
     fi
-    
+
     # Create development configuration
     cat > "$env_file" << 'EOF'
 # Development Configuration for FINOS AI Governance MCP Server
@@ -179,7 +179,7 @@ FINOS_MCP_GITHUB_API_MAX_RETRIES=3
 FINOS_MCP_SERVER_NAME=finos-ai-governance-dev
 FINOS_MCP_SERVER_VERSION=dev
 EOF
-    
+
     log_success "Development configuration created at $env_file"
     log_info "Edit $env_file to add your GitHub token for better rate limits"
 }
@@ -187,7 +187,7 @@ EOF
 # Run validation tests
 run_validation() {
     log_info "Running validation tests..."
-    
+
     # Test basic import
     if python -c "import finos_mcp; print('✅ Package import successful')"; then
         log_success "Package import validation passed"
@@ -195,7 +195,7 @@ run_validation() {
         log_error "Package import validation failed"
         return 1
     fi
-    
+
     # Test console script
     if command_exists finos-mcp; then
         log_success "Console script 'finos-mcp' available"
@@ -203,7 +203,7 @@ run_validation() {
         log_error "Console script 'finos-mcp' not found"
         return 1
     fi
-    
+
     # Run simple functionality test if available
     if [[ -f "$PROJECT_ROOT/tests/integration/simple_test.py" ]]; then
         log_info "Running simple functionality test..."
@@ -213,7 +213,7 @@ run_validation() {
             log_warning "Simple functionality test failed - check configuration"
         fi
     fi
-    
+
     log_success "Development environment validation completed"
 }
 
@@ -263,9 +263,9 @@ main() {
     echo -e "${BLUE}   Development Environment Setup${NC}"
     echo "==============================================="
     echo
-    
+
     cd "$PROJECT_ROOT"
-    
+
     check_requirements
     setup_virtual_environment
     install_dependencies
