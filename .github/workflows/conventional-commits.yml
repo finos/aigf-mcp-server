@@ -8,6 +8,10 @@ jobs:
   conventional-commits:
     name: Validate Conventional Commits
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
 
     steps:
     - name: Checkout code
