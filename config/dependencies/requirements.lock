@@ -54,6 +54,7 @@ sse-starlette==3.0.2
 starlette==0.47.2
 tenacity==9.1.2
 tomlkit==0.13.3
+types-bleach==6.2.0.20250809
 typing-inspection==0.4.1
 typing_extensions==4.14.1
 uvicorn==0.35.0
