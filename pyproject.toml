@@ -33,7 +33,7 @@ dependencies = [
     "tenacity>=8.0.0",
     # Security-focused validation libraries
     "pathvalidate>=3.2.0",
-    "bleach>=6.1.0", 
+    "bleach>=6.1.0",
     "python-slugify>=8.0.0",
 ]
 
@@ -44,6 +44,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
     "mypy>=1.5.0",
+    "types-bleach>=6.2.0.20250809",
     "pip-tools>=7.0.0",
     "pre-commit>=3.0.0",
 ]
@@ -177,7 +178,7 @@ python_functions = ["test_*"]
 asyncio_mode = "auto"
 markers = [
     "unit: Unit tests",
-    "integration: Integration tests", 
+    "integration: Integration tests",
     "mcp: MCP protocol tests",
     "console: Console script tests",
     "slow: Slow running tests",
