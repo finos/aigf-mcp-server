@@ -21,25 +21,18 @@ Complete development environment setup with all dependencies and tooling.
 ./scripts/dev-setup.sh
 ```
 
-#### `dev-test.sh` - Development Testing
-Quick testing script for iterative development workflow.
+#### `ci-local.sh` - Local CI Validation
+Run the same quality checks that run in CI locally.
 
 **Features:**
-- Unit and integration test execution
-- Package import validation
-- Basic functionality verification
-- Coverage reporting (optional)
-- Configurable test modes
+- Code quality validation
+- Security scanning
+- Type checking
+- Test execution with coverage
 
 ```bash
-# Run all development tests
-./scripts/dev-test.sh
-
-# Quick tests only
-./scripts/dev-test.sh --quick
-
-# With coverage report
-./scripts/dev-test.sh --coverage
+# Run full CI validation locally
+./scripts/ci-local.sh
 ```
 
 #### `quality-check.sh` - Quality Validation

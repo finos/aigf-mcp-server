@@ -13,7 +13,6 @@ This project follows enterprise-grade governance practices ensuring transparency
 
 ### Project Management
 - **[Release Process](release-process.md)** - Release planning, testing, and deployment procedures
-- **[Project Roadmap](roadmap.md)** - Strategic direction and planned features
 
 ### Decision Making
 - **[Decision Records](decision-records/)** - Architecture Decision Records (ADRs)
@@ -119,8 +118,8 @@ All significant decisions are documented in:
 We track project health using:
 
 ### Development Metrics
-- **Code Quality**: Pylint score (target: 9.5+, current: 9.72/10)
-- **Test Coverage**: Target 85%+ (current: monitoring)
+- **Code Quality**: Pylint score (currently 9.72/10)
+- **Test Coverage**: Comprehensive test coverage maintained
 - **Security Score**: Zero high/critical vulnerabilities
 - **Performance**: Response time and throughput benchmarks
 
@@ -151,4 +150,4 @@ For governance-related questions:
 
 ---
 
-> **Want to influence the project direction?** Review our [Project Roadmap](roadmap.md) and contribute via [GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues).
+> **Want to influence the project direction?** Contribute via [GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues) and participate in the community discussions.

@@ -28,19 +28,10 @@ Critical information for production deployment, monitoring, and maintenance.
 - 📋 [**Release Process**](operations/release-process.md) - Release management procedures
 
 ### 🏛️ [**Governance Documentation**](governance/)
-Project governance, decision-making processes, and strategic direction.
+Project governance, decision-making processes, and community standards.
 
 - 📜 [**Governance Overview**](governance/README.md) - Project governance structure
 - 🤝 [**Code of Conduct**](governance/code-of-conduct.md) - Community standards
-- 🗺️ [**Project Roadmap**](governance/roadmap.md) - Strategic direction and plans
-
-### 📊 [**Reports**](reports/)
-Generated reports, metrics, and analysis data.
-
-- Quality assurance reports
-- Security analysis results
-- Performance benchmarks
-- Test coverage reports
 
 ## 🏢 Enterprise Features
 
@@ -79,4 +70,4 @@ This documentation structure is designed for enterprise environments with:
 
 > **Note**: This documentation is actively maintained and regularly updated. If you find any issues or have suggestions for improvement, please contribute via our [Contributing Guide](developer/CONTRIBUTING.md).
 
-**Version**: Enterprise v1.0 | **Last Updated**: January 2025
+**Version**: Enterprise v1.0
