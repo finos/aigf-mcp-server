@@ -6,7 +6,6 @@ and startup validation with various configuration scenarios.
 """
 
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -185,20 +184,21 @@ class TestSettingsValidation:
             Settings()
 
         error = exc_info.value.errors()[0]
-        assert "does not exist" in str(error["ctx"]["error"])
+        assert "Invalid configuration file path" in str(error["ctx"]["error"])
 
     def test_config_file_validation_valid(self, clean_env):
         """Test config file validation with valid file."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("# Test config file")
-            temp_path = f.name
+        # Create temp file in project directory (allowed directory)
+        temp_file = Path("test_config.yaml")
+        temp_file.write_text("# Test config file")
 
         try:
-            os.environ["FINOS_MCP_CONFIG_FILE"] = temp_path
+            os.environ["FINOS_MCP_CONFIG_FILE"] = str(temp_file)
             settings = Settings()
-            assert settings.config_file == Path(temp_path)
+            assert settings.config_file == temp_file.resolve()
         finally:
-            Path(temp_path).unlink()
+            if temp_file.exists():
+                temp_file.unlink()
 
 
 @pytest.mark.unit

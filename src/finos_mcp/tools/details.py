@@ -134,7 +134,7 @@ async def _get_document_details(
         },
     )
 
-    return doc_data["full_text"]
+    return str(doc_data["full_text"])
 
 
 async def handle_details_tools(

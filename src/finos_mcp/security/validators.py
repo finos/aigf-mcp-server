@@ -158,6 +158,10 @@ def sanitize_document_id(doc_id: str) -> str:
     if not doc_id:
         raise ValidationError("Document ID cannot be empty")
 
+    # Check for control characters (excluding tab) BEFORE sanitization
+    if any(ord(c) < 32 and c != "\t" for c in doc_id):
+        raise ValidationError("Document ID contains invalid control characters")
+
     # Remove any HTML/script content
     sanitized = sanitize_html_content(doc_id)
 
@@ -169,10 +173,6 @@ def sanitize_document_id(doc_id: str) -> str:
         or "\\" in sanitized
     ):
         raise ValidationError("Document ID contains invalid path characters")
-
-    # Check for control characters (excluding tab)
-    if any(ord(c) < 32 and c != "\t" for c in sanitized):
-        raise ValidationError("Document ID contains invalid control characters")
 
     if not sanitized.strip():
         raise ValidationError("Document ID contains only invalid content")

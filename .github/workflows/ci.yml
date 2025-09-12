@@ -49,10 +49,7 @@ jobs:
     - name: Run mypy (type checking)
       run: |
         echo "🔬 Running type checking..."
-        # Type checking with migration tolerance per Development Guide
-        # Currently allowing 32 known errors during migration to strict typing
-        # TODO: Reduce error count to 0 by Step 19 (migration timeline)
-        mypy src/ --show-error-codes || echo "⚠️  Type migration in progress - 32 known errors being resolved"
+        mypy src/ --show-error-codes
 
     - name: Run bandit (security)
       run: |

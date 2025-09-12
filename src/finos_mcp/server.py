@@ -533,7 +533,7 @@ async def handle_read_resource(uri: AnyUrl) -> str:
             extra={"content_length": len(content), "type": resource_type},
         )
 
-        return content
+        return str(content)
 
     except SecurityValidationError as e:
         logger.warning(f"Security validation failed for URI: {uri_str} - {e.message}")
