@@ -244,7 +244,7 @@ git push origin main --tags
 
 - [ ] Release announced (if significant)
 - [ ] Issues closed that were resolved
-- [ ] Next milestone planned
+- [ ] Release artifacts validated
 - [ ] Post-release issue created (automated)
 
 ## Rollback Process

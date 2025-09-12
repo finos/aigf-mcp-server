@@ -14,7 +14,7 @@ Comprehensive guide for integrating the FINOS AI Governance MCP Server with popu
 | ![Claude Code](https://img.shields.io/badge/Claude%20Code-4A90E2?style=flat-square&logo=visualstudiocode&logoColor=white) | ✅ **Full Support** | JSON Config | ⭐ Easy |
 | ![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white) | ✅ **MCP Support** | Settings UI | ⭐⭐ Medium |
 | ![Windsurf](https://img.shields.io/badge/Windsurf-0084FF?style=flat-square&logo=codestream&logoColor=white) | ✅ **Compatible** | Extension Config | ⭐⭐ Medium |
-| ![VS Code](https://img.shields.io/badge/VS%20Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white) | ⚠️ **Via Extensions** | Extension Required | ⭐⭐⭐ Hard |
+| ![VS Code](https://img.shields.io/badge/VS%20Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white) | ✅ **Native MCP Support** | JSON Config | ⭐⭐ Medium |
 | ![Continue.dev](https://img.shields.io/badge/Continue.dev-000000?style=flat-square&logo=github&logoColor=white) | ✅ **MCP Ready** | VS Code Extension | ⭐⭐ Medium |
 | ![Zed](https://img.shields.io/badge/Zed-0F0F0F?style=flat-square&logo=zed&logoColor=white) | ✅ **Growing Support** | Settings Config | ⭐⭐ Medium |
 | ![JetBrains](https://img.shields.io/badge/JetBrains-000000?style=flat-square&logo=jetbrains&logoColor=white) | ⚠️ **Plugin Required** | Plugin Config | ⭐⭐⭐ Hard |
@@ -43,6 +43,32 @@ pip install -e .
 # Verify installation
 python -c "import finos_mcp; print('✅ Ready!')"
 ```
+
+### 🎯 VS Code Quick Start
+
+**Most Popular Setup**: VS Code with GitHub Copilot
+
+1. **Create MCP config** at `~/.vscode/mcp.json`:
+   ```json
+   {
+     "servers": {
+       "finos-ai-governance": {
+         "command": "/path/to/your/.venv/bin/python",
+         "args": ["-m", "finos_mcp.server", "stdio"]
+       }
+     }
+   }
+   ```
+
+2. **Find your Python path**:
+   ```bash
+   # With virtual environment activated
+   which python  # Use this path in config above
+   ```
+
+3. **Reload VS Code** → Open chat → Ask about AI governance!
+
+💡 **Detailed VS Code instructions** [below](#5-vs-code-with-github-copilot)
 
 ---
 
@@ -112,9 +138,28 @@ python -c "import finos_mcp; print('✅ Ready!')"
 
 **Perfect for**: Code review with governance, development workflows
 
-#### Configuration
+#### Configuration Methods
 
-**All Platforms**: `~/.config/claude-code/mcp_servers.json`
+**Method 1: Command Line (Recommended)**
+
+```bash
+# Add MCP server using Claude Code CLI
+claude mcp add finos-ai-governance \
+  --env FINOS_MCP_LOG_LEVEL=INFO \
+  --env FINOS_MCP_ENABLE_CACHE=true \
+  --env FINOS_MCP_GITHUB_TOKEN=ghp_your_token_here \
+  -- python -m finos_mcp.server stdio
+
+# List configured servers
+claude mcp list
+
+# Get server details
+claude mcp get finos-ai-governance
+```
+
+**Method 2: Manual Configuration**
+
+**File Location**: `~/.config/claude-code/mcp_servers.json`
 
 ```json
 {
@@ -125,7 +170,8 @@ python -c "import finos_mcp; print('✅ Ready!')"
       "env": {
         "FINOS_MCP_LOG_LEVEL": "INFO",
         "FINOS_MCP_DEBUG_MODE": "false",
-        "FINOS_MCP_ENABLE_CACHE": "true"
+        "FINOS_MCP_ENABLE_CACHE": "true",
+        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
       }
     }
   }
@@ -195,19 +241,20 @@ python -c "import finos_mcp; print('✅ Ready!')"
 
 #### Configuration Method 2: JSON Config
 
-**Location**: Cursor's settings directory (varies by platform)
+**Locations**:
+- **Project-specific**: `.cursor/mcp.json` in your project directory
+- **Global**: `~/.cursor/mcp.json` (macOS/Linux) or `%USERPROFILE%\.cursor\mcp.json` (Windows)
 
 ```json
 {
-  "mcp": {
-    "servers": {
-      "finos-ai-governance": {
-        "command": "python",
-        "args": ["-m", "finos_mcp.server", "stdio"],
-        "env": {
-          "FINOS_MCP_LOG_LEVEL": "INFO",
-          "FINOS_MCP_ENABLE_CACHE": "true"
-        }
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO",
+        "FINOS_MCP_ENABLE_CACHE": "true",
+        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
       }
     }
   }
@@ -264,46 +311,109 @@ Windsurf supports MCP through its extension system or built-in configuration:
 
 ---
 
-### 5. VS Code
+### 5. VS Code with GitHub Copilot
 
-![VS Code Badge](https://img.shields.io/badge/VS%20Code-Extension%20Required-007ACC?style=for-the-badge&logo=visualstudiocode)
+![VS Code Badge](https://img.shields.io/badge/VS%20Code-Native%20MCP%20Support-007ACC?style=for-the-badge&logo=visualstudiocode)
 
-**Perfect for**: Development with MCP-compatible extensions
+**Perfect for**: AI-powered development with integrated governance tools via GitHub Copilot
 
 #### Prerequisites
 
-VS Code doesn't have native MCP support. You need an MCP-compatible extension:
+- VS Code 1.95+ with GitHub Copilot extension
+- Python 3.9+ installed
+- FINOS MCP Server installed
 
-- **Claude Code** (recommended)
-- **Continue** (with MCP support)
-- **Codeium** (with MCP integration)
-- Other MCP-compatible extensions
+#### Configuration Locations
 
-#### Configuration Example
+Choose one based on your needs:
 
-Depends on the extension, but typically:
+**User-wide configuration**: `~/.vscode/mcp.json` (macOS/Linux) or `%USERPROFILE%\.vscode\mcp.json` (Windows)
+**Workspace-specific**: `<your-project>/.vscode/mcp.json`
 
+#### Virtual Environment Support
+
+**Option 1: Global Installation**
+```bash
+# Install globally (easiest setup)
+git clone https://github.com/hugo-calderon/finos-mcp-server.git
+cd finos-mcp-server
+pip install -e .
+
+# Verify global installation
+python -c "import finos_mcp; print('✅ FINOS MCP Server Ready!')"
+```
+
+Configuration for global installation:
 ```json
 {
-  "mcp.servers": {
+  "servers": {
     "finos-ai-governance": {
       "command": "python",
-      "args": ["-m", "finos_mcp.server", "stdio"],
-      "env": {
-        "FINOS_MCP_LOG_LEVEL": "INFO"
-      }
+      "args": ["-m", "finos_mcp.server", "stdio"]
     }
   }
 }
 ```
 
-#### Setup Steps
+**Option 2: Virtual Environment (Recommended for Development)**
+```bash
+# Create project with virtual environment
+git clone https://github.com/hugo-calderon/finos-mcp-server.git
+cd finos-mcp-server
+python -m venv .venv
 
-1. **Install MCP-Compatible Extension**
-   - Choose from supported extensions above
-   - Install from VS Code marketplace
+# Activate virtual environment
+source .venv/bin/activate  # macOS/Linux
+# or
+.venv\Scripts\activate  # Windows
 
-2. **Install MCP Server**
+# Install MCP server
+pip install -e .
+
+# Get the full path to the virtual environment's Python
+which python  # macOS/Linux: /path/to/project/.venv/bin/python
+# where python  # Windows: C:\path\to\project\.venv\Scripts\python.exe
+```
+
+Configuration for virtual environment:
+```json
+{
+  "servers": {
+    "finos-ai-governance": {
+      "command": "/full/path/to/your/project/.venv/bin/python",
+      "args": ["-m", "finos_mcp.server", "stdio"],
+      "env": {
+        "FINOS_MCP_LOG_LEVEL": "INFO",
+        "FINOS_MCP_ENABLE_CACHE": "true",
+        "FINOS_MCP_HTTP_TIMEOUT": "30",
+        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github-token",
+      "description": "Enter your GitHub token for higher rate limits (optional)"
+    }
+  ]
+}
+```
+
+#### Step-by-Step Setup
+
+1. **Install FINOS MCP Server**
+
+   Choose your installation method:
+
+   **For Global Use:**
+   ```bash
+   git clone https://github.com/hugo-calderon/finos-mcp-server.git
+   cd finos-mcp-server
+   pip install -e .
+   ```
+
+   **For Development/Isolated Use:**
    ```bash
    git clone https://github.com/hugo-calderon/finos-mcp-server.git
    cd finos-mcp-server
@@ -312,9 +422,87 @@ Depends on the extension, but typically:
    pip install -e .
    ```
 
-3. **Configure Through Extension**
-   - Follow extension-specific configuration instructions
-   - Add server configuration via extension settings
+2. **Create MCP Configuration**
+
+   Create `mcp.json` in your chosen location with the appropriate configuration above.
+
+   **Important**: Replace `/full/path/to/your/project/.venv/bin/python` with your actual virtual environment path.
+
+3. **Find Your Virtual Environment Path**
+   ```bash
+   # While your virtual environment is activated
+   which python    # macOS/Linux
+   where python    # Windows
+   ```
+
+4. **Reload VS Code**
+   - Press `Ctrl/Cmd + Shift + P`
+   - Run "Developer: Reload Window"
+   - Or restart VS Code completely
+
+5. **Test Integration**
+   - Open VS Code chat (`Ctrl/Cmd + Alt + I`)
+   - Type: `@workspace What AI governance mitigations are available?`
+   - You should see the MCP server tools become available
+
+#### Troubleshooting
+
+**🚨 Common Issues:**
+
+1. **Server Not Starting:**
+   ```bash
+   # Verify Python path is correct
+   ls -la /path/to/.venv/bin/python
+
+   # Test server manually
+   /path/to/.venv/bin/python -m finos_mcp.server stdio
+   ```
+
+2. **"Command not found" errors:**
+   - Ensure you're using absolute paths in `mcp.json`
+   - Check VS Code Output panel → "MCP Servers" for detailed error messages
+
+3. **Virtual environment not found:**
+   ```bash
+   # Find your current Python path
+   which python
+   # Copy the full path to your mcp.json config
+   ```
+
+4. **Missing dependencies:**
+   ```bash
+   # Reinstall with all dependencies
+   cd finos-mcp-server
+   source .venv/bin/activate
+   pip install -e .
+   ```
+
+5. **Permission Issues:**
+   ```bash
+   # On macOS/Linux
+   chmod +x /path/to/.venv/bin/python
+
+   # On Windows: Run VS Code as Administrator if needed
+   ```
+
+6. **Rate Limiting:**
+   - Add your GitHub token to avoid API rate limits
+   - Get token at: https://github.com/settings/tokens (needs `public_repo` scope)
+   - Add to your `mcp.json` env variables
+
+**🔍 Debugging Steps:**
+1. Check VS Code Output panel → "MCP Servers"
+2. Verify server works standalone: `.venv/bin/python -m finos_mcp.server stdio`
+3. Test configuration with a simple example first
+4. Restart VS Code completely after config changes
+
+#### Usage in VS Code
+
+Once configured, you can:
+
+1. **In Chat**: `@workspace What are the AI governance risks related to data privacy?`
+2. **In Agent Mode**: Ask Copilot to help implement governance controls
+3. **Tool Discovery**: All FINOS governance tools become available automatically
 
 ---
 
@@ -324,14 +512,43 @@ Depends on the extension, but typically:
 
 **Perfect for**: AI-powered code completion and chat in VS Code
 
+#### Prerequisites
+
+- VS Code with Continue extension installed
+- MCP can only be used in **agent mode**
+
 #### Configuration
 
-**Location**: VS Code settings or Continue config directory
+**Location**: Create `.continue/mcpServers/` folder in your workspace
+
+Create a file called `finos-ai-governance.yaml`:
+
+```yaml
+name: FINOS AI Governance
+mcpServer:
+  version: 0.0.1
+  schema: v1
+
+mcpServers:
+  - name: finos-ai-governance
+    command: python
+    args:
+      - "-m"
+      - "finos_mcp.server"
+      - "stdio"
+    env:
+      FINOS_MCP_LOG_LEVEL: INFO
+      FINOS_MCP_ENABLE_CACHE: "true"
+      FINOS_MCP_GITHUB_TOKEN: "ghp_your_token_here"
+```
+
+**Alternative JSON Configuration** (in Continue config file):
 
 ```json
 {
-  "mcpServers": {
-    "finos-ai-governance": {
+  "mcpServers": [
+    {
+      "name": "finos-ai-governance",
       "command": "python",
       "args": ["-m", "finos_mcp.server", "stdio"],
       "env": {
@@ -339,7 +556,7 @@ Depends on the extension, but typically:
         "FINOS_MCP_ENABLE_CACHE": "true"
       }
     }
-  }
+  ]
 }
 ```
 
@@ -358,10 +575,14 @@ Depends on the extension, but typically:
    pip install -e .
    ```
 
-3. **Configure Continue**
-   - Press `Ctrl/Cmd + Shift + P`
-   - Search "Continue: Edit Config"
-   - Add MCP server configuration
+3. **Configure MCP Server**
+   - Create `.continue/mcpServers/` folder in your workspace
+   - Add the YAML configuration file above
+   - Or use `Ctrl/Cmd + Shift + P` → "Continue: Edit Config" for JSON method
+
+4. **Switch to Agent Mode**
+   - MCP servers only work in Continue's agent mode
+   - Use the agent chat interface to access FINOS governance tools
 
 4. **Test Integration**
    - Open Continue chat
@@ -646,7 +867,7 @@ Review this AI system design for compliance gaps
 | Use Case | Recommended Client | Why |
 |----------|-------------------|-----|
 | **General AI Assistance** | Claude Desktop | Best user experience, native integration |
-| **Development Workflows** | Claude Code | Seamless VS Code integration, code-aware |
+| **Development Workflows** | VS Code + Copilot | Native MCP support, comprehensive tooling |
 | **AI-First Development** | Cursor | Built for AI-assisted coding |
 | **Code Completion Focus** | Continue.dev | Popular VS Code extension, 1M+ users |
 | **High-Performance Editing** | Zed | Modern, fast editor with growing AI ecosystem |
@@ -667,5 +888,3 @@ Need help with integration? Check these resources:
 - 📧 [Email Support](mailto:hugocalderon@example.com)
 
 ---
-
-*Last updated: September 2024*

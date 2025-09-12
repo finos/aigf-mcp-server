@@ -98,7 +98,7 @@ Before deploying to production, ensure:
 - [ ] Audit logging configured and tested
 - [ ] Data retention policies implemented
 - [ ] Compliance monitoring enabled
-- [ ] Regular security assessments scheduled
+- [ ] Regular security assessments performed
 - [ ] Documentation and procedures up-to-date
 
 ## 📊 Monitoring & Metrics

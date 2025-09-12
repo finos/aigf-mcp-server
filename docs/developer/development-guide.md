@@ -319,7 +319,7 @@ python -m mypy src/finos_mcp --strict --warn-unreachable
 - Pytest configuration in `pytest.ini`
 - Ruff settings in `pyproject.toml`
 
-## 🎯 Coding Principles (Updated 2025-01-15)
+## 🎯 Coding Principles
 
 ### Core Design Patterns
 
