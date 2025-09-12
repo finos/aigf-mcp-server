@@ -65,63 +65,86 @@ class ValidationConfig:
         """
         from ..server import SecurityValidationError
 
+        # Early return for disabled validation
         if self.mode == ValidationMode.DISABLED:
-            return arguments
+            return arguments if isinstance(arguments, dict) else {}
 
-        # Basic validation always runs
+        # Validate arguments type
         if not isinstance(arguments, dict):
-            if self.mode == ValidationMode.STRICT:
+            if self.mode == ValidationMode.STRICT:  # type: ignore[unreachable]
                 raise SecurityValidationError(
                     f"Tool arguments must be dict for {tool_name}"
                 )
-            return {}  # Return empty dict in permissive mode
+            # Permissive mode: return empty dict
+            return {}
 
-        if len(arguments) > 50:
-            if self.mode == ValidationMode.STRICT:
+        # Perform content validation based on mode
+        is_strict = self.mode == ValidationMode.STRICT
+        return self._validate_argument_content(arguments, tool_name, is_strict)
+
+    def _validate_argument_content(
+        self, arguments: dict[str, Any], tool_name: str, is_strict: bool
+    ) -> dict[str, Any]:
+        """Validate argument content based on validation mode."""
+        from ..server import SecurityValidationError
+
+        working_args = arguments
+
+        # Size validation
+        if len(working_args) > 50:
+            if is_strict:
                 raise SecurityValidationError(f"Too many arguments for {tool_name}")
             # Truncate in permissive mode
-            arguments = dict(list(arguments.items())[:50])
+            working_args = dict(list(working_args.items())[:50])
 
         # Content validation
         validated_args: dict[str, Any] = {}
 
-        for key, value in arguments.items():
-            # Key validation
+        for key, value in working_args.items():
+            # Key type validation
             if not isinstance(key, str):
-                if self.mode == ValidationMode.STRICT:
+                if is_strict:  # type: ignore[unreachable]
                     raise SecurityValidationError(
                         f"Argument key must be string for {tool_name}"
                     )
                 continue  # Skip in permissive mode
 
-            # Simple dangerous key check
+            # Dangerous key validation
             if key.startswith("__") or key.lower() in {"eval", "exec"}:
-                if self.mode == ValidationMode.STRICT:
+                if is_strict:
                     raise SecurityValidationError(
                         f"Dangerous key '{key}' not allowed for {tool_name}"
                     )
                 continue  # Skip in permissive mode
 
             # Value validation
-            if isinstance(value, str):
-                if len(value) > 10000:  # 10KB limit
-                    if self.mode == ValidationMode.STRICT:
-                        raise SecurityValidationError(
-                            f"String too long for {tool_name}"
-                        )
-                    value = value[:10000]  # Truncate in permissive mode
-
-                # Simple XSS check - only obvious patterns
-                if self.mode == ValidationMode.STRICT:
-                    dangerous_exact = ["<script>", "javascript:", "eval(", "exec("]
-                    if any(danger in value.lower() for danger in dangerous_exact):
-                        raise SecurityValidationError(
-                            f"Dangerous content in {tool_name}"
-                        )
-
-            validated_args[key] = value
+            processed_value = self._validate_argument_value(value, tool_name, is_strict)
+            validated_args[key] = processed_value
 
         return validated_args
+
+    def _validate_argument_value(
+        self, value: Any, tool_name: str, is_strict: bool
+    ) -> Any:
+        """Validate a single argument value."""
+        from ..server import SecurityValidationError
+
+        if not isinstance(value, str):
+            return value
+
+        # Length validation
+        if len(value) > 10000:  # 10KB limit
+            if is_strict:
+                raise SecurityValidationError(f"String too long for {tool_name}")
+            return value[:10000]  # Truncate in permissive mode
+
+        # Content safety validation - only in strict mode
+        if is_strict:
+            dangerous_exact = ["<script>", "javascript:", "eval(", "exec("]
+            if any(danger in value.lower() for danger in dangerous_exact):
+                raise SecurityValidationError(f"Dangerous content in {tool_name}")
+
+        return value
 
     def is_strict_mode(self) -> bool:
         """Check if running in strict validation mode."""
