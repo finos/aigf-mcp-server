@@ -207,13 +207,14 @@ def validate_resource_uri(uri: str) -> tuple[str, str]:
 
 
 def validate_tool_arguments(
-    tool_name: str, arguments: dict[str, Any]
+    tool_name: str, arguments: dict[str, Any], validator: Any = None
 ) -> dict[str, Any]:
     """Validate tool arguments with security checks.
 
     Args:
         tool_name: Name of the tool being called
         arguments: Tool arguments to validate
+        validator: Optional validator instance (uses default if None)
 
     Returns:
         Validated arguments dictionary
@@ -221,82 +222,12 @@ def validate_tool_arguments(
     Raises:
         SecurityValidationError: If arguments are invalid or malicious
     """
-    if not isinstance(arguments, dict):
-        raise SecurityValidationError(
-            f"Tool arguments must be a dictionary for {tool_name}"
-        )
+    if validator is None:
+        from .security.config import get_validation_config
 
-    # Prevent argument pollution
-    if len(arguments) > 50:
-        raise SecurityValidationError(
-            f"Too many arguments provided for {tool_name} (max 50)"
-        )
+        validator = get_validation_config()
 
-    validated_args = {}
-
-    for key, value in arguments.items():
-        # Key validation
-        if not isinstance(key, str):
-            raise SecurityValidationError(
-                f"Argument key must be string, got {type(key)} for {tool_name}"
-            )
-
-        if len(key) > 100:
-            raise SecurityValidationError(f"Argument key too long for {tool_name}")
-
-        # Dangerous key patterns
-        if key.startswith("_") or key.lower() in {
-            "eval",
-            "exec",
-            "__",
-            "prototype",
-            "constructor",
-        }:
-            raise SecurityValidationError(
-                f"Dangerous argument key '{key}' not allowed for {tool_name}"
-            )
-
-        # Value validation
-        if isinstance(value, str):
-            # String length limits
-            if len(value) > 10000:  # 10KB limit per string argument
-                raise SecurityValidationError(
-                    f"String argument too long for {tool_name}"
-                )
-
-            # XSS/injection pattern detection
-            dangerous_patterns = [
-                r"<script",
-                r"javascript:",
-                r"data:",
-                r"vbscript:",
-                r"<%",
-                r"<?",
-                r"{{",
-                r"${",
-                r"`",
-                r"eval\(",
-                r"exec\(",
-            ]
-            value_lower = value.lower()
-            for pattern in dangerous_patterns:
-                if re.search(pattern, value_lower, re.IGNORECASE):
-                    raise SecurityValidationError(
-                        f"Argument contains dangerous pattern for {tool_name}"
-                    )
-
-        elif isinstance(value, list | dict):
-            # Nested structure size limits
-            str_repr = str(value)
-            if len(str_repr) > 50000:  # 50KB limit for complex structures
-                raise SecurityValidationError(
-                    f"Complex argument too large for {tool_name}"
-                )
-
-        # Store validated argument
-        validated_args[key] = value
-
-    return validated_args
+    return validator.validate_tool_arguments(tool_name, arguments)  # type: ignore[no-any-return]
 
 
 # =============================================================================
@@ -550,7 +481,9 @@ async def handle_list_tools() -> list[Tool]:
 
 
 @server.call_tool()
-async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+async def handle_call_tool(
+    name: str, arguments: dict[str, Any], validator: Any = None
+) -> list[TextContent]:
     """Handle tool calls for FINOS AI Governance content"""
     # Set correlation ID for request tracing
     correlation_id = set_correlation_id()
@@ -584,7 +517,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             raise SecurityValidationError("Tool name contains invalid characters")
 
         # Validate and sanitize arguments
-        validated_arguments = validate_tool_arguments(name, arguments)
+        validated_arguments = validate_tool_arguments(name, arguments, validator)
 
         logger.debug(
             f"Executing tool: {name}",

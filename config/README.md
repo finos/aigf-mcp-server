@@ -7,7 +7,7 @@ This directory contains all configuration files organized by purpose, providing 
 ```
 config/
 ├── security/          # 🔒 Security configurations
-├── quality/           # ✨ Code quality configurations  
+├── quality/           # ✨ Code quality configurations
 ├── ci/               # 🔄 CI/CD configurations
 └── dependencies/     # 📦 Dependency management
 ```
@@ -25,7 +25,7 @@ Contains all security-related configuration files:
 Code quality and linting configurations:
 
 - **`pylint.cfg`** - Python linting rules and standards
-- **`mypy.ini`** - Static type checking configuration  
+- **`mypy.ini`** - Static type checking configuration
 - **`ruff.toml`** - Fast Python linting and formatting
 - **`coverage.ini`** - Test coverage reporting configuration
 

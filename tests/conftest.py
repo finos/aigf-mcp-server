@@ -8,8 +8,10 @@ import asyncio
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Generator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -173,3 +175,123 @@ def mcp_server_direct() -> Generator[subprocess.Popen, None, None]:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+
+
+# Test fixtures for basic functionality
+@pytest.fixture
+def package_info() -> dict[str, Any]:
+    """Package information fixture."""
+    try:
+        import finos_mcp
+
+        version = finos_mcp.get_version()
+        info = finos_mcp.get_package_info()
+        return {"importable": True, "version": version, **info}
+    except Exception as e:
+        return {"importable": False, "import_error": str(e), "version": "unknown"}
+
+
+@pytest.fixture
+def temp_dir() -> Generator[Path, None, None]:
+    """Temporary directory fixture."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
+@pytest.fixture
+def sample_mcp_requests() -> dict[str, dict[str, Any]]:
+    """Sample MCP request templates."""
+    return {
+        "initialize": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1.0.0"},
+            },
+        },
+        "list_tools": {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        "list_resources": {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "resources/list",
+            "params": {},
+        },
+    }
+
+
+@pytest.fixture
+def console_script_runner():
+    """Console script runner fixture."""
+
+    def run_script(args: list[str], timeout: float = 5.0, input_data: str = "") -> Any:
+        """Run console script and return result."""
+
+        class Result:
+            def __init__(self, returncode: int, stdout: str, stderr: str):
+                self.returncode = returncode
+                self.stdout = stdout
+                self.stderr = stderr
+
+        try:
+            if args[0] == "which":
+                # Handle 'which' command specially
+                import shutil
+
+                script_path = shutil.which(args[1])
+                if script_path:
+                    return Result(0, script_path, "")
+                else:
+                    return Result(1, "", f"{args[1]} not found")
+
+            # Run the actual command
+            process = subprocess.run(
+                args,
+                input=input_data,
+                text=True,
+                capture_output=True,
+                timeout=timeout,
+            )
+            return Result(process.returncode, process.stdout, process.stderr)
+        except subprocess.TimeoutExpired:
+            return Result(-1, "", "Timeout")
+        except Exception as e:
+            return Result(1, "", str(e))
+
+    return run_script
+
+
+@pytest.fixture
+def error_scenarios() -> dict[str, dict[str, Any]]:
+    """Error scenario test data."""
+    return {
+        "invalid_json": '{"jsonrpc": "2.0", "id": 1, "method": "test"',  # Malformed JSON
+        "missing_jsonrpc": {"id": 1, "method": "test", "params": {}},
+        "invalid_method": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "nonexistent_method",
+            "params": {},
+        },
+        "malformed_params": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": "invalid_params_type",
+        },
+    }
+
+
+# Automatic test configuration
+@pytest.fixture(autouse=True)
+def setup_test_environment():
+    """Auto-setup test environment with disabled validation."""
+    import os
+
+    # Set test validation mode for all tests
+    os.environ["FINOS_MCP_VALIDATION_MODE"] = "disabled"
+    yield
+    # Cleanup
+    os.environ.pop("FINOS_MCP_VALIDATION_MODE", None)

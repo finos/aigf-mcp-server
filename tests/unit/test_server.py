@@ -134,16 +134,23 @@ class TestServerFunctions:
     @pytest.mark.asyncio
     async def test_handle_call_tool_search_mitigations(self):
         """Test calling the search_mitigations tool."""
+        from finos_mcp.security.config import ValidationConfig, ValidationMode
+
+        # Create disabled validator for testing
+        test_validator = ValidationConfig(ValidationMode.DISABLED)
+
         with patch("finos_mcp.server.handle_tool_call") as mock_handler:
             mock_handler.return_value = [TextContent(type="text", text="Search result")]
 
-            result = await handle_call_tool("search_mitigations", {"query": "test"})
+            result = await handle_call_tool(
+                "search_mitigations", {"query": "privacy"}, test_validator
+            )
 
             assert len(result) == 1
             assert isinstance(result[0], TextContent)
             assert result[0].text == "Search result"
             mock_handler.assert_called_once_with(
-                "search_mitigations", {"query": "test"}
+                "search_mitigations", {"query": "privacy"}
             )
 
     @pytest.mark.asyncio

@@ -89,7 +89,7 @@ Ready to integrate with your favorite development environment? The FINOS AI Gove
 
 Get step-by-step setup instructions for:
 - **9 Supported Clients** with detailed configuration
-- **Troubleshooting Guide** for common issues  
+- **Troubleshooting Guide** for common issues
 - **Advanced Configuration** for enterprise deployments
 - **Performance Tuning** and optimization tips
 

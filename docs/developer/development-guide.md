@@ -319,6 +319,82 @@ python -m mypy src/finos_mcp --strict --warn-unreachable
 - Pytest configuration in `pytest.ini`
 - Ruff settings in `pyproject.toml`
 
+## 🎯 Coding Principles (Updated 2025-01-15)
+
+### Core Design Patterns
+
+**Problem Solved**: Previous development was slowed by over-engineered validation and complex tests.
+
+#### 1. KISS Principle (Keep It Simple, Stupid)
+```python
+# ✅ Good: Simple, explicit checks
+def is_dangerous_input(text: str) -> bool:
+    return any(danger in text.lower() for danger in ["<script>", "javascript:", "eval("])
+
+# ❌ Bad: Complex regex that breaks legitimate text
+dangerous_patterns = [r"<script", r"javascript:", ...]  # Matches "security" wrongly
+```
+
+#### 2. Dependency Injection for Testability
+```python
+# ✅ Good: Injectable dependencies
+def handle_call_tool(name: str, args: dict, validator=None) -> Any:
+    if validator is None:
+        validator = get_default_validator()
+    return validator.validate(name, args)
+
+# ❌ Bad: Hardcoded dependencies (untestable)
+def handle_call_tool(name: str, args: dict) -> Any:
+    validate_tool_arguments(name, args)  # Cannot be mocked
+```
+
+#### 3. Configuration-Driven Validation
+```python
+# Environment-based validation modes
+ValidationMode.DISABLED   # Tests: no validation
+ValidationMode.PERMISSIVE # Dev: relaxed validation
+ValidationMode.STRICT     # Prod: full validation
+```
+
+### Testing Principles
+
+#### 1. Simple, Focused Tests
+```python
+# ✅ Good: One concern per test
+def test_package_import():
+    import finos_mcp
+    assert hasattr(finos_mcp, "get_version")
+
+# ❌ Bad: Complex fixtures testing multiple concerns
+def test_complex_scenario(complex_fixture, another_fixture):
+    # 20 lines of setup and multiple assertions...
+```
+
+#### 2. Auto-Configuration for Tests
+```python
+# Automatic test environment setup (see tests/conftest.py)
+@pytest.fixture(autouse=True)
+def setup_test_environment():
+    os.environ["FINOS_MCP_VALIDATION_MODE"] = "disabled"
+```
+
+### Environment Variables
+- `FINOS_MCP_VALIDATION_MODE`: `strict|permissive|disabled`
+- `FINOS_MCP_DEBUG_MODE`: `true|false`
+- `PYTEST_CURRENT_TEST`: Auto-detected (disables validation)
+
+### Development Workflow
+```bash
+# 1. Set development mode (relaxed validation)
+export FINOS_MCP_VALIDATION_MODE=permissive
+
+# 2. Tests automatically use disabled mode
+pytest
+
+# 3. Pre-commit ensures code quality
+pre-commit run --all-files
+```
+
 ---
 
 > **Ready to contribute?** Check out our [Contributing Guide](CONTRIBUTING.md) for detailed guidelines and the [API Reference](api-reference.md) for technical specifications.

@@ -10,7 +10,7 @@ Before publishing to PyPI, ensure all requirements are met:
 
 ### ✅ **Code Quality**
 - [ ] All tests pass (`pytest`)
-- [ ] Code coverage ≥ 80% 
+- [ ] Code coverage ≥ 80%
 - [ ] Security scans pass (Bandit, Semgrep)
 - [ ] Type checking passes (MyPy)
 - [ ] Linting passes (Ruff)

@@ -23,7 +23,7 @@ echo "Running: ruff check . --output-format=github"
 echo -e "${GREEN}✅ Linting passed${NC}"
 echo
 
-# Step 2: Formatting (exact match to CI)  
+# Step 2: Formatting (exact match to CI)
 echo -e "${BLUE}🎨 STEP 2: Ruff Formatting${NC}"
 echo "Running: ruff format --check ."
 .venv/bin/ruff format --check .
