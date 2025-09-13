@@ -1,0 +1,21 @@
+{
+    "results": [
+        {
+            "filename": "sample-mitigation.md",
+            "type": "mitigation",
+            "title": "Sample AI Risk Mitigation",
+            "snippet": "This is a sample mitigation for testing purposes...",
+            "relevance_score": 0.95
+        },
+        {
+            "filename": "sample-risk.md",
+            "type": "risk",
+            "title": "Sample AI Risk",
+            "snippet": "This risk represents potential security vulnerabilities...",
+            "relevance_score": 0.87
+        }
+    ],
+    "total_count": 2,
+    "query": "sample",
+    "execution_time_ms": 1.2
+}
