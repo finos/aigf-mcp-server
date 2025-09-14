@@ -1,6 +1,6 @@
 # Release Process
 
-This document describes the release process for the FINOS AI Governance MCP Server.
+This document describes the release process for the AI Governance MCP Server.
 
 ## Overview
 
@@ -65,13 +65,17 @@ Before creating any release, ensure all quality gates pass:
 ```bash
 # Run full stability validation
 source .venv/bin/activate
-python3 tests/run_stability_validation.py
+python tests/run_stability_validation.py
 
 # Verify type checking passes
-mypy src/
+.venv/bin/python -m mypy src/
 
-# Run security checks
-pre-commit run --all-files
+# Run linting and formatting
+.venv/bin/python -m ruff check
+.venv/bin/python -m ruff format --check
+
+# Run tests
+.venv/bin/python -m pytest tests/ -v
 
 # Test console script
 finos-mcp --help
@@ -96,7 +100,7 @@ python scripts/bump_version.py major
 
 This will:
 - Update `pyproject.toml`
-- Update `src/finos_mcp/__init__.py`
+- Update `src/finos_mcp/_version.py`
 - Show you the commands to run next
 
 ### 3. Commit and Tag
@@ -137,7 +141,7 @@ After release, verify:
 2. **PyPI Package**: Verify package is available
 3. **Installation Test**: Test fresh installation
    ```bash
-   pip install finos-ai-governance-mcp-server==X.Y.Z
+   pip install git+https://github.com/hugo-calderon/finos-mcp-server.git@vX.Y.Z
    finos-mcp --help
    ```
 

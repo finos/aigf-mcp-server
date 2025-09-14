@@ -1,6 +1,6 @@
-# 🚀 FINOS AI Governance MCP Server - Production Deployment Guide
+# 🚀 Independent AI Governance MCP Server - Production Deployment Guide
 
-Comprehensive guide for deploying the FINOS AI Governance MCP Server in production environments.
+Comprehensive guide for deploying this independent AI Governance MCP Server project in production environments.
 
 ## 📋 Table of Contents
 
@@ -84,29 +84,7 @@ graph TD
 
 ### Container Orchestration
 
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  finos-mcp:
-    # Docker images not available for this personal project
-    # Use local deployment methods
-    replicas: 3
-    environment:
-      - FINOS_MCP_LOG_LEVEL=INFO
-      - FINOS_MCP_GITHUB_TOKEN=${GITHUB_TOKEN}
-      - FINOS_MCP_CACHE_MAX_SIZE=5000
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '0.5'
-    healthcheck:
-      test: ["CMD", "python", "-c", "import finos_mcp; print('Health check passed')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-```
+**Note:** Docker images are not currently available for this independent project. Use the Python installation methods described below.
 
 ## ⚙️ Configuration Management
 
@@ -162,17 +140,22 @@ sudo chmod 640 /opt/finos-mcp/config/production.env
 echo "Validating production configuration..."
 
 # Test configuration loading
-python -c "from finos_mcp.config import get_settings; print('Config validation: PASSED')"
+python -c "from finos_mcp.config import Settings; Settings(); print('Config validation: PASSED')"
 
-# Test GitHub connectivity
+# Test basic import
+python -c "import finos_mcp; print('Import test: PASSED')"
+
+# Test content service
 python -c "
 import asyncio
-from finos_mcp.http_client import HttpClient
+from finos_mcp.content.service import get_content_service
+
 async def test():
-    client = HttpClient()
-    await client.test_connectivity()
+    service = await get_content_service()
+    print('Content service: READY')
+    
 asyncio.run(test())
-print('GitHub connectivity: PASSED')
+print('Service connectivity: PASSED')
 "
 
 echo "Configuration validation complete!"
@@ -299,14 +282,44 @@ export FINOS_MCP_ENABLE_CACHE=true
 
 python -c "
 import asyncio
-from finos_mcp.server import main
+from finos_mcp.content.service import get_content_service
 
 async def warm_cache():
-    # Common queries to pre-populate cache
-    queries = ['data privacy', 'security', 'governance', 'compliance']
-    for query in queries:
-        print(f'Warming cache with: {query}')
-        # Implementation depends on your cache warming strategy
+    try:
+        service = await get_content_service()
+        
+        # Common queries to pre-populate cache
+        mitigation_queries = ['data privacy', 'security', 'governance', 'compliance']
+        risk_queries = ['prompt injection', 'data poisoning', 'adversarial', 'bias']
+        
+        print('Warming mitigation cache...')
+        for query in mitigation_queries:
+            result = await service.search_mitigations(query)
+            print(f'  - {query}: {len(result)} results cached')
+            
+        print('Warming risk cache...')
+        for query in risk_queries:
+            result = await service.search_risks(query)
+            print(f'  - {query}: {len(result)} results cached')
+            
+        # Pre-load popular documents
+        popular_mitigations = ['mi-1', 'mi-2', 'mi-3', 'mi-7']
+        popular_risks = ['ri-10', 'ri-3', 'ri-12', 'ri-15']
+        
+        print('Pre-loading popular mitigations...')
+        for mitigation_id in popular_mitigations:
+            await service.get_mitigation_details(mitigation_id)
+            print(f'  - {mitigation_id} cached')
+            
+        print('Pre-loading popular risks...')
+        for risk_id in popular_risks:
+            await service.get_risk_details(risk_id)
+            print(f'  - {risk_id} cached')
+            
+        print('Cache warming completed successfully!')
+        
+    except Exception as e:
+        print(f'Cache warming failed: {e}')
 
 asyncio.run(warm_cache())
 "
@@ -316,27 +329,28 @@ asyncio.run(warm_cache())
 
 ### Health Monitoring
 
-**Health Check Endpoint:**
+**Health Check Script:**
 ```python
-# Custom health check script
-import requests
+#!/usr/bin/env python
+# health-check.py
+import asyncio
 import sys
 
-def check_health():
+async def check_health():
     try:
-        # Test basic connectivity
-        response = requests.get('http://localhost:8080/health', timeout=10)
-        if response.status_code == 200:
-            print("Health check: PASSED")
-            return 0
-        else:
-            print(f"Health check: FAILED (status {response.status_code})")
-            return 1
+        from finos_mcp.tools.system import handle_system_tools
+        
+        # Check service health
+        result = await handle_system_tools('get_service_health', {})
+        print("Health check: PASSED")
+        print(result[0].text)
+        return 0
     except Exception as e:
         print(f"Health check: ERROR ({e})")
         return 1
 
-sys.exit(check_health())
+if __name__ == '__main__':
+    sys.exit(asyncio.run(check_health()))
 ```
 
 **Systemd Health Monitoring:**
@@ -471,16 +485,48 @@ DATE=$(date +%Y%m%d_%H%M%S)
 mkdir -p "$BACKUP_DIR/$DATE"
 
 # Backup configuration files
-cp -r /opt/finos-mcp/config "$BACKUP_DIR/$DATE/"
-cp /etc/systemd/system/finos-mcp.service "$BACKUP_DIR/$DATE/"
+cp -r /opt/finos-mcp/config "$BACKUP_DIR/$DATE/" 2>/dev/null || true
+cp /etc/systemd/system/finos-mcp.service "$BACKUP_DIR/$DATE/" 2>/dev/null || true
 
-# Backup secrets (encrypted)
-gpg --cipher-algo AES256 --compress-algo 1 --s2k-mode 3 \
-    --s2k-digest-algo SHA512 --s2k-count 65536 --symmetric \
-    --output "$BACKUP_DIR/$DATE/secrets.gpg" /opt/finos-mcp/secrets/
+# Backup secrets (encrypted) - only if directory exists
+if [ -d "/opt/finos-mcp/secrets" ]; then
+    tar -czf "$BACKUP_DIR/$DATE/secrets.tar.gz" -C /opt/finos-mcp secrets/
+    gpg --cipher-algo AES256 --compress-algo 1 --s2k-mode 3 \
+        --s2k-digest-algo SHA512 --s2k-count 65536 --symmetric \
+        --output "$BACKUP_DIR/$DATE/secrets.gpg" "$BACKUP_DIR/$DATE/secrets.tar.gz"
+    rm "$BACKUP_DIR/$DATE/secrets.tar.gz"
+fi
+
+# Backup application state
+python -c "
+from finos_mcp.tools.system import handle_system_tools
+import asyncio
+import json
+
+async def backup_metrics():
+    try:
+        health = await handle_system_tools('get_service_health', {})
+        metrics = await handle_system_tools('get_service_metrics', {})
+        cache_stats = await handle_system_tools('get_cache_stats', {})
+        
+        backup_data = {
+            'timestamp': '$(date -Iseconds)',
+            'health': health[0].text if health else 'N/A',
+            'metrics': metrics[0].text if metrics else 'N/A',
+            'cache': cache_stats[0].text if cache_stats else 'N/A'
+        }
+        
+        with open('$BACKUP_DIR/$DATE/app_state.json', 'w') as f:
+            json.dump(backup_data, f, indent=2)
+        print('Application state backed up')
+    except Exception as e:
+        print(f'Application state backup failed: {e}')
+
+asyncio.run(backup_metrics())
+" 2>/dev/null || echo "Application state backup skipped"
 
 # Cleanup old backups (keep 30 days)
-find "$BACKUP_DIR" -type d -mtime +30 -exec rm -rf {} \;
+find "$BACKUP_DIR" -type d -mtime +30 -exec rm -rf {} \; 2>/dev/null || true
 
 echo "Backup completed: $BACKUP_DIR/$DATE"
 ```
@@ -519,7 +565,7 @@ sudo cp -r /backup/finos-mcp/secrets/* /opt/finos-mcp/secrets/
 # Install application
 cd /opt/finos-mcp
 sudo -u finos-mcp python3 -m venv venv
-sudo -u finos-mcp ./venv/bin/pip install finos-ai-governance-mcp-server
+sudo -u finos-mcp ./venv/bin/pip install git+https://github.com/hugo-calderon/finos-mcp-server.git
 
 # Restore systemd service
 sudo cp /backup/finos-mcp/finos-mcp.service /etc/systemd/system/
@@ -536,17 +582,45 @@ echo "Disaster recovery complete!"
 #!/bin/bash
 # test-recovery.sh
 
-# Test in isolated environment
-docker run --rm -d --name recovery-test \
-  -v /backup/finos-mcp:/backup:ro \
-  ubuntu:22.04 /backup/restore-deployment.sh
+# Create test environment
+TEST_DIR="/tmp/recovery-test-$(date +%s)"
+mkdir -p "$TEST_DIR"
 
-# Verify service functionality
-sleep 60
-docker exec recovery-test python -c "import finos_mcp; print('Recovery test: PASSED')"
+echo "Testing recovery in: $TEST_DIR"
+
+# Copy restore script to test directory
+cp /backup/finos-mcp/restore-deployment.sh "$TEST_DIR/"
+
+# Simulate recovery in test environment
+cd "$TEST_DIR"
+
+# Create minimal test environment
+python3 -m venv test-venv
+source test-venv/bin/activate
+
+# Test installation
+pip install git+https://github.com/hugo-calderon/finos-mcp-server.git
+
+# Verify import
+python -c "import finos_mcp; print('Recovery test: Import PASSED')"
+
+# Test basic functionality
+python -c "
+import asyncio
+from finos_mcp.content.service import get_content_service
+
+async def test():
+    service = await get_content_service()
+    result = await service.search_mitigations('security')
+    print(f'Recovery test: Functionality PASSED ({len(result)} results)')
+    
+asyncio.run(test())
+"
 
 # Cleanup
-docker stop recovery-test
+cd /
+rm -rf "$TEST_DIR"
+echo "Recovery test completed successfully!"
 ```
 
 ## 🔧 Troubleshooting
@@ -632,18 +706,43 @@ echo "=== Application Performance Report ==="
 # Check response times
 time python -c "
 import asyncio
-from finos_mcp.server import main
-# Simulate quick health check
-print('Health check completed')
+from finos_mcp.content.service import get_content_service
+
+async def performance_test():
+    try:
+        service = await get_content_service()
+        # Quick search test
+        result = await service.search_mitigations('security')
+        print(f'Search performance test: Found {len(result)} results')
+    except Exception as e:
+        print(f'Performance test failed: {e}')
+
+asyncio.run(performance_test())
 "
 
-# Check cache performance
+# Check system tools
 python -c "
-from finos_mcp.health import get_health_monitor
-monitor = get_health_monitor()
-health = monitor.get_overall_health()
-print(f'Health Status: {health.status.value}')
-print(f'Message: {health.message}')
+import asyncio
+from finos_mcp.tools.system import handle_system_tools
+
+async def check():
+    try:
+        health = await handle_system_tools('get_service_health', {})
+        metrics = await handle_system_tools('get_service_metrics', {})
+        cache = await handle_system_tools('get_cache_stats', {})
+        
+        print('=== Service Health ===')
+        print(health[0].text if health else 'Health check failed')
+        print()
+        print('=== Performance Metrics ===')  
+        print(metrics[0].text if metrics else 'Metrics unavailable')
+        print()
+        print('=== Cache Statistics ===')
+        print(cache[0].text if cache else 'Cache stats unavailable')
+    except Exception as e:
+        print(f'System check failed: {e}')
+    
+asyncio.run(check())
 "
 ```
 
@@ -678,3 +777,5 @@ print(f'Message: {health.message}')
 ---
 
 > **Need Support?** For production deployment assistance, check our [Operations Documentation](README.md) or open a [GitHub Issue](https://github.com/hugo-calderon/finos-mcp-server/issues).
+
+> **This is an independent community project** providing access to FINOS AI governance content (used under CC BY 4.0 license). Not affiliated with FINOS organization.

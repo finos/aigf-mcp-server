@@ -1,0 +1,14 @@
+{
+  "checksum": "72bc6bb6b53abe72bb3852234c0ea98e977f6a0cf95f4a294871c42c7bc15f33",
+  "created_at": 1757780872.332848,
+  "data": {
+    "checksum": "abc123",
+    "content": "Test content",
+    "document_type": "mitigation",
+    "filename": "test-mitigation.md",
+    "metadata": {
+      "title": "Test Mitigation"
+    }
+  },
+  "test_name": "test_case_1"
+}

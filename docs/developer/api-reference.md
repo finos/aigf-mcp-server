@@ -1,12 +1,16 @@
-# 🔧 FINOS AI Governance MCP Server - API Reference
+# 🔧 Independent AI Governance MCP Server - API Reference
 
-Complete API reference for developers working with the FINOS AI Governance MCP Server.
+Complete API reference for developers working with this independent AI Governance MCP Server project.
 
 ## 📋 Table of Contents
 
 - [MCP Protocol Compliance](#mcp-protocol-compliance)
 - [Server Capabilities](#server-capabilities)
 - [Tools API](#tools-api)
+  - [Search Tools](#search-tools)
+  - [Details Tools](#details-tools) 
+  - [Listing Tools](#listing-tools)
+  - [System Tools](#system-tools)
 - [Resources API](#resources-api)
 - [Configuration API](#configuration-api)
 - [Error Handling](#error-handling)
@@ -42,7 +46,9 @@ Complete API reference for developers working with the FINOS AI Governance MCP S
 
 ## 🛠️ Tools API
 
-### search_mitigations
+### Search Tools
+
+#### search_mitigations
 
 Search through AI governance mitigations by keyword or topic.
 
@@ -78,7 +84,7 @@ Search through AI governance mitigations by keyword or topic.
 }
 ```
 
-### search_risks
+#### search_risks
 
 Search through AI risk assessments by keyword or topic.
 
@@ -113,7 +119,9 @@ Search through AI risk assessments by keyword or topic.
 }
 ```
 
-### get_mitigation_details
+### Details Tools
+
+#### get_mitigation_details
 
 Retrieve complete details of a specific mitigation by ID.
 
@@ -150,7 +158,7 @@ Retrieve complete details of a specific mitigation by ID.
 }
 ```
 
-### get_risk_details
+#### get_risk_details
 
 Retrieve complete details of a specific risk assessment by ID.
 
@@ -187,7 +195,9 @@ Retrieve complete details of a specific risk assessment by ID.
 }
 ```
 
-### list_all_mitigations
+### Listing Tools
+
+#### list_all_mitigations
 
 List all available mitigations with metadata.
 
@@ -216,7 +226,7 @@ List all available mitigations with metadata.
 }
 ```
 
-### list_all_risks
+#### list_all_risks
 
 List all available risk assessments with metadata.
 
@@ -241,6 +251,122 @@ List all available risk assessments with metadata.
     }
   ],
   "total_count": 23
+}
+```
+
+### System Tools
+
+#### get_cache_stats
+
+Get cache performance statistics and metrics.
+
+**Input Schema:**
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": []
+}
+```
+
+**Response Format:**
+```json
+{
+  "hits": 150,
+  "misses": 25,
+  "hit_rate": 0.857,
+  "total_requests": 175,
+  "cache_size": 42,
+  "max_size": 100
+}
+```
+
+#### get_service_health
+
+Get comprehensive service health status and diagnostics.
+
+**Input Schema:**
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": []
+}
+```
+
+**Response Format:**
+```json
+{
+  "status": "healthy",
+  "message": "All systems operational",
+  "uptime_seconds": 3600,
+  "uptime_human": "1 hour",
+  "services": {
+    "content_service": {
+      "status": "healthy",
+      "success_rate": 0.98,
+      "avg_response_time": 150,
+      "total_requests": 200
+    }
+  }
+}
+```
+
+#### get_service_metrics
+
+Get detailed service performance metrics and statistics.
+
+**Input Schema:**
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": []
+}
+```
+
+**Response Format:**
+```json
+{
+  "requests": {
+    "total": 500,
+    "successful": 485,
+    "failed": 15,
+    "success_rate": 0.97
+  },
+  "response_times": {
+    "avg_ms": 145,
+    "p50_ms": 120,
+    "p95_ms": 280,
+    "p99_ms": 450
+  },
+  "cache_performance": {
+    "hit_rate": 0.86,
+    "total_hits": 430,
+    "total_misses": 70
+  }
+}
+```
+
+#### reset_service_health
+
+Reset service health counters and error boundaries.
+
+**Input Schema:**
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": []
+}
+```
+
+**Response Format:**
+```json
+{
+  "status": "reset_complete",
+  "message": "Service health counters have been reset",
+  "timestamp": "2024-01-15T10:30:00Z"
 }
 ```
 
@@ -498,7 +624,7 @@ python tests/load/concurrent_requests.py --requests=100 --concurrency=10
 
 ### Data Security
 - No user data is stored or logged
-- All content is public domain (FINOS framework)
+- All content is from FINOS framework (used under CC BY 4.0 license)
 - Secure configuration management
 - Regular dependency updates
 

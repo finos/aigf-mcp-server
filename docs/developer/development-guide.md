@@ -1,6 +1,6 @@
-# FINOS AI Governance MCP Server - Developer Guide
+# Independent AI Governance MCP Server - Developer Guide
 
-Complete guide for developers who want to contribute to or extend the FINOS AI Governance MCP Server.
+Complete guide for developers who want to contribute to or extend this independent AI Governance MCP Server project.
 
 ## 📋 Table of Contents
 
@@ -13,13 +13,14 @@ Complete guide for developers who want to contribute to or extend the FINOS AI G
 
 ## 🎯 Project Overview
 
-The FINOS AI Governance MCP Server is a Model Context Protocol (MCP) server that provides programmatic access to AI governance content from the [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework).
+This independent AI Governance MCP Server is a Model Context Protocol (MCP) server that provides programmatic access to AI governance content from the [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework) (used under CC BY 4.0 license).
 
 ### Key Capabilities
-- **Content Access**: 17 AI governance mitigations and 17 risk assessments
+- **Content Access**: 17 AI governance mitigations and 23 risk assessments
 - **Search Functionality**: Intelligent search across all governance content
-- **MCP Compliance**: Full support for MCP 2024-11-05 specification
-- **Enterprise Features**: Health monitoring, caching, error handling
+- **MCP Compliance**: Full support for MCP 2024-11-05 specification  
+- **System Tools**: Health monitoring, cache statistics, service metrics
+- **Performance Features**: Intelligent caching, async operations, error resilience
 
 ### Technology Stack
 - **Python 3.9-3.13**: Core implementation language
@@ -37,14 +38,24 @@ src/finos_mcp/
 ├── __init__.py          # Package initialization and version
 ├── server.py            # MCP server implementation
 ├── config.py            # Configuration management
-├── tools.py             # MCP tool implementations
 ├── content/             # Content management modules
 │   ├── service.py       # Content service orchestrator
 │   ├── parser.py        # Frontmatter and markdown parsing
-│   └── cache.py         # Intelligent caching system
-├── http_client.py       # HTTP client with resilience features
+│   ├── cache.py         # Intelligent caching system
+│   ├── discovery.py     # Content discovery
+│   └── fetch.py         # HTTP client with circuit breaker
+├── tools/               # MCP tool implementations (modular)
+│   ├── search.py        # Search operations
+│   ├── details.py       # Document details retrieval
+│   ├── listing.py       # Content listing operations
+│   └── system.py        # System health and metrics tools
+├── security/            # Security and validation
+│   ├── validators.py    # Input validation
+│   └── rate_limit.py    # Rate limiting
+├── health/              # Health monitoring
+│   └── monitor.py       # Multi-tenant health monitoring
 ├── logging.py           # Structured logging implementation
-└── health.py            # Health monitoring and metrics
+└── internal/            # Internal development tools
 ```
 
 ### Design Principles
@@ -77,22 +88,10 @@ src/finos_mcp/
 git clone https://github.com/hugo-calderon/finos-mcp-server.git
 cd finos-mcp-server
 
-# Run automated setup
-./scripts/dev-setup.sh
-```
-
-### Manual Setup
-```bash
-# Create virtual environment
+# Create virtual environment and install
 python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e .
-pip install -r config/dependencies/requirements.lock
-
-# Install pre-commit hooks
-pre-commit install --config config/ci/pre-commit-config.yaml
 
 # Verify installation
 finos-mcp --help
@@ -116,11 +115,12 @@ finos-mcp --help
 - **Environment Variables**: Flexible configuration sources
 - **Validation**: Comprehensive setting validation
 
-### Tools (`tools.py`)
-- **Search Operations**: Intelligent content search
-- **Content Retrieval**: Direct document access
-- **Listing Operations**: Content discovery
-- **Input Validation**: Secure parameter handling
+### Tools (`tools/`)
+- **Search Operations**: Intelligent content search (search.py)
+- **Content Retrieval**: Direct document access (details.py)
+- **Listing Operations**: Content discovery (listing.py)
+- **System Tools**: Health monitoring, cache stats, metrics (system.py)
+- **Input Validation**: Secure parameter handling with Pydantic
 
 ## 🧪 Testing
 
@@ -138,14 +138,16 @@ tests/
 # Unit tests
 python -m pytest tests/unit/ -v
 
-# Integration tests
-python -m pytest tests/integration/ -v
+# Integration tests (excluding live API tests)
+python -m pytest tests/integration/ -v --tb=short -k "not live"
 
 # Full test suite with coverage
-python -m pytest --cov=src/finos_mcp --cov-report=html
+python -m pytest --cov=finos_mcp --cov-report=html
 
-# Quality validation
-./scripts/quality-check.sh
+# Code quality checks
+ruff check .
+ruff format --check .
+mypy src/
 ```
 
 ### Test Categories
@@ -282,11 +284,12 @@ python -m mypy src/finos_mcp --strict --warn-unreachable
 ### Adding New Features
 
 **New MCP Tools:**
-1. Add tool function to `tools.py`
-2. Include comprehensive input validation
-3. Add error handling and logging
+1. Add tool function to appropriate module in `tools/`
+2. Include comprehensive input validation with Pydantic
+3. Add error handling and structured logging
 4. Write unit and integration tests
 5. Update API documentation
+6. Register tool in `tools/__init__.py`
 
 **New Content Sources:**
 1. Extend content service in `content/service.py`
@@ -304,20 +307,24 @@ python -m mypy src/finos_mcp --strict --warn-unreachable
 
 ## 🔧 Development Tools
 
-### Available Scripts
-- `./scripts/dev-setup.sh` - Development environment setup
-- `./scripts/quality-check.sh` - Code quality validation
-- `./scripts/clean.sh` - Environment cleanup
+### Development Commands
+```bash
+# Code quality checks
+ruff check .                    # Linting
+ruff format --check .           # Format checking
+mypy src/                      # Type checking
+
+# Testing
+python -m pytest tests/ -v     # Run tests
+python -m pytest --cov=finos_mcp --cov-report=html  # With coverage
+
+# Installation
+pip install -e .              # Editable install
+```
 
 ### Configuration Files
-- `config/ci/pre-commit-config.yaml` - Pre-commit hooks
-- `config/security/bandit.yml` - Security scanning config
-- `config/dependencies/requirements.lock` - Pinned dependencies
-
-### IDE Integration
-- MyPy configuration in `mypy.ini`
-- Pytest configuration in `pytest.ini`
-- Ruff settings in `pyproject.toml`
+- `pyproject.toml` - Project metadata, Ruff, and tool settings
+- `tests/conftest.py` - Test fixtures and configuration
 
 ## 🎯 Coding Principles
 
@@ -385,14 +392,18 @@ def setup_test_environment():
 
 ### Development Workflow
 ```bash
-# 1. Set development mode (relaxed validation)
-export FINOS_MCP_VALIDATION_MODE=permissive
+# 1. Set up development environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 
-# 2. Tests automatically use disabled mode
-pytest
+# 2. Run tests
+python -m pytest tests/ -v --tb=short
 
-# 3. Pre-commit ensures code quality
-pre-commit run --all-files
+# 3. Check code quality
+ruff check .
+ruff format --check .
+mypy src/
 ```
 
 ---

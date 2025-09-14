@@ -2,7 +2,7 @@
 
 ## Our Commitment
 
-We are committed to providing a welcoming and inclusive environment for all contributors to the FINOS AI Governance Framework MCP Server project.
+We are committed to providing a welcoming and inclusive environment for all contributors to the AI Governance MCP Server project.
 
 ## Standards
 

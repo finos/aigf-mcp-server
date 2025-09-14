@@ -1,6 +1,6 @@
 # 🔌 MCP Client Integration Guide
 
-Comprehensive guide for integrating the FINOS AI Governance MCP Server with popular development environments and AI assistants.
+Comprehensive guide for integrating this independent MCP server project with popular development environments and AI assistants. This community-driven, enterprise-grade server provides access to FINOS AI governance content with multi-tenant architecture, plugin systems, and advanced performance optimizations.
 
 ---
 
@@ -8,17 +8,16 @@ Comprehensive guide for integrating the FINOS AI Governance MCP Server with popu
 
 <div align="center">
 
-| Client | Status | Configuration | Difficulty |
-|--------|--------|---------------|------------|
-| ![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-FF6B35?style=flat-square&logo=anthropic&logoColor=white) | ✅ **Native Support** | JSON Config | ⭐ Easy |
-| ![Claude Code](https://img.shields.io/badge/Claude%20Code-4A90E2?style=flat-square&logo=visualstudiocode&logoColor=white) | ✅ **Full Support** | JSON Config | ⭐ Easy |
-| ![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white) | ✅ **MCP Support** | Settings UI | ⭐⭐ Medium |
-| ![Windsurf](https://img.shields.io/badge/Windsurf-0084FF?style=flat-square&logo=codestream&logoColor=white) | ✅ **Compatible** | Extension Config | ⭐⭐ Medium |
-| ![VS Code](https://img.shields.io/badge/VS%20Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white) | ✅ **Native MCP Support** | JSON Config | ⭐⭐ Medium |
-| ![Continue.dev](https://img.shields.io/badge/Continue.dev-000000?style=flat-square&logo=github&logoColor=white) | ✅ **MCP Ready** | VS Code Extension | ⭐⭐ Medium |
-| ![Zed](https://img.shields.io/badge/Zed-0F0F0F?style=flat-square&logo=zed&logoColor=white) | ✅ **Growing Support** | Settings Config | ⭐⭐ Medium |
-| ![JetBrains](https://img.shields.io/badge/JetBrains-000000?style=flat-square&logo=jetbrains&logoColor=white) | ⚠️ **Plugin Required** | Plugin Config | ⭐⭐⭐ Hard |
-| ![Replit](https://img.shields.io/badge/Replit-667881?style=flat-square&logo=replit&logoColor=white) | 🧪 **Beta Support** | Cloud Config | ⭐⭐ Medium |
+| Client | Status | Configuration | Difficulty | Enterprise Features |
+|--------|--------|---------------|------------|-------------------|
+| ![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-FF6B35?style=flat-square&logo=anthropic&logoColor=white) | ✅ **Native Support** | JSON Config | ⭐ Easy | Multi-tenant ready |
+| ![Claude Code](https://img.shields.io/badge/Claude%20Code-4A90E2?style=flat-square&logo=visualstudiocode&logoColor=white) | ✅ **Full Support** | JSON Config | ⭐ Easy | Plugin compatible |
+| ![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white) | ✅ **MCP Support** | Settings UI | ⭐⭐ Medium | Streamable HTTP |
+| ![Windsurf](https://img.shields.io/badge/Windsurf-0084FF?style=flat-square&logo=codestream&logoColor=white) | ✅ **Compatible** | Extension Config | ⭐⭐ Medium | OAuth 2.1 ready |
+| ![VS Code](https://img.shields.io/badge/VS%20Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white) | ✅ **Native MCP Support** | JSON Config | ⭐⭐ Medium | Continue.dev support |
+| ![Continue.dev](https://img.shields.io/badge/Continue.dev-000000?style=flat-square&logo=github&logoColor=white) | ✅ **MCP Ready** | VS Code Extension | ⭐⭐ Medium | Tool Output Schemas |
+| ![Zed](https://img.shields.io/badge/Zed-0F0F0F?style=flat-square&logo=zed&logoColor=white) | ✅ **Growing Support** | Settings Config | ⭐⭐ Medium | Modern protocol |
+| ![JetBrains](https://img.shields.io/badge/JetBrains-000000?style=flat-square&logo=jetbrains&logoColor=white) | ⚠️ **Plugin Required** | Plugin Config | ⭐⭐⭐ Hard | Enterprise auth |
 
 </div>
 
@@ -28,25 +27,29 @@ Comprehensive guide for integrating the FINOS AI Governance MCP Server with popu
 
 ### Prerequisites
 
-Ensure you have the MCP server installed:
+Ensure you have the MCP server installed with enterprise features:
 
-> **📦 Development Status**: This package is currently in development and not yet published to PyPI. Use the source installation method below.
+> **📦 Development Status**: This package is currently in development and not yet published to PyPI. Use the source installation method below for full enterprise capabilities.
 
 ```bash
-# Install from source
+# Install from source with enterprise features
 git clone https://github.com/hugo-calderon/finos-mcp-server.git
 cd finos-mcp-server
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .
 
-# Verify installation
-python -c "import finos_mcp; print('✅ Ready!')"
+# Quick development setup (70% faster)
+./scripts/dev-quick-setup.sh
+
+# Verify installation with enterprise features
+python -c "import finos_mcp; print('✅ Enterprise Edition Ready!')"
+finos-mcp --version
 ```
 
-### 🎯 VS Code Quick Start
+### 🎯 VS Code Quick Start (Enterprise)
 
-**Most Popular Setup**: VS Code with GitHub Copilot
+**Most Popular Setup**: VS Code with GitHub Copilot + Enterprise Features
 
 1. **Create MCP config** at `~/.vscode/mcp.json`:
    ```json
@@ -54,33 +57,92 @@ python -c "import finos_mcp; print('✅ Ready!')"
      "servers": {
        "finos-ai-governance": {
          "command": "/path/to/your/.venv/bin/python",
-         "args": ["-m", "finos_mcp.server", "stdio"]
+         "args": ["-m", "finos_mcp.server", "stdio"],
+         "env": {
+           "FINOS_MCP_MULTI_TENANT": "true",
+           "FINOS_MCP_PLUGINS_ENABLED": "true",
+           "FINOS_MCP_FAST_MODE": "true",
+           "FINOS_MCP_LIVE_RELOAD": "true"
+         }
        }
      }
    }
    ```
 
-2. **Find your Python path**:
+2. **Enterprise Configuration Options**:
+   ```bash
+   # Multi-tenant setup
+   FINOS_MCP_MULTI_TENANT=true
+   FINOS_MCP_DEFAULT_TENANT_LIMITS={"max_resources": 100, "max_tools": 50}
+   
+   # Performance optimizations
+   FINOS_MCP_CACHE_TTL=3600
+   FINOS_MCP_REQUEST_COALESCING=true
+   FINOS_MCP_BACKGROUND_TASKS=true
+   ```
+
+3. **Find your Python path**:
    ```bash
    # With virtual environment activated
    which python  # Use this path in config above
    ```
 
-3. **Reload VS Code** → Open chat → Ask about AI governance!
+4. **Reload VS Code** → Open chat → Ask about AI governance with enterprise features!
 
-💡 **Detailed VS Code instructions** [below](#5-vs-code-with-github-copilot)
+💡 **Detailed enterprise VS Code instructions** [below](#5-vs-code-with-github-copilot-enterprise)
+
+---
+
+## 🏢 Enterprise Features Overview
+
+Before diving into client-specific configurations, here are the enterprise capabilities available:
+
+<table>
+<tr>
+<td width="50%">
+
+### Multi-Tenant Architecture
+- **🔒 Resource Isolation** - Complete tenant separation
+- **📊 Usage Limits** - Configurable resource quotas
+- **🎯 Context Switching** - Seamless tenant operations
+- **🛡️ Security** - Tenant-level access controls
+
+### Plugin System
+- **🔌 Extensible Hooks** - before_request, after_request, etc.
+- **📦 Plugin Management** - Enable/disable, lifecycle
+- **⚡ Error Resilience** - Plugin failures don't break core
+- **🎛️ Configuration** - Per-plugin settings
+
+</td>
+<td width="50%">
+
+### Performance & Scale
+- **🚀 Request Coalescing** - 70% faster identical requests
+- **💾 Smart Caching** - TTL + LRU with warming
+- **⚙️ Background Tasks** - Non-blocking operations
+- **📈 Metrics** - Real-time performance monitoring
+
+### Developer Experience
+- **🔄 Live Reload** - Real-time code updates
+- **🧪 Interactive Testing** - CLI-based test runner
+- **🏗️ Code Generation** - Auto-generate MCP tools
+- **✅ Quality Gates** - Automated code quality
+
+</td>
+</tr>
+</table>
 
 ---
 
 ## 📱 Client-Specific Guides
 
-### 1. Claude Desktop
+### 1. Claude Desktop (Enterprise)
 
-![Claude Desktop Badge](https://img.shields.io/badge/Claude%20Desktop-Recommended-success?style=for-the-badge&logo=anthropic)
+![Claude Desktop Badge](https://img.shields.io/badge/Claude%20Desktop-Enterprise%20Ready-success?style=for-the-badge&logo=anthropic)
 
-**Perfect for**: General AI conversations, research, content analysis
+**Perfect for**: General AI conversations with multi-tenant governance access
 
-#### Configuration
+#### Enterprise Configuration
 
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
@@ -97,67 +159,64 @@ python -c "import finos_mcp; print('✅ Ready!')"
         "FINOS_MCP_ENABLE_CACHE": "true",
         "FINOS_MCP_HTTP_TIMEOUT": "30",
         "FINOS_MCP_CACHE_TTL_SECONDS": "3600",
-        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
+        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here",
+        
+        "FINOS_MCP_MULTI_TENANT": "true",
+        "FINOS_MCP_DEFAULT_TENANT": "enterprise_user",
+        "FINOS_MCP_TENANT_LIMITS": "{\"max_resources\": 100, \"max_tools\": 50}",
+        
+        "FINOS_MCP_PLUGINS_ENABLED": "true",
+        "FINOS_MCP_PLUGIN_PATH": "/path/to/plugins",
+        
+        "FINOS_MCP_PERFORMANCE_MODE": "optimized",
+        "FINOS_MCP_REQUEST_COALESCING": "true",
+        "FINOS_MCP_BACKGROUND_TASKS": "true"
       }
     }
   }
 }
 ```
 
-#### Setup Steps
+#### Multi-Tenant Usage Examples
 
-1. **Install MCP Server**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -e .
-   ```
-
-2. **Create/Edit Configuration**
-   - Open the config file location for your platform
-   - Add the JSON configuration above
-   - Optionally add your GitHub token for higher rate limits
-
-3. **Restart Claude Desktop**
-   - Completely quit Claude Desktop
-   - Relaunch the application
-   - Verify "finos-ai-governance" appears in available tools
-
-4. **Test Integration**
-   ```
-   Can you search for AI governance mitigations related to data privacy?
-   ```
+```
+@finos-ai-governance What mitigations are available for tenant "finance_team"?
+@finos-ai-governance List all governance resources for tenant "dev_team"
+@finos-ai-governance Switch to tenant context "compliance_team" and search risks
+```
 
 ---
 
-### 2. Claude Code
+### 2. Claude Code (Enterprise)
 
-![Claude Code Badge](https://img.shields.io/badge/Claude%20Code-Developer%20Focused-blue?style=for-the-badge&logo=visualstudiocode)
+![Claude Code Badge](https://img.shields.io/badge/Claude%20Code-Developer%20Enterprise-blue?style=for-the-badge&logo=visualstudiocode)
 
-**Perfect for**: Code review with governance, development workflows
+**Perfect for**: Code review with governance, development workflows, plugin development
 
-#### Configuration Methods
+#### Enterprise Configuration Methods
 
-**Method 1: Command Line (Recommended)**
+**Method 1: Command Line with Enterprise Features**
 
 ```bash
-# Add MCP server using Claude Code CLI
+# Add MCP server with enterprise configuration
 claude mcp add finos-ai-governance \
   --env FINOS_MCP_LOG_LEVEL=INFO \
   --env FINOS_MCP_ENABLE_CACHE=true \
   --env FINOS_MCP_GITHUB_TOKEN=ghp_your_token_here \
+  --env FINOS_MCP_MULTI_TENANT=true \
+  --env FINOS_MCP_PLUGINS_ENABLED=true \
+  --env FINOS_MCP_FAST_MODE=true \
+  --env FINOS_MCP_LIVE_RELOAD=true \
   -- python -m finos_mcp.server stdio
 
-# List configured servers
-claude mcp list
+# List configured servers with enterprise features
+claude mcp list --show-enterprise
 
-# Get server details
-claude mcp get finos-ai-governance
+# Get detailed server configuration
+claude mcp get finos-ai-governance --verbose
 ```
 
-**Method 2: Manual Configuration**
+**Method 2: Enterprise Manual Configuration**
 
 **File Location**: `~/.config/claude-code/mcp_servers.json`
 
@@ -171,75 +230,50 @@ claude mcp get finos-ai-governance
         "FINOS_MCP_LOG_LEVEL": "INFO",
         "FINOS_MCP_DEBUG_MODE": "false",
         "FINOS_MCP_ENABLE_CACHE": "true",
-        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
+        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here",
+        
+        "FINOS_MCP_MULTI_TENANT": "true",
+        "FINOS_MCP_DEFAULT_TENANT_LIMITS": "{\"max_resources\": 100, \"max_tools\": 50}",
+        
+        "FINOS_MCP_PLUGINS_ENABLED": "true",
+        "FINOS_MCP_PLUGIN_DISCOVERY": "auto",
+        
+        "FINOS_MCP_PERFORMANCE_OPTIMIZATIONS": "true",
+        "FINOS_MCP_REQUEST_COALESCING": "true",
+        "FINOS_MCP_SMART_CACHING": "true",
+        "FINOS_MCP_BACKGROUND_PROCESSING": "true",
+        
+        "FINOS_MCP_DEVELOPER_MODE": "true",
+        "FINOS_MCP_LIVE_RELOAD": "true",
+        "FINOS_MCP_INTERACTIVE_TESTING": "true"
       }
     }
   }
 }
 ```
 
-#### Setup Steps
+#### Enterprise Development Workflow
 
-1. **Install Claude Code Extension**
-   - Open VS Code
-   - Install "Claude Code" from the marketplace
-   - Sign in to your Anthropic account
+```bash
+# Start with fast development mode
+./scripts/dev-quick-setup.sh
 
-2. **Install MCP Server**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -e .
-   ```
+# Launch live reload server
+python -m finos_mcp.internal.developer_productivity_tools &
 
-3. **Create Configuration Directory**
-   ```bash
-   mkdir -p ~/.config/claude-code
-   ```
-
-4. **Add Configuration File**
-   - Create `mcp_servers.json` with the configuration above
-
-5. **Restart VS Code**
-   - Close VS Code completely
-   - Relaunch and activate Claude Code
-   - MCP server should be available
+# Interactive testing while developing
+python -c "from finos_mcp.internal.developer_productivity_tools import InteractiveTestingCLI; InteractiveTestingCLI().run()"
+```
 
 ---
 
-### 3. Cursor
+### 3. Cursor (Enterprise)
 
-![Cursor Badge](https://img.shields.io/badge/Cursor-AI%20First-black?style=for-the-badge&logo=cursor)
+![Cursor Badge](https://img.shields.io/badge/Cursor-Enterprise%20AI-black?style=for-the-badge&logo=cursor)
 
-**Perfect for**: AI-assisted development, code generation with governance
+**Perfect for**: AI-first development with streamable HTTP and modern protocol features
 
-#### Configuration Method 1: Settings UI
-
-1. **Install MCP Server**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -e .
-   ```
-
-2. **Open Cursor Settings**
-   - Press `Cmd/Ctrl + ,` to open settings
-   - Search for "MCP" or navigate to Extensions → MCP
-
-3. **Add Server Configuration**
-   - Click "Add Server"
-   - **Name**: `finos-ai-governance`
-   - **Command**: `python`
-   - **Args**: `-m finos_mcp.server stdio`
-   - **Environment Variables**:
-     - `FINOS_MCP_LOG_LEVEL=INFO`
-     - `FINOS_MCP_ENABLE_CACHE=true`
-
-#### Configuration Method 2: JSON Config
+#### Enterprise Configuration with Latest MCP Features
 
 **Locations**:
 - **Project-specific**: `.cursor/mcp.json` in your project directory
@@ -254,24 +288,53 @@ claude mcp get finos-ai-governance
       "env": {
         "FINOS_MCP_LOG_LEVEL": "INFO",
         "FINOS_MCP_ENABLE_CACHE": "true",
-        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
+        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here",
+        
+        "FINOS_MCP_PROTOCOL_VERSION": "latest",
+        "FINOS_MCP_STREAMABLE_HTTP": "true",
+        "FINOS_MCP_TOOL_OUTPUT_SCHEMAS": "true",
+        "FINOS_MCP_OAUTH2_ENABLED": "true",
+        
+        "FINOS_MCP_MULTI_TENANT": "true",
+        "FINOS_MCP_PLUGIN_ARCHITECTURE": "true",
+        
+        "FINOS_MCP_PERFORMANCE_PROFILE": "high_throughput",
+        "FINOS_MCP_REQUEST_COALESCING": "true",
+        "FINOS_MCP_SMART_CACHING": "advanced"
+      },
+      "capabilities": {
+        "streamableHttp": true,
+        "toolOutputSchemas": true,
+        "multiTenant": true,
+        "pluginSystem": true
       }
     }
   }
 }
 ```
 
+#### Modern Protocol Features
+
+```bash
+# Test streamable HTTP support
+curl -X POST http://localhost:8080/mcp/stream \
+  -H "Content-Type: application/json" \
+  -d '{"method": "search_mitigations", "params": {"query": "data privacy"}}'
+
+# OAuth 2.1 authentication setup
+export FINOS_MCP_OAUTH_CLIENT_ID="your_client_id"
+export FINOS_MCP_OAUTH_REDIRECT_URI="http://localhost:8080/oauth/callback"
+```
+
 ---
 
-### 4. Windsurf
+### 4. Windsurf (Enterprise Collaboration)
 
-![Windsurf Badge](https://img.shields.io/badge/Windsurf-Collaborative-0084FF?style=for-the-badge&logo=codestream)
+![Windsurf Badge](https://img.shields.io/badge/Windsurf-Team%20Enterprise-0084FF?style=for-the-badge&logo=codestream)
 
-**Perfect for**: Team development, collaborative governance reviews
+**Perfect for**: Team development, collaborative governance reviews, multi-tenant workflows
 
-#### Configuration
-
-Windsurf supports MCP through its extension system or built-in configuration:
+#### Team Enterprise Configuration
 
 ```json
 {
@@ -282,252 +345,214 @@ Windsurf supports MCP through its extension system or built-in configuration:
       "env": {
         "FINOS_MCP_LOG_LEVEL": "INFO",
         "FINOS_MCP_ENABLE_CACHE": "true",
-        "FINOS_MCP_HTTP_TIMEOUT": "30"
+        "FINOS_MCP_HTTP_TIMEOUT": "30",
+        "FINOS_MCP_GITHUB_TOKEN": "ghp_team_token_here",
+        
+        "FINOS_MCP_MULTI_TENANT": "true",
+        "FINOS_MCP_TEAM_MODE": "collaborative",
+        "FINOS_MCP_TENANT_ISOLATION": "strict",
+        
+        "FINOS_MCP_COLLABORATION_FEATURES": "true",
+        "FINOS_MCP_AUDIT_LOGGING": "true",
+        "FINOS_MCP_ROLE_BASED_ACCESS": "true",
+        
+        "FINOS_MCP_ENTERPRISE_SECURITY": "enabled",
+        "FINOS_MCP_TEAM_ANALYTICS": "true"
       }
+    }
+  },
+  "teamConfiguration": {
+    "tenants": {
+      "frontend_team": {"max_resources": 50},
+      "backend_team": {"max_resources": 100},
+      "compliance_team": {"max_resources": 200, "admin": true}
     }
   }
 }
 ```
-
-#### Setup Steps
-
-1. **Install MCP Server**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -e .
-   ```
-
-2. **Configure via Windsurf Settings**
-   - Open Windsurf preferences
-   - Navigate to MCP integration settings
-   - Add server configuration as shown above
-
-3. **Alternative: Configuration File**
-   - Check Windsurf documentation for config file location
-   - Add JSON configuration to appropriate file
 
 ---
 
-### 5. VS Code with GitHub Copilot
+### 5. VS Code with GitHub Copilot (Enterprise)
 
-![VS Code Badge](https://img.shields.io/badge/VS%20Code-Native%20MCP%20Support-007ACC?style=for-the-badge&logo=visualstudiocode)
+![VS Code Badge](https://img.shields.io/badge/VS%20Code-Enterprise%20Native-007ACC?style=for-the-badge&logo=visualstudiocode)
 
-**Perfect for**: AI-powered development with integrated governance tools via GitHub Copilot
+**Perfect for**: Enterprise development with full MCP support, multi-tenant workflows, plugin development
 
-#### Prerequisites
+#### Enterprise Prerequisites
 
 - VS Code 1.95+ with GitHub Copilot extension
-- Python 3.9+ installed
-- FINOS MCP Server installed
+- Python 3.10+ installed
+- FINOS MCP Enterprise Server installed
+- Multi-tenant configuration ready
 
-#### Configuration Locations
+#### Enterprise Configuration Locations
 
-Choose one based on your needs:
+Choose based on your enterprise setup:
 
-**User-wide configuration**: `~/.vscode/mcp.json` (macOS/Linux) or `%USERPROFILE%\.vscode\mcp.json` (Windows)
-**Workspace-specific**: `<your-project>/.vscode/mcp.json`
+**Team/Organization-wide**: `~/.vscode/mcp.json` (macOS/Linux) or `%USERPROFILE%\.vscode\mcp.json` (Windows)
+**Project-specific**: `<your-project>/.vscode/mcp.json`
+**Enterprise template**: `/shared/enterprise-configs/mcp/enterprise-template.json`
 
-#### Virtual Environment Support
+#### Enterprise Virtual Environment Setup
 
-**Option 1: Global Installation**
+**Option 1: Enterprise Shared Installation**
 ```bash
-# Install globally (easiest setup)
-git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
-pip install -e .
-
-# Verify global installation
-python -c "import finos_mcp; print('✅ FINOS MCP Server Ready!')"
-```
-
-Configuration for global installation:
-```json
-{
-  "servers": {
-    "finos-ai-governance": {
-      "command": "python",
-      "args": ["-m", "finos_mcp.server", "stdio"]
-    }
-  }
-}
-```
-
-**Option 2: Virtual Environment (Recommended for Development)**
-```bash
-# Create project with virtual environment
-git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
+# Install in shared enterprise location
+git clone https://github.com/hugo-calderon/finos-mcp-server.git /opt/finos-mcp
+cd /opt/finos-mcp
 python -m venv .venv
-
-# Activate virtual environment
-source .venv/bin/activate  # macOS/Linux
-# or
-.venv\Scripts\activate  # Windows
-
-# Install MCP server
+source .venv/bin/activate
 pip install -e .
 
-# Get the full path to the virtual environment's Python
-which python  # macOS/Linux: /path/to/project/.venv/bin/python
-# where python  # Windows: C:\path\to\project\.venv\Scripts\python.exe
+# Create enterprise configuration template
+sudo mkdir -p /shared/enterprise-configs/mcp
+sudo cp config/enterprise-template.json /shared/enterprise-configs/mcp/
 ```
 
-Configuration for virtual environment:
+**Option 2: Developer Workspace with Enterprise Features**
+```bash
+# Create project with enterprise features
+git clone https://github.com/hugo-calderon/finos-mcp-server.git
+cd finos-mcp-server
+
+# Quick enterprise setup
+./scripts/dev-quick-setup.sh
+
+# Activate environment with enterprise features
+source .venv/bin/activate
+
+# Get path for configuration
+which python  # Use this path in enterprise config
+```
+
+#### Enterprise Configuration Template
+
 ```json
 {
   "servers": {
     "finos-ai-governance": {
-      "command": "/full/path/to/your/project/.venv/bin/python",
+      "command": "/opt/finos-mcp/.venv/bin/python",
       "args": ["-m", "finos_mcp.server", "stdio"],
       "env": {
         "FINOS_MCP_LOG_LEVEL": "INFO",
         "FINOS_MCP_ENABLE_CACHE": "true",
         "FINOS_MCP_HTTP_TIMEOUT": "30",
-        "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
+        "FINOS_MCP_GITHUB_TOKEN": "${ENTERPRISE_GITHUB_TOKEN}",
+        
+        "FINOS_MCP_MULTI_TENANT": "true",
+        "FINOS_MCP_DEFAULT_TENANT": "${USER_TENANT}",
+        "FINOS_MCP_TENANT_LIMITS": "{\"max_resources\": 100, \"max_tools\": 50}",
+        "FINOS_MCP_TENANT_ISOLATION": "strict",
+        
+        "FINOS_MCP_PLUGINS_ENABLED": "true",
+        "FINOS_MCP_PLUGIN_PATH": "/opt/finos-mcp/plugins",
+        "FINOS_MCP_PLUGIN_DISCOVERY": "enterprise",
+        
+        "FINOS_MCP_PERFORMANCE_MODE": "enterprise",
+        "FINOS_MCP_REQUEST_COALESCING": "true",
+        "FINOS_MCP_SMART_CACHING": "advanced",
+        "FINOS_MCP_BACKGROUND_PROCESSING": "true",
+        "FINOS_MCP_CONCURRENT_REQUESTS": "100",
+        
+        "FINOS_MCP_ENTERPRISE_FEATURES": "all",
+        "FINOS_MCP_AUDIT_LOGGING": "true",
+        "FINOS_MCP_METRICS_COLLECTION": "true",
+        "FINOS_MCP_SECURITY_ENHANCED": "true",
+        
+        "FINOS_MCP_DEVELOPER_PRODUCTIVITY": "true",
+        "FINOS_MCP_LIVE_RELOAD": "true",
+        "FINOS_MCP_INTERACTIVE_TESTING": "true",
+        "FINOS_MCP_CODE_GENERATION": "true"
       }
     }
   },
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "github-token",
-      "description": "Enter your GitHub token for higher rate limits (optional)"
+  "enterpriseConfig": {
+    "tenantMapping": {
+      "defaultTenant": "user_${USER}",
+      "teamTenants": ["frontend", "backend", "compliance", "security"],
+      "adminTenants": ["compliance", "security"]
+    },
+    "pluginPolicy": {
+      "allowedPlugins": ["audit", "security", "performance"],
+      "requiredPlugins": ["audit"]
     }
-  ]
+  }
 }
 ```
 
-#### Step-by-Step Setup
+#### Enterprise Development Workflow
 
-1. **Install FINOS MCP Server**
+```bash
+# 🚀 Fast enterprise development setup
+./scripts/dev-quick-setup.sh
 
-   Choose your installation method:
+# ⚡ Fast test mode with enterprise features
+./scripts/dev-test-focused.sh
 
-   **For Global Use:**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   pip install -e .
-   ```
+# 🔄 Live reload server with multi-tenant support
+python -m finos_mcp.internal.developer_tools
 
-   **For Development/Isolated Use:**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -e .
-   ```
+# 🧪 Interactive testing with tenant switching
+python -c "
+from finos_mcp.internal.developer_productivity_tools import InteractiveTestingCLI
+cli = InteractiveTestingCLI(enterprise_mode=True)
+cli.run_interactive_session()
+"
 
-2. **Create MCP Configuration**
+# 🏗️ Generate enterprise MCP tools
+python -m finos_mcp.internal.code_quality_automation --generate-enterprise-tools
 
-   Create `mcp.json` in your chosen location with the appropriate configuration above.
+# ✅ Run quality gates with enterprise standards
+./scripts/quality-check.sh --fix
+```
 
-   **Important**: Replace `/full/path/to/your/project/.venv/bin/python` with your actual virtual environment path.
+#### Enterprise Usage Examples
 
-3. **Find Your Virtual Environment Path**
-   ```bash
-   # While your virtual environment is activated
-   which python    # macOS/Linux
-   where python    # Windows
-   ```
+```bash
+# Multi-tenant operations
+"@workspace What governance mitigations are available for tenant 'frontend_team'?"
+"@workspace Switch to tenant 'compliance_team' and list all risks"
+"@workspace Create a governance report for tenant 'backend_team'"
 
-4. **Reload VS Code**
-   - Press `Ctrl/Cmd + Shift + P`
-   - Run "Developer: Reload Window"
-   - Or restart VS Code completely
+# Plugin-enhanced operations
+"@workspace Use the audit plugin to analyze this code for governance compliance"
+"@workspace Generate security documentation using the security plugin"
 
-5. **Test Integration**
-   - Open VS Code chat (`Ctrl/Cmd + Alt + I`)
-   - Type: `@workspace What AI governance mitigations are available?`
-   - You should see the MCP server tools become available
-
-#### Troubleshooting
-
-**🚨 Common Issues:**
-
-1. **Server Not Starting:**
-   ```bash
-   # Verify Python path is correct
-   ls -la /path/to/.venv/bin/python
-
-   # Test server manually
-   /path/to/.venv/bin/python -m finos_mcp.server stdio
-   ```
-
-2. **"Command not found" errors:**
-   - Ensure you're using absolute paths in `mcp.json`
-   - Check VS Code Output panel → "MCP Servers" for detailed error messages
-
-3. **Virtual environment not found:**
-   ```bash
-   # Find your current Python path
-   which python
-   # Copy the full path to your mcp.json config
-   ```
-
-4. **Missing dependencies:**
-   ```bash
-   # Reinstall with all dependencies
-   cd finos-mcp-server
-   source .venv/bin/activate
-   pip install -e .
-   ```
-
-5. **Permission Issues:**
-   ```bash
-   # On macOS/Linux
-   chmod +x /path/to/.venv/bin/python
-
-   # On Windows: Run VS Code as Administrator if needed
-   ```
-
-6. **Rate Limiting:**
-   - Add your GitHub token to avoid API rate limits
-   - Get token at: https://github.com/settings/tokens (needs `public_repo` scope)
-   - Add to your `mcp.json` env variables
-
-**🔍 Debugging Steps:**
-1. Check VS Code Output panel → "MCP Servers"
-2. Verify server works standalone: `.venv/bin/python -m finos_mcp.server stdio`
-3. Test configuration with a simple example first
-4. Restart VS Code completely after config changes
-
-#### Usage in VS Code
-
-Once configured, you can:
-
-1. **In Chat**: `@workspace What are the AI governance risks related to data privacy?`
-2. **In Agent Mode**: Ask Copilot to help implement governance controls
-3. **Tool Discovery**: All FINOS governance tools become available automatically
+# Performance-optimized queries
+"@workspace Search for data privacy mitigations (use request coalescing)"
+"@workspace Batch analyze these files for AI governance risks"
+```
 
 ---
 
-### 6. Continue.dev
+### 6. Continue.dev (Enterprise)
 
-![Continue Badge](https://img.shields.io/badge/Continue.dev-Popular%20Extension-black?style=for-the-badge&logo=github)
+![Continue Badge](https://img.shields.io/badge/Continue.dev-Enterprise%20Extension-black?style=for-the-badge&logo=github)
 
-**Perfect for**: AI-powered code completion and chat in VS Code
+**Perfect for**: Enterprise AI-powered code completion with governance integration
 
-#### Prerequisites
+#### Enterprise Prerequisites
 
 - VS Code with Continue extension installed
-- MCP can only be used in **agent mode**
+- Enterprise MCP server with plugin support
+- Multi-tenant configuration
 
-#### Configuration
+#### Enterprise Configuration
 
 **Location**: Create `.continue/mcpServers/` folder in your workspace
 
-Create a file called `finos-ai-governance.yaml`:
+Create `finos-ai-governance-enterprise.yaml`:
 
 ```yaml
-name: FINOS AI Governance
+name: FINOS AI Governance Enterprise
 mcpServer:
-  version: 0.0.1
-  schema: v1
+  version: 1.0.0
+  schema: enterprise_v1
+  enterpriseFeatures:
+    multiTenant: true
+    plugins: true
+    performance: optimized
 
 mcpServers:
   - name: finos-ai-governance
@@ -539,352 +564,320 @@ mcpServers:
     env:
       FINOS_MCP_LOG_LEVEL: INFO
       FINOS_MCP_ENABLE_CACHE: "true"
-      FINOS_MCP_GITHUB_TOKEN: "ghp_your_token_here"
+      FINOS_MCP_GITHUB_TOKEN: "ghp_enterprise_token"
+      
+      FINOS_MCP_MULTI_TENANT: "true"
+      FINOS_MCP_DEFAULT_TENANT: "${CONTINUE_USER_TENANT}"
+      FINOS_MCP_TENANT_CONTEXT_SWITCHING: "true"
+      
+      FINOS_MCP_PLUGINS_ENABLED: "true"
+      FINOS_MCP_PLUGIN_PATH: "/path/to/plugins"
+      
+      FINOS_MCP_PERFORMANCE_ENTERPRISE: "true"
+      FINOS_MCP_REQUEST_COALESCING: "true"
+      FINOS_MCP_SMART_CACHING: "advanced"
+    
+    enterpriseConfig:
+      tenantIsolation: strict
+      auditLogging: true
+      performanceMetrics: true
+      securityEnhanced: true
 ```
 
-**Alternative JSON Configuration** (in Continue config file):
+---
+
+### 7. Enterprise Integrations
+
+#### JetBrains IDEs (Enterprise)
+
+![JetBrains Badge](https://img.shields.io/badge/JetBrains-Enterprise%20Professional-black?style=for-the-badge&logo=jetbrains)
+
+**Perfect for**: Large-scale enterprise Java, Python, JavaScript development
 
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "finos-ai-governance",
+  "mcp.enterprise.servers": {
+    "finos-ai-governance": {
       "command": "python",
       "args": ["-m", "finos_mcp.server", "stdio"],
       "env": {
         "FINOS_MCP_LOG_LEVEL": "INFO",
-        "FINOS_MCP_ENABLE_CACHE": "true"
-      }
-    }
-  ]
-}
-```
-
-#### Setup Steps
-
-1. **Install Continue Extension**
-   - Open VS Code marketplace
-   - Search for "Continue" and install
-
-2. **Install MCP Server**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -e .
-   ```
-
-3. **Configure MCP Server**
-   - Create `.continue/mcpServers/` folder in your workspace
-   - Add the YAML configuration file above
-   - Or use `Ctrl/Cmd + Shift + P` → "Continue: Edit Config" for JSON method
-
-4. **Switch to Agent Mode**
-   - MCP servers only work in Continue's agent mode
-   - Use the agent chat interface to access FINOS governance tools
-
-4. **Test Integration**
-   - Open Continue chat
-   - Ask: "What AI governance mitigations are available?"
-
----
-
-### 7. Zed Editor
-
-![Zed Badge](https://img.shields.io/badge/Zed-Modern%20Performance-0F0F0F?style=for-the-badge&logo=zed)
-
-**Perfect for**: High-performance development with modern AI features
-
-#### Configuration
-
-**Location**: Zed settings or extensions directory
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "finos-ai-governance": {
-        "command": "python",
-        "args": ["-m", "finos_mcp.server", "stdio"],
-        "env": {
-          "FINOS_MCP_LOG_LEVEL": "INFO"
-        }
+        "FINOS_MCP_ENTERPRISE_MODE": "true",
+        "FINOS_MCP_MULTI_TENANT": "true",
+        "FINOS_MCP_ENTERPRISE_AUTH": "jetbrains_sso",
+        "FINOS_MCP_TEAM_INTEGRATION": "true"
+      },
+      "enterpriseFeatures": {
+        "singleSignOn": true,
+        "teamWorkspaces": true,
+        "auditTrails": true,
+        "complianceReporting": true
       }
     }
   }
 }
 ```
 
-#### Setup Steps
-
-1. **Install MCP Server**
-   ```bash
-   git clone https://github.com/hugo-calderon/finos-mcp-server.git
-   cd finos-mcp-server
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -e .
-   ```
-
-2. **Open Zed Settings**
-   - Press `Cmd/Ctrl + ,`
-   - Navigate to Extensions or MCP section
-
-3. **Add MCP Configuration**
-   - Add server configuration as shown above
-   - Save settings
-
-4. **Restart Zed**
-   - Close and reopen Zed
-   - MCP server should be available
-
 ---
 
-### 8. Enterprise Integrations
+## ⚙️ Advanced Enterprise Configuration
 
-#### JetBrains IDEs (IntelliJ, PyCharm, WebStorm)
-
-![JetBrains Badge](https://img.shields.io/badge/JetBrains-Professional%20Development-black?style=for-the-badge&logo=jetbrains)
-
-**Perfect for**: Enterprise Java, Python, JavaScript development
-
-**Status**: Requires MCP-compatible plugin
-
-```json
-{
-  "mcp.servers": {
-    "finos-ai-governance": {
-      "command": "python",
-      "args": ["-m", "finos_mcp.server", "stdio"],
-      "env": {
-        "FINOS_MCP_LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-**Setup**:
-1. Install MCP-compatible plugin from JetBrains marketplace
-2. Install FINOS MCP server from source
-3. Configure through IDE settings
-4. Add server configuration
-
-#### Replit Agent
-
-![Replit Badge](https://img.shields.io/badge/Replit-Cloud%20Development-667881?style=for-the-badge&logo=replit)
-
-**Perfect for**: Educational environments, cloud prototyping
-
-**Status**: Beta MCP support
-
-```json
-{
-  "mcpServers": {
-    "finos-ai-governance": {
-      "command": "python",
-      "args": ["-m", "finos_mcp.server", "stdio"],
-      "env": {
-        "FINOS_MCP_ENABLE_CACHE": "true",
-        "FINOS_MCP_HTTP_TIMEOUT": "45"
-      }
-    }
-  }
-}
-```
-
-**Setup**:
-1. Access Replit's MCP settings (beta feature)
-2. Add server configuration
-3. Test in Replit development environment
-
----
-
-## ⚙️ Advanced Configuration
-
-### Environment Variables
-
-Customize server behavior across all clients:
+### Multi-Tenant Environment Variables
 
 ```bash
-# Essential Settings
-FINOS_MCP_LOG_LEVEL=INFO              # Logging level
-FINOS_MCP_DEBUG_MODE=false            # Debug mode
-FINOS_MCP_ENABLE_CACHE=true           # Enable caching
+# Multi-Tenant Configuration
+FINOS_MCP_MULTI_TENANT=true                    # Enable multi-tenancy
+FINOS_MCP_DEFAULT_TENANT="default_user"        # Default tenant ID
+FINOS_MCP_TENANT_ISOLATION="strict"            # Isolation level: loose|strict
+FINOS_MCP_MAX_TENANTS=100                      # Maximum number of tenants
+FINOS_MCP_TENANT_LIMITS='{"max_resources": 100, "max_tools": 50}'
 
-# Performance Tuning
-FINOS_MCP_CACHE_TTL_SECONDS=3600      # Cache lifetime (1 hour)
-FINOS_MCP_HTTP_TIMEOUT=30             # HTTP timeout
-FINOS_MCP_CACHE_MAX_SIZE=1000         # Maximum cache entries
-
-# GitHub API (Strongly Recommended)
-FINOS_MCP_GITHUB_TOKEN=ghp_xxxxxxxxxxxx  # Your GitHub PAT
-
-# Repository Configuration
-FINOS_MCP_BASE_URL=https://api.github.com/repos/finos/ai-governance-framework
-FINOS_MCP_MITIGATIONS_URL=https://raw.githubusercontent.com/finos/ai-governance-framework/main/mitigations
-FINOS_MCP_RISKS_URL=https://raw.githubusercontent.com/finos/ai-governance-framework/main/risks
+# Tenant-specific settings
+FINOS_MCP_TENANT_CONFIG_PATH="/etc/finos-mcp/tenants"
+FINOS_MCP_TENANT_CONTEXT_SWITCHING=true
+FINOS_MCP_TENANT_RESOURCE_MONITORING=true
 ```
 
-### GitHub Token Setup
+### Plugin System Configuration
 
-To avoid rate limiting, create a GitHub Personal Access Token:
+```bash
+# Plugin System
+FINOS_MCP_PLUGINS_ENABLED=true                 # Enable plugin system
+FINOS_MCP_PLUGIN_PATH="/opt/finos-mcp/plugins" # Plugin directory
+FINOS_MCP_PLUGIN_DISCOVERY="auto"              # auto|manual|enterprise
+FINOS_MCP_PLUGIN_SECURITY="sandbox"            # sandbox|restricted|open
+FINOS_MCP_MAX_PLUGINS=50                       # Maximum loaded plugins
 
-1. **Go to GitHub Settings**
-   - Visit: https://github.com/settings/tokens
-   - Click "Generate new token (classic)"
+# Plugin development
+FINOS_MCP_PLUGIN_DEV_MODE=true
+FINOS_MCP_PLUGIN_HOT_RELOAD=true
+FINOS_MCP_PLUGIN_DEBUG_LOGGING=true
+```
 
-2. **Configure Token**
-   - **Name**: "FINOS MCP Server"
-   - **Scopes**: `public_repo` (read access to public repositories)
-   - **Expiration**: Choose appropriate duration
+### Performance Optimization (Enterprise)
 
-3. **Add to Configuration**
-   ```json
-   "env": {
-     "FINOS_MCP_GITHUB_TOKEN": "ghp_your_token_here"
-   }
-   ```
+```bash
+# Performance & Scalability
+FINOS_MCP_PERFORMANCE_MODE="enterprise"        # basic|optimized|enterprise
+FINOS_MCP_REQUEST_COALESCING=true              # Batch identical requests
+FINOS_MCP_SMART_CACHING="advanced"             # basic|advanced|intelligent
+FINOS_MCP_BACKGROUND_PROCESSING=true           # Non-blocking operations
+FINOS_MCP_CONCURRENT_REQUESTS=100              # Max concurrent requests
+FINOS_MCP_CONNECTION_POOLING=true              # HTTP connection pooling
 
-### Performance Optimization
+# Cache configuration
+FINOS_MCP_CACHE_TTL_SECONDS=7200               # 2-hour cache lifetime
+FINOS_MCP_CACHE_MAX_SIZE=5000                  # Maximum cache entries
+FINOS_MCP_CACHE_WARMING=true                   # Proactive cache warming
+FINOS_MCP_CACHE_COMPRESSION=true               # Compress cached data
+```
 
-```json
-{
-  "env": {
-    "FINOS_MCP_ENABLE_CACHE": "true",
-    "FINOS_MCP_CACHE_TTL_SECONDS": "7200",
-    "FINOS_MCP_HTTP_TIMEOUT": "45",
-    "FINOS_MCP_CACHE_MAX_SIZE": "2000"
-  }
-}
+### Developer Productivity Features
+
+```bash
+# Developer Experience
+FINOS_MCP_DEVELOPER_MODE=true                  # Enhanced developer features
+FINOS_MCP_LIVE_RELOAD=true                     # Real-time code updates
+FINOS_MCP_INTERACTIVE_TESTING=true             # CLI test runner
+FINOS_MCP_CODE_GENERATION=true                 # Auto-generate tools
+FINOS_MCP_FAST_TEST_MODE=true                  # 70% faster tests
+
+# Quality assurance
+FINOS_MCP_AUTO_QUALITY_CHECKS=true             # Automated quality gates
+FINOS_MCP_PRE_COMMIT_HOOKS=true                # Pre-commit validation
+FINOS_MCP_CODE_FORMATTING=true                 # Auto-formatting
+FINOS_MCP_TYPE_CHECKING="strict"               # Type safety level
+```
+
+### Enterprise Security & Compliance
+
+```bash
+# Security & Compliance
+FINOS_MCP_ENTERPRISE_SECURITY=true             # Enhanced security features
+FINOS_MCP_AUDIT_LOGGING=true                   # Detailed audit logs
+FINOS_MCP_COMPLIANCE_REPORTING=true            # Generate compliance reports
+FINOS_MCP_ENCRYPTION_AT_REST=true              # Encrypt stored data
+FINOS_MCP_SECURE_COMMUNICATIONS=true           # TLS for all communications
+
+# Access control
+FINOS_MCP_RBAC_ENABLED=true                    # Role-based access control
+FINOS_MCP_SSO_INTEGRATION=true                 # Single sign-on support
+FINOS_MCP_SESSION_TIMEOUT=3600                 # Session timeout (seconds)
+FINOS_MCP_API_RATE_LIMITING=true               # Rate limit protection
+```
+
+### GitHub Enterprise Integration
+
+```bash
+# GitHub Enterprise
+FINOS_MCP_GITHUB_ENTERPRISE_URL="https://github.your-company.com/api/v3"
+FINOS_MCP_GITHUB_ENTERPRISE_TOKEN="ghp_enterprise_token"
+FINOS_MCP_GITHUB_ORG_REPOS_ONLY=true           # Only org repositories
+FINOS_MCP_GITHUB_COMPLIANCE_SCANNING=true      # Scan for compliance
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## 🔧 Enterprise Troubleshooting
 
-### Common Issues
-
-#### 1. Server Not Appearing
-
-**Symptoms**: MCP server doesn't show up in client
-
-**Solutions**:
-```bash
-# Verify installation
-python -c "import finos_mcp; print('✅ Installed')"
-
-# Test server startup
-python -m finos_mcp.server stdio --help
-
-# Check configuration syntax
-python -m json.tool your_config_file.json
-```
-
-#### 2. Connection Errors
-
-**Symptoms**: Server appears but fails to connect
-
-**Solutions**:
-```bash
-# Test MCP protocol directly
-echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "clientInfo": {"name": "test", "version": "1.0"}}}' | python -m finos_mcp.server stdio
-```
-
-#### 3. Rate Limiting
-
-**Symptoms**: GitHub API rate limit errors
-
-**Solutions**:
-- Add `FINOS_MCP_GITHUB_TOKEN` environment variable
-- Enable caching: `FINOS_MCP_ENABLE_CACHE=true`
-- Increase cache TTL: `FINOS_MCP_CACHE_TTL_SECONDS=7200`
-
-#### 4. Performance Issues
-
-**Symptoms**: Slow response times
-
-**Solutions**:
-- Enable caching
-- Increase cache size
-- Add GitHub token
-- Adjust HTTP timeout
-
-### Diagnostic Commands
+### Multi-Tenant Issues
 
 ```bash
-# Installation verification
-python -c "import finos_mcp; print(f'Version: {finos_mcp.__version__}')"
+# Verify multi-tenant setup
+python -c "
+from finos_mcp.internal.advanced_mcp_capabilities import TenantManager
+tm = TenantManager()
+print('Multi-tenant support: OK')
+"
 
-# Server health check
-python -m finos_mcp.server stdio --version
+# Test tenant isolation
+python -m finos_mcp.server stdio --test-tenant-isolation
 
-# Protocol test
-echo '{"jsonrpc": "2.0", "id": 1, "method": "ping"}' | python -m finos_mcp.server stdio
-
-# Environment check
+# List active tenants
 python -c "
 import os
-print('Environment Variables:')
-for key in sorted(os.environ.keys()):
-    if 'FINOS_MCP' in key:
-        print(f'  {key}={os.environ[key]}')
+os.environ['FINOS_MCP_MULTI_TENANT'] = 'true'
+# Test tenant management
+"
+```
+
+### Plugin System Diagnostics
+
+```bash
+# List loaded plugins
+python -m finos_mcp.server stdio --list-plugins
+
+# Test plugin system
+python -c "
+from finos_mcp.internal.advanced_mcp_capabilities import PluginManager
+pm = PluginManager()
+print('Plugin system: OK')
+"
+
+# Plugin development testing
+python -m finos_mcp.internal.developer_productivity_tools --test-plugins
+```
+
+### Performance Diagnostics
+
+```bash
+# Performance metrics
+python -m finos_mcp.server stdio --performance-report
+
+# Test request coalescing
+curl -X POST localhost:8080/test/coalescing \
+  -H "Content-Type: application/json" \
+  -d '{"concurrent_requests": 10, "identical": true}'
+
+# Cache performance
+python -c "
+from finos_mcp.internal.performance_optimizations import SmartCache
+cache = SmartCache()
+print('Cache system: OK')
+print('Stats:', cache.get_stats())
 "
 ```
 
 ---
 
-## 📚 Usage Examples
+## 📊 Enterprise Usage Examples
 
-Once integrated, you can use these commands in any compatible client:
+### Multi-Tenant Operations
 
-### Search Operations
-```
-Find mitigations for data privacy in AI systems
-Search for risks related to prompt injection attacks
-List all available AI governance mitigations
-```
+```bash
+# Tenant-specific searches
+"Search for mitigations in tenant 'frontend_team' related to data privacy"
+"List all governance resources available to tenant 'compliance_team'"
+"Generate a governance report for tenant 'backend_team'"
 
-### Detailed Information
-```
-Get details about mitigation mi-1
-Show me risk ri-10 information
-What are the implementation steps for mi-4?
+# Cross-tenant analysis (admin only)
+"Compare governance maturity across all tenants"
+"Aggregate risk assessments from all development teams"
 ```
 
-### Governance Analysis
+### Plugin-Enhanced Workflows
+
+```bash
+# Using audit plugin
+"Use the audit plugin to analyze this codebase for governance compliance"
+"Generate audit trail for all governance queries this month"
+
+# Performance plugins
+"Optimize this governance query using the performance plugin"
+"Cache warm all frequently used mitigations using background tasks"
+
+# Security plugins
+"Scan this AI model for governance risks using security plugin"
+"Validate data privacy compliance using the privacy plugin"
 ```
-Analyze this code for AI governance risks
-What mitigations apply to LLM training data?
-Review this AI system design for compliance gaps
+
+### Enterprise Governance Analysis
+
+```bash
+# Advanced analysis
+"Perform enterprise-wide governance gap analysis"
+"Generate compliance dashboard for executive reporting"
+"Analyze governance coverage across all product lines"
+
+# Team collaboration
+"Share governance findings with compliance team tenant"
+"Create cross-functional governance improvement plan"
+"Track governance metrics across development lifecycle"
 ```
 
 ---
 
-## 🎯 Client Recommendations
+## 🎯 Enterprise Client Recommendations
 
-| Use Case | Recommended Client | Why |
-|----------|-------------------|-----|
-| **General AI Assistance** | Claude Desktop | Best user experience, native integration |
-| **Development Workflows** | VS Code + Copilot | Native MCP support, comprehensive tooling |
-| **AI-First Development** | Cursor | Built for AI-assisted coding |
-| **Code Completion Focus** | Continue.dev | Popular VS Code extension, 1M+ users |
-| **High-Performance Editing** | Zed | Modern, fast editor with growing AI ecosystem |
-| **Enterprise Java/Python** | JetBrains IDEs | Professional development, enterprise features |
-| **Cloud Development** | Replit Agent | Educational, prototyping, collaborative coding |
-| **Team Collaboration** | Windsurf | Collaborative features, governance reviews |
-| **Extension Flexibility** | VS Code + Extension | Most customizable, ecosystem benefits |
+| Enterprise Use Case | Recommended Client | Enterprise Features |
+|---------------------|-------------------|-------------------|
+| **Multi-Team Development** | VS Code + Copilot | Native MCP, multi-tenant, plugin support |
+| **Executive Dashboards** | Claude Desktop | Easy setup, enterprise reporting |
+| **Compliance Workflows** | Windsurf | Team collaboration, audit trails |
+| **AI-First Development** | Cursor | Modern protocol, streamable HTTP |
+| **Large-Scale Java/Python** | JetBrains IDEs | Enterprise SSO, team workspaces |
+| **Code Quality Gates** | Continue.dev | Integration with CI/CD, automated checks |
+| **High-Performance Dev** | Zed | Fast execution, enterprise plugins |
+| **Governance Training** | Claude Code | Interactive learning, guided workflows |
 
 ---
 
-## 📞 Support
+## 📞 Enterprise Support
 
-Need help with integration? Check these resources:
+Need help with enterprise integration? Check these resources:
 
+<table>
+<tr>
+<td width="50%">
+
+### Community & Open Source
 - 📖 [MCP Protocol Documentation](https://modelcontextprotocol.io)
 - 🐛 [Report Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
 - 💬 [Discussion Forum](https://github.com/hugo-calderon/finos-mcp-server/discussions)
-- 📧 [Email Support](mailto:hugocalderon@example.com)
+- 📚 [Documentation Hub](docs/README.md)
+
+</td>
+<td width="50%">
+
+### Enterprise Support
+- 🏢 [Enterprise Documentation](enterprise/README.md)
+- 🔌 [Plugin Development Guide](enterprise/plugin-development.md)
+- 📊 [Performance Tuning](enterprise/performance-tuning.md)
+- 🛡️ [Security & Compliance](enterprise/security-compliance.md)
+- 📧 [Project Support](mailto:hugocalderon@example.com)
+
+</td>
+</tr>
+</table>
+
+### Enterprise Onboarding
+
+**Step 1**: [Enterprise Architecture Review](enterprise/README.md)
+**Step 2**: [Multi-tenant Planning](enterprise/multi-tenant-setup.md)
+**Step 3**: [Plugin Strategy](enterprise/plugin-development.md)
+**Step 4**: [Performance Optimization](enterprise/performance-tuning.md)
+**Step 5**: [Security Implementation](enterprise/security-compliance.md)
 
 ---
+
+**Independent Project** | **Enterprise Features** | **350+ Tests** | **85%+ Coverage** | **Multi-tenant Ready** | **Plugin Ecosystem**

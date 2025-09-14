@@ -1,6 +1,6 @@
-# 🚀 FINOS AI Governance MCP Server - Installation Guide
+# 🚀 Independent AI Governance MCP Server - Installation Guide
 
-Complete installation guide for users wanting to get started with the FINOS AI Governance MCP Server.
+Complete installation guide for users wanting to get started with this independent AI Governance MCP Server project.
 
 ## 📋 Table of Contents
 
@@ -28,16 +28,7 @@ Complete installation guide for users wanting to get started with the FINOS AI G
 
 ## 🛠️ Installation Methods
 
-### Method 1: PyPI Installation (Recommended)
-```bash
-# Install from PyPI
-pip install finos-ai-governance-mcp-server
-
-# Verify installation
-finos-mcp --version
-```
-
-### Method 2: Development Installation
+### Method 1: Development Installation (Recommended)
 ```bash
 # Clone repository
 git clone https://github.com/hugo-calderon/finos-mcp-server.git
@@ -49,14 +40,21 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install in development mode
 pip install -e .
+
+# Verify installation
+finos-mcp --version
 ```
 
-### Method 3: Docker Installation
+### Method 2: Quick Installation
 ```bash
-# Pull and run Docker container
-# Docker images not available for this personal project
-# Use local installation method above
+# Direct installation (if you just want to use it)
+pip install git+https://github.com/hugo-calderon/finos-mcp-server.git
+
+# Verify installation
+finos-mcp --version
 ```
+
+**Note**: Docker images and PyPI packages are not currently available for this independent project. Use the installation methods above.
 
 ## ⚙️ Configuration
 
@@ -110,10 +108,21 @@ python -c "import finos_mcp; print('Import successful!')"
 
 ### Full Validation
 ```bash
-# Clone repository for tests (development installation)
-python tests/integration/simple_test.py
+# Test with actual MCP protocol (development installation)
+python -m pytest tests/ -v --tb=short -k "not live"
 
-# Expected output: "Server functionality validated successfully!"
+# Or simple functionality test
+python -c "
+import asyncio
+from finos_mcp.content.service import get_content_service
+
+async def test():
+    service = await get_content_service()
+    result = await service.search_mitigations('data')
+    print(f'Found {len(result)} results')
+    
+asyncio.run(test())
+"
 ```
 
 ### Claude Code Integration Test
@@ -162,8 +171,10 @@ which finos-mcp  # Should show path in .venv
 **❌ "ModuleNotFoundError: No module named 'finos_mcp'"**
 ```bash
 # Solution: Reinstall package
-pip uninstall finos-ai-governance-mcp-server
-pip install finos-ai-governance-mcp-server
+pip install -e .  # If using development installation
+
+# Or for direct installation:
+pip install git+https://github.com/hugo-calderon/finos-mcp-server.git
 ```
 
 **❌ "Configuration Error: GitHub token format invalid"**
@@ -189,11 +200,12 @@ export FINOS_MCP_GITHUB_TOKEN=your_token_here
 
 ### Getting Help
 
-If you encounter issues:
+If you encounter issues with this independent project:
 
 1. **Check logs**: Run with `FINOS_MCP_LOG_LEVEL=DEBUG` for detailed information
 2. **GitHub Issues**: [Report bugs and issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
 3. **GitHub Discussions**: [Ask questions and get help](https://github.com/hugo-calderon/finos-mcp-server/discussions)
+4. **Direct Contact**: [hugocalderon@example.com](mailto:hugocalderon@example.com) for urgent issues
 
 ## 🎯 Next Steps
 
@@ -211,3 +223,5 @@ If you encounter issues:
 ---
 
 > **Need Support?** Visit our [comprehensive documentation hub](../README.md) for guides tailored to your specific use case.
+
+> **This is an independent community project** that provides access to FINOS AI governance content (used under CC BY 4.0 license). This project is not affiliated with FINOS organization.

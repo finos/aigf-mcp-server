@@ -1,6 +1,6 @@
-# Contributing to AI Governance MCP Server
+# Contributing to Independent AI Governance MCP Server
 
-Thank you for your interest in contributing to the AI Governance MCP Server! This document provides comprehensive guidelines for contributing to this enterprise-grade project.
+Thank you for your interest in contributing to this independent AI Governance MCP Server project! This document provides guidelines for contributing to this community-driven initiative.
 
 ## 📋 Table of Contents
 
@@ -44,21 +44,15 @@ This project adheres to our [Contributor Code of Conduct](../governance/code-of-
 3. **Install Development Dependencies**
    ```bash
    pip install -e .
-   pip install -r config/dependencies/requirements.lock
    ```
 
-4. **Install Pre-commit Hooks**
+4. **Verify Setup**
    ```bash
-   pre-commit install
-   ```
-
-5. **Verify Setup**
-   ```bash
-   # Run comprehensive quality validation
-   python scripts/quality_validation.py
-
-   # Run stability validation
-   python tests/run_stability_validation.py
+   # Run tests to verify installation
+   python -m pytest tests/ -v
+   
+   # Verify CLI works
+   finos-mcp --help
    ```
 
 ### Development Configuration
@@ -98,13 +92,13 @@ We use **feature branch workflow** with strict quality gates:
 
 3. **Validate Changes**
    ```bash
-   # MANDATORY: Run comprehensive validation
-   python scripts/quality_validation.py
-
-   # MANDATORY: Run stability validation
-   python tests/run_stability_validation.py
-
-   # Both must pass 100% before proceeding
+   # Run tests
+   python -m pytest tests/ -v
+   
+   # Check code quality
+   ruff check .
+   ruff format --check .
+   mypy src/
    ```
 
 4. **Commit Changes**
@@ -282,8 +276,8 @@ logger.error(
 
 ### Test Coverage Requirements
 
-- **Minimum 70% code coverage** (enforced in CI)
-- **100% coverage for new features** (no exceptions)
+- **Target 85%+ code coverage**
+- Comprehensive coverage for new features
 - All edge cases and error conditions tested
 
 ### Test Categories
@@ -356,26 +350,8 @@ async def test_mcp_protocol_compliance():
     assert "result" in response
 ```
 
-#### Stability Tests
-
-**MANDATORY**: All stability tests must pass before any PR merge:
-
-```bash
-# Run full stability validation
-python tests/run_stability_validation.py
-
-# Must show: "🎉 ALL STABILITY TESTS PASSED!"
-# - Baseline Functionality Validation: PASSED
-# - MCP Protocol Compliance: PASSED
-# - Console Script Execution: PASSED
-# - Server Working Verification: PASSED
-# - Package Structure Validation: PASSED
-# - Dependency Lock Validation: PASSED
-```
-
 ### Test Data Management
 
-- Use **golden files** for regression testing
 - Mock external dependencies (GitHub API calls)
 - Test fixtures in `tests/conftest.py`
 - Parameterized tests for multiple scenarios
@@ -425,16 +401,15 @@ async with httpx.AsyncClient(timeout=30.0) as client:
 
 ### Before Opening a PR
 
-1. **Validate Quality** (MANDATORY)
+1. **Validate Quality**
    ```bash
-   python scripts/quality_validation.py
-   # Must show: "🎉 ALL QUALITY CHECKS PASSED!"
-   ```
-
-2. **Validate Stability** (MANDATORY)
-   ```bash
-   python tests/run_stability_validation.py
-   # Must show: "🎉 ALL STABILITY TESTS PASSED!"
+   # Run tests
+   python -m pytest tests/ -v --tb=short
+   
+   # Check code quality  
+   ruff check .
+   ruff format --check .
+   mypy src/
    ```
 
 3. **Update Documentation**
@@ -457,10 +432,10 @@ Brief description of changes and motivation.
 - [ ] Documentation update
 
 ## Testing
-- [ ] Quality validation passes: `python scripts/quality_validation.py`
-- [ ] Stability validation passes: `python tests/run_stability_validation.py`
+- [ ] All tests pass: `python -m pytest tests/ -v --tb=short`
+- [ ] Code quality checks pass: `ruff check .`, `ruff format --check .`, `mypy src/`
 - [ ] New tests added for new functionality
-- [ ] All existing tests pass
+- [ ] Test coverage maintained
 
 ## Security
 - [ ] No secrets or sensitive data included
@@ -493,8 +468,8 @@ Brief description of changes and motivation.
 - ✅ All CI/CD checks pass
 - ✅ Code review approval from maintainer
 - ✅ No merge conflicts with main branch
-- ✅ Quality validation: 6/6 checks pass
-- ✅ Stability validation: 6/6 tests pass
+- ✅ All tests pass
+- ✅ Code quality checks pass
 - ✅ Security scanning: No critical/high issues
 - ✅ Documentation updated appropriately
 
@@ -512,24 +487,18 @@ We follow **Semantic Versioning** (semver):
 
 1. **Pre-release Validation**
    ```bash
-   # Full quality and stability validation
-   python scripts/quality_validation.py
-   python tests/run_stability_validation.py
-
-   # Security scanning
-   bandit -r src/
-   pip-audit
+   # Run tests and quality checks
+   python -m pytest tests/ -v --tb=short
+   ruff check .
+   ruff format --check .
+   mypy src/
    ```
 
 2. **Version Bump**
    ```bash
-   # Use the automated version bump script
-   python scripts/bump_version.py patch    # For bug fixes
-   python scripts/bump_version.py minor    # For new features
-   python scripts/bump_version.py major    # For breaking changes
-   python scripts/bump_version.py alpha    # For alpha releases
-
-   # Follow the script's instructions to commit changes
+   # Update version in pyproject.toml
+   # Update version in src/finos_mcp/__init__.py
+   # Create commit
    git add .
    git commit -m "chore: bump version to X.Y.Z"
    ```
@@ -546,15 +515,13 @@ We follow **Semantic Versioning** (semver):
 
 ### Release Automation
 
-Our GitHub Actions automatically handle:
+GitHub Actions handle:
 
 - ✅ **Build artifacts** (wheel and source distribution)
-- ✅ **Security scanning** and SBOM generation
 - ✅ **Release notes** from conventional commits
-- ✅ **PyPI publishing** (manual approval initially)
-- ✅ **SLSA provenance** for supply chain security
+- ✅ **Basic security scanning**
 
-For detailed release procedures, troubleshooting, and advanced scenarios, see [`release-process.md`](../operations/release-process.md).
+For detailed release procedures, see [`release-process.md`](../operations/release-process.md).
 
 ## 🆘 Getting Help
 
@@ -568,7 +535,8 @@ For detailed release procedures, troubleshooting, and advanced scenarios, see [`
 
 For urgent issues or security concerns:
 - **Security Issues**: Use GitHub Security Advisories
-- **General Support**: GitHub Issues and Discussions
+- **General Support**: GitHub Issues and Discussions  
+- **Direct Contact**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
 
 ## 🙏 Recognition
 
@@ -577,4 +545,4 @@ All contributors will be recognized in:
 - Release notes acknowledgments
 - Project community highlights
 
-Thank you for contributing to the AI Governance MCP Server! 🚀
+Thank you for contributing to this independent AI Governance MCP Server project! 🚀

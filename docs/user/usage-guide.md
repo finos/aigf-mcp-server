@@ -1,6 +1,6 @@
-# 📖 FINOS AI Governance MCP Server - Usage Guide
+# 📖 Independent AI Governance MCP Server - Usage Guide
 
-Complete guide for using the FINOS AI Governance MCP Server to access AI governance content through the Model Context Protocol.
+Complete guide for using this independent AI Governance MCP Server project to access AI governance content through the Model Context Protocol.
 
 ## 📋 Table of Contents
 
@@ -13,11 +13,11 @@ Complete guide for using the FINOS AI Governance MCP Server to access AI governa
 
 ## 🔍 Overview
 
-The FINOS AI Governance MCP Server provides access to comprehensive AI governance content including:
+This independent AI Governance MCP Server provides access to comprehensive AI governance content including:
 - **17 Mitigations** (mi-1 through mi-17): AI governance strategies and controls
 - **23 Risk Assessments** (ri-1 through ri-23): AI risk evaluations and frameworks
 
-All content is sourced from the official [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework).
+All content is sourced from the [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework) (used under CC BY 4.0 license).
 
 ## 🛠️ Available Tools
 
@@ -32,6 +32,12 @@ All content is sourced from the official [FINOS AI Governance Framework](https:/
 ### Listing Tools
 - **`list_all_mitigations`** - List all available mitigations with metadata
 - **`list_all_risks`** - List all available risks with metadata
+
+### System Tools
+- **`get_cache_stats`** - Get cache performance statistics and metrics
+- **`get_service_health`** - Get comprehensive service health status and diagnostics
+- **`get_service_metrics`** - Get detailed service performance metrics and statistics
+- **`reset_service_health`** - Reset service health counters and error boundaries
 
 ## 🔍 Search Operations
 
@@ -150,6 +156,24 @@ get_mitigation_details(mitigation_id="mi-3")  # Model security and robustness
 get_risk_details(risk_id="ri-12")             # Adversarial attacks
 ```
 
+### Example 5: Monitoring System Performance
+
+**Scenario:** You want to monitor the server's performance and health.
+
+```python
+# Step 1: Check overall service health
+get_service_health()
+
+# Step 2: Review performance metrics
+get_service_metrics()
+
+# Step 3: Check cache efficiency
+get_cache_stats()
+
+# Step 4: Reset health counters if needed (for maintenance)
+reset_service_health()
+```
+
 ## 📊 Understanding Content Structure
 
 ### Mitigation Documents Include:
@@ -189,7 +213,8 @@ get_risk_details(risk_id="ri-12")             # Adversarial attacks
 ## 🔒 Data and Privacy
 
 ### Content Source
-- All content is sourced from the public [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework)
+- All content is sourced from the public [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework) (used under CC BY 4.0 license)
+- This is an independent project not affiliated with FINOS organization
 - No proprietary or confidential information is stored or transmitted
 - Content updates automatically reflect the latest FINOS framework updates
 
@@ -232,9 +257,12 @@ The server provides built-in health monitoring:
 ### Support Resources
 
 1. **[Installation Guide](installation-guide.md)** - Setup and configuration help
-2. **[Installation Reference](installation-guide.md)** - Configuration and setup options
+2. **[Developer API Reference](../developer/api-reference.md)** - Technical API documentation
 3. **[GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)** - Bug reports and feature requests
+4. **[GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)** - Community support
 
 ---
 
 > **Ready to integrate?** Check the [Installation Guide](installation-guide.md) for Claude Code integration setup.
+
+> **This is an independent community project** providing access to FINOS AI governance content (used under CC BY 4.0 license). Not affiliated with FINOS organization.
