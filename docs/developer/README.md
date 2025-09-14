@@ -1,6 +1,6 @@
 # 🛠️ Developer Documentation
 
-Welcome to the developer documentation for this independent AI Governance MCP Server project. This section provides comprehensive resources for contributors, maintainers, plugin developers, and anyone extending or modifying the enterprise-grade server.
+Welcome to the developer documentation for this independent AI Governance MCP Server project. This section provides comprehensive resources for contributors, maintainers, plugin developers, and anyone extending or modifying the advanced server.
 
 ## 🚀 Fast Developer Setup
 
@@ -52,7 +52,7 @@ Choose your development path:
 - **[Development Guide](development-guide.md)** - Local environment with enterprise features
 - **[API Reference](api-reference.md)** - Complete API documentation with plugins
 
-### Enterprise Development
+### Advanced Development
 - **[Plugin Development](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)** - Build custom plugins
 - **[Multi-Tenant Development](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)** - Work with tenant isolation
 - **[Performance Optimization](../../src/finos_mcp/internal/performance_optimizations.py)** - Scale and optimize
@@ -119,7 +119,7 @@ After reading this documentation, you'll be able to:
 
 ## 🏛️ Enterprise System Architecture
 
-This independent AI Governance MCP Server is built with enterprise-grade patterns:
+This independent AI Governance MCP Server is built with advanced patterns:
 
 <table>
 <tr>
@@ -151,7 +151,7 @@ This independent AI Governance MCP Server is built with enterprise-grade pattern
 ### Key Design Principles
 - **🔒 Security First** - Zero-tolerance security with multi-tenant isolation
 - **⚡ Performance Optimized** - 70% faster with request coalescing, smart caching, async operations
-- **🏢 Enterprise Ready** - Multi-tenant architecture, plugin system, audit trails
+- **🏢 Production Ready** - Multi-tenant architecture, plugin system, audit trails
 - **🛡️ Resilient Architecture** - Error boundaries, circuit breakers, graceful degradation
 - **🧪 Test-Driven** - 350+ tests with 85%+ coverage and quality gates
 - **🔌 Extensible** - Plugin system with hooks and lifecycle management
@@ -471,6 +471,6 @@ Need development assistance with this independent project?
 
 ---
 
-> **This is an independent community project** providing enterprise-grade MCP server capabilities with multi-tenant architecture and plugin system. All development tools and features are independently created and maintained.
+> **This is an independent community project** providing advanced MCP server capabilities with multi-tenant architecture and plugin system. All development tools and features are independently created and maintained.
 
-**Independent Project** | **Enterprise Development** | **350+ Tests** | **85%+ Coverage** | **Fast Development Mode**
+**Independent Project** | **Advanced Development** | **350+ Tests** | **85%+ Coverage** | **Fast Development Mode**

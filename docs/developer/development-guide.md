@@ -16,7 +16,7 @@ Complete guide for developers who want to contribute to or extend this independe
 This independent AI Governance MCP Server is a Model Context Protocol (MCP) server that provides programmatic access to AI governance content from the [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework) (used under CC BY 4.0 license).
 
 ### Key Capabilities
-- **Content Access**: 17 AI governance mitigations and 23 risk assessments
+- **Content Access**: 17 AI governance mitigations and 17 risk assessments
 - **Search Functionality**: Intelligent search across all governance content
 - **MCP Compliance**: Full support for MCP 2024-11-05 specification  
 - **System Tools**: Health monitoring, cache statistics, service metrics

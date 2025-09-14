@@ -2,7 +2,7 @@
 
 ## 🛡️ Security Overview
 
-This independent AI Governance MCP Server project takes security seriously and follows enterprise-grade security practices to protect users and maintain the integrity of AI governance content access.
+This independent AI Governance MCP Server project takes security seriously and follows advanced security practices to protect users and maintain the integrity of AI governance content access.
 
 ## 🔒 Security Features
 

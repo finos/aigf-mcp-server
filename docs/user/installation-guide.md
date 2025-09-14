@@ -14,7 +14,7 @@ Complete installation guide for users wanting to get started with this independe
 ## 💻 System Requirements
 
 ### Minimum Requirements
-- **Python**: 3.9, 3.10, 3.11, 3.12, or 3.13
+- **Python**: 3.10, 3.11, 3.12, or 3.13
 - **Operating System**: Windows, macOS, Linux
 - **Memory**: 100MB RAM minimum
 - **Storage**: 50MB disk space

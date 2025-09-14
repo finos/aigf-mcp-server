@@ -1,6 +1,6 @@
 # 👥 User Documentation
 
-Welcome to the user documentation for this independent AI Governance MCP Server project. This section provides everything you need to successfully deploy, configure, and use the enterprise-grade server with multi-tenant capabilities in your environment.
+Welcome to the user documentation for this independent AI Governance MCP Server project. This section provides everything you need to successfully deploy, configure, and use the server with multi-tenant capabilities in your environment.
 
 ## 🚀 Quick Start
 
@@ -65,7 +65,7 @@ After reading this documentation, you'll be able to:
 
 ## 🌟 Enterprise Features
 
-This independent AI Governance MCP Server provides enterprise-grade capabilities:
+This independent AI Governance MCP Server provides advanced capabilities:
 
 <table>
 <tr>
@@ -108,38 +108,29 @@ This independent AI Governance MCP Server provides enterprise-grade capabilities
 - **⚡ Error Resilience** - Plugin failures don't compromise core functionality
 - **🎛️ Configuration** - Per-plugin settings, dependencies, and security policies
 
-## 🏢 Enterprise Use Cases
+## ⚙️ Configuration Examples
 
-### Multi-Team Organizations
+### Basic Configuration
 ```bash
-# Configure different tenants for different teams
-FINOS_MCP_MULTI_TENANT=true
-FINOS_MCP_TENANT_CONFIG='
-{
-  "frontend_team": {"max_resources": 50, "plugins": ["audit", "performance"]},
-  "backend_team": {"max_resources": 100, "plugins": ["audit", "security"]},
-  "compliance_team": {"max_resources": 200, "admin": true, "plugins": ["audit", "compliance", "reporting"]}
-}'
+# Core server configuration
+FINOS_MCP_LOG_LEVEL=INFO
+FINOS_MCP_DEBUG_MODE=false
+FINOS_MCP_HTTP_TIMEOUT=30
 ```
 
-### High-Performance Deployments
+### Cache Configuration
 ```bash
-# Enterprise performance configuration
-FINOS_MCP_PERFORMANCE_MODE="enterprise"
-FINOS_MCP_REQUEST_COALESCING=true
-FINOS_MCP_SMART_CACHING="advanced"
-FINOS_MCP_CONCURRENT_REQUESTS=100
-FINOS_MCP_BACKGROUND_PROCESSING=true
+# Performance optimization
+FINOS_MCP_ENABLE_CACHE=true
+FINOS_MCP_CACHE_MAX_SIZE=1000
+FINOS_MCP_CACHE_TTL_SECONDS=3600
 ```
 
-### Plugin-Enhanced Workflows
+### GitHub Integration
 ```bash
-# Custom plugin integration
-FINOS_MCP_PLUGINS_ENABLED=true
-FINOS_MCP_PLUGIN_PATH="/path/to/governance-plugins"
-FINOS_MCP_PLUGIN_DISCOVERY="enterprise"
-FINOS_MCP_AUDIT_PLUGIN=true
-FINOS_MCP_SECURITY_PLUGIN=true
+# Optional GitHub token for better rate limits
+FINOS_MCP_GITHUB_TOKEN=your_token_here
+FINOS_MCP_GITHUB_API_MAX_RETRIES=3
 ```
 
 ## 🎯 Getting Started Paths
@@ -248,6 +239,6 @@ Need help with this independent project? Here are your options:
 
 ---
 
-> **This is an independent community project** that provides enterprise-grade access to FINOS AI governance content through modern MCP protocol capabilities. All features are independently developed and maintained.
+> **This is an independent community project** that provides access to FINOS AI governance content through modern MCP protocol capabilities. All features are independently developed and maintained.
 
 **Independent Project** | **Enterprise Features** | **350+ Tests** | **85%+ Coverage** | **8+ Client Integrations**

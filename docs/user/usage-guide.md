@@ -15,7 +15,7 @@ Complete guide for using this independent AI Governance MCP Server project to ac
 
 This independent AI Governance MCP Server provides access to comprehensive AI governance content including:
 - **17 Mitigations** (mi-1 through mi-17): AI governance strategies and controls
-- **23 Risk Assessments** (ri-1 through ri-23): AI risk evaluations and frameworks
+- **17 Risk Assessments** (ri-1, ri-2, ri-3, ri-5 through ri-16, ri-19, ri-23): AI risk evaluations and frameworks
 
 All content is sourced from the [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework) (used under CC BY 4.0 license).
 
@@ -83,7 +83,7 @@ get_mitigation_details(mitigation_id="mi-7")
 
 ### Get Specific Risk Assessments
 
-**Available risk IDs:** ri-1, ri-2, ri-3, ri-4, ri-5, ri-6, ri-7, ri-8, ri-9, ri-10, ri-11, ri-12, ri-13, ri-14, ri-15, ri-16, ri-17, ri-18, ri-19, ri-20, ri-21, ri-22, ri-23
+**Available risk IDs:** ri-1, ri-2, ri-3, ri-5, ri-6, ri-7, ri-8, ri-9, ri-10, ri-11, ri-12, ri-13, ri-14, ri-15, ri-16, ri-19, ri-23
 
 ```python
 # Get prompt injection risk assessment
