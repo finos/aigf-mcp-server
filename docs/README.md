@@ -1,205 +1,153 @@
-# 📚 FINOS AI Governance MCP Server Documentation
+# 🤖 AI Governance MCP Server
 
-Welcome to the comprehensive documentation hub for this independent MCP server project. This initiative provides advanced Model Context Protocol (MCP) capabilities with multi-tenant architecture, plugin system, and access to FINOS AI governance content.
+**Simple access to AI governance content for your development tools.**
 
-## 🧭 Documentation Navigation
+This independent project provides AI governance mitigations and risk assessments through the Model Context Protocol (MCP), making them available in Claude, VS Code, Cursor, and other supported tools.
 
-### 👥 [**User Documentation**](user/)
-Perfect for end-users, system administrators, and those deploying the server in production environments.
+## 🚀 Quick Start (5 minutes)
 
-- 🚀 [**Quick Start Guide**](user/README.md) - Get up and running in minutes
-- ⚙️ [**Installation Guide**](user/installation-guide.md) - Detailed installation with enterprise features
-- 📖 [**Usage Guide**](user/usage-guide.md) - MCP tools, multi-tenant usage, and examples
-- 🔌 [**Integration Guide**](integration-guide.md) - Client setup for 8+ supported platforms
-
-### 🛠️ [**Developer Documentation**](developer/)
-Essential resources for contributors, maintainers, and those extending the server with plugins.
-
-- 🏗️ [**Developer Overview**](developer/README.md) - Development environment with fast mode
-- 🤝 [**Contributing Guide**](developer/CONTRIBUTING.md) - Contribution workflow and quality gates
-- 🔧 [**Development Guide**](developer/development-guide.md) - Local setup with live reload
-- 📖 [**API Reference**](developer/api-reference.md) - Enterprise API and plugin documentation
-
-### 🚀 [**Operations Documentation**](operations/)
-Critical information for production deployment, monitoring, and maintenance of enterprise environments.
-
-- 🎯 [**Operations Overview**](operations/README.md) - Production deployment with multi-tenant support
-- 🚀 [**Production Deployment**](operations/production-deployment.md) - Enterprise deployment procedures
-- 🔒 [**Security Guide**](operations/security.md) - Multi-tenant security and access controls
-- 📋 [**Release Process**](operations/release-process.md) - Automated release management
-
-### 🏢 [**Advanced Implementation**](../src/finos_mcp/internal/)
-Advanced features for enterprise deployments including multi-tenant and plugin architecture.
-
-- 🏗️ [**Multi-Tenant Architecture**](../src/finos_mcp/internal/advanced_mcp_capabilities.py) - Complete tenant isolation
-- 🔌 [**Plugin Development**](../src/finos_mcp/internal/advanced_mcp_capabilities.py) - Build custom plugins
-- 📊 [**Performance Optimizations**](../src/finos_mcp/internal/performance_optimizations.py) - Scale optimization
-- 🛡️ [**Security Implementation**](../src/finos_mcp/security/) - Security validation
-
-### 🏛️ [**Governance Documentation**](governance/)
-Project governance, decision-making processes, and community standards.
-
-- 📜 [**Governance Overview**](governance/README.md) - Project governance structure
-- 🤝 [**Code of Conduct**](governance/code-of-conduct.md) - Community standards
-
-## 🚀 What's New in Enterprise Edition
-
-### Advanced Capabilities
-- 🏢 **Multi-Tenant Architecture** - Complete resource isolation per tenant
-- 🔌 **Plugin System** - Extensible hooks for custom functionality
-- ⚡ **Performance Optimizations** - 70% faster with request coalescing and smart caching
-- 🛠️ **Developer Tools** - Live reload, interactive testing, code generation
-- 🔍 **Code Quality** - Automated pre-commit hooks and quality gates
-
-### Modern Protocol Support
-- 📡 **Latest MCP Features** - Streamable HTTP, Tool Output Schemas, OAuth 2.1
-- 🔄 **Backward Compatibility** - Full stdio protocol support maintained
-- 🛡️ **Type Safety** - Comprehensive schemas and validation
-- 🔒 **Enterprise Security** - Multi-tenant access controls and rate limiting
-
-### Developer Experience
-- 🚀 **Fast Development Mode** - 70% faster test execution
-- 🔄 **Live Reload Server** - Real-time code updates
-- 🧪 **Interactive Testing** - CLI-based test runner
-- 🏗️ **Auto-Generation** - MCP tools, tests, and documentation
-
-## 🏢 Enterprise Features
-
-This documentation structure is designed for enterprise environments with:
-
-<table>
-<tr>
-<td width="50%">
-
-### Architecture & Scale
-- ✅ **Multi-Tenant Support** - Isolated environments
-- ✅ **Plugin Architecture** - Extensible functionality
-- ✅ **Performance Optimization** - Production-ready scale
-- ✅ **Enterprise Patterns** - Domain Events, CQRS, Message Bus
-
-</td>
-<td width="50%">
-
-### Operations & Quality
-- ✅ **Role-based Documentation** - Organized by user type
-- ✅ **Comprehensive Coverage** - All enterprise features documented
-- ✅ **Quality Assurance** - 350+ tests with automated quality gates
-- ✅ **Security First** - Enterprise-grade security documentation
-
-</td>
-</tr>
-</table>
-
-## 🚀 Quick Start Paths
-
-### 🆕 For New Users
-1. **Start Here**: [**User Quick Start Guide**](user/README.md)
-2. **Install**: [**Installation with Enterprise Features**](user/installation-guide.md)
-3. **Learn**: [**Usage Examples & Multi-tenant Setup**](user/usage-guide.md)
-4. **Integrate**: [**Client Integration Guide**](integration-guide.md)
-
-### 🛠️ For New Contributors
-1. **Setup**: [**Fast Development Environment**](developer/development-guide.md)
-2. **Contribute**: [**Contributing Guidelines**](developer/CONTRIBUTING.md)
-3. **Build**: [**Plugin Implementation**](../src/finos_mcp/internal/advanced_mcp_capabilities.py)
-4. **Reference**: [**Complete API Documentation**](developer/api-reference.md)
-
-### 🚀 For Operations Teams
-1. **Deploy**: [**Enterprise Deployment**](operations/production-deployment.md)
-2. **Secure**: [**Multi-tenant Security**](operations/security.md)
-3. **Scale**: [**Performance Implementation**](../src/finos_mcp/internal/performance_optimizations.py)
-4. **Monitor**: [**Release & Maintenance**](operations/release-process.md)
-
-### 🏢 For Enterprise Architects
-1. **Architecture**: [**Advanced Implementation**](../src/finos_mcp/internal/advanced_mcp_capabilities.py)
-2. **Multi-tenant**: [**Tenant Management**](../src/finos_mcp/internal/advanced_mcp_capabilities.py)
-3. **Plugins**: [**Plugin System**](../src/finos_mcp/internal/advanced_mcp_capabilities.py)
-4. **Security**: [**Security Implementation**](../src/finos_mcp/security/)
-
-## 📊 Key Statistics
-
-<div align="center">
-
-| Metric | Value | Description |
-|--------|-------|-------------|
-| **Tests** | 350+ | Comprehensive test coverage |
-| **Coverage** | 85%+ | Code coverage with quality gates |
-| **Clients** | 8+ | Supported MCP clients |
-| **Performance** | 70% | Faster development with optimizations |
-| **Architecture** | Multi-tenant | Enterprise-grade scalability |
-
-</div>
-
-## 🛠️ Development Tools
-
-### Fast Development Workflow
+### 1. Install
 ```bash
-# 🚀 Quick development setup
-./scripts/dev-quick-setup.sh
-
-# ⚡ Fast test mode (70% faster)
-./scripts/dev-test-focused.sh
-
-# 🔄 Live reload server
-python -m finos_mcp.internal.developer_tools
-
-# 🧪 Interactive testing CLI
-python -c "from finos_mcp.internal.developer_tools import InteractiveTestingCLI; InteractiveTestingCLI().run()"
+# Clone and install
+git clone https://github.com/hugo-calderon/finos-mcp-server.git
+cd finos-mcp-server
+pip install -e .
 ```
 
-### Code Quality Automation
+### 2. Test
 ```bash
-# ✅ Automated quality gates
-pre-commit run --all-files
-
-# 🏗️ Generate MCP tools
-python -m finos_mcp.internal.code_quality_automation
-
-# 🔍 Quality checks with auto-fix
-./scripts/quality-check.sh --fix
+finos-mcp --help
 ```
+✅ You should see the help message.
 
-## 📞 Getting Help
-
-<table>
-<tr>
-<td width="50%">
-
-### Community Support
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
-- 💬 **Questions**: [GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
-- 🔒 **Security**: [Security Advisory](https://github.com/hugo-calderon/finos-mcp-server/security/advisories)
-
-</td>
-<td width="50%">
-
-### Enterprise Support
-- 🏢 **Advanced Setup**: [Implementation Guide](../src/finos_mcp/internal/advanced_mcp_capabilities.py)
-- 🔌 **Plugin Development**: [Plugin Source Code](../src/finos_mcp/internal/advanced_mcp_capabilities.py)
-- 📊 **Performance**: [Performance Implementation](../src/finos_mcp/internal/performance_optimizations.py)
-
-</td>
-</tr>
-</table>
-
-## 🔗 External Resources
-
-- 📖 [**Model Context Protocol Specification**](https://modelcontextprotocol.io)
-- 🛡️ [**FINOS AI Governance Framework**](https://github.com/finos/ai-governance-framework)
-- 🏢 [**FINOS Foundation**](https://finos.org)
+### 3. Connect to your editor
+Choose your tool:
+- **[Claude Desktop](#claude-desktop)** - Most popular
+- **[VS Code](#vs-code)** - With Continue.dev extension  
+- **[Cursor](#cursor)** - Built-in MCP support
+- **[Other clients](#other-clients)** - See full list
 
 ---
 
-## 📋 Documentation Standards
+## 🔧 Client Setup
 
-This documentation follows enterprise standards:
+### Claude Desktop
+1. Open Claude Desktop settings (⚙️ icon)
+2. Add this configuration:
+```json
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "finos-mcp",
+      "args": []
+    }
+  }
+}
+```
+3. Restart Claude Desktop
+4. ✅ Test: Ask "Search for AI governance mitigations about data privacy"
 
-- 📝 **Clarity**: Clear, actionable instructions
-- 🎯 **Completeness**: All features and use cases covered
-- 🔄 **Currency**: Regularly updated with latest features
-- 🎨 **Consistency**: Uniform formatting and structure
-- 🔗 **Cross-linking**: Comprehensive internal references
+### VS Code
+1. Install the [Continue.dev extension](https://marketplace.visualstudio.com/items?itemName=Continue.continue)
+2. Open Continue settings (Ctrl+Shift+P → "Continue: Open Config")
+3. Add MCP server:
+```json
+{
+  "mcpServers": [
+    {
+      "name": "finos-ai-governance",
+      "command": "finos-mcp"
+    }
+  ]
+}
+```
+4. ✅ Test: Use Continue chat to search governance content
 
-> **Note**: This documentation covers an independent community project that provides access to FINOS AI governance content. All features are independently developed and maintained with comprehensive documentation and best practices.
+### Cursor
+1. Open Cursor settings
+2. Go to "MCP Servers"  
+3. Add new server:
+   - **Name**: `finos-ai-governance`
+   - **Command**: `finos-mcp`
+4. ✅ Test: Use @ to access governance tools
 
-**Independent Project** | **Last Updated**: December 2024 | **350+ Tests** | **85%+ Coverage**
+### Other Clients
+This server works with any MCP-compatible client. See [MCP Client Directory](https://modelcontextprotocol.io/clients) for more options.
+
+---
+
+## 🛠️ What You Get
+
+**10 Tools** for AI governance content:
+
+| Tool | What it does | Example |
+|------|--------------|---------|
+| `search_mitigations` | Find governance strategies | "data privacy protection" |
+| `search_risks` | Find AI risks | "prompt injection" |
+| `get_mitigation_details` | Get full mitigation (mi-1 to mi-17) | Get mitigation "mi-1" |
+| `get_risk_details` | Get full risk assessment (ri-1, ri-2, etc.) | Get risk "ri-2" |
+| `list_all_mitigations` | Show all 17 mitigations | Browse all available |
+| `list_all_risks` | Show all 17 risks | Browse all available |
+| `get_service_health` | Check if server is working | Service status |
+| `get_service_metrics` | Performance statistics | How fast is it? |
+| `get_cache_stats` | Cache performance | Memory usage |
+| `reset_service_health` | Reset error counters | Clear errors |
+
+---
+
+## 💡 Common Use Cases
+
+### "I need to protect user data"
+1. Ask your AI assistant: *"Search for data privacy mitigations"*
+2. Get specific details: *"Show me mitigation mi-1"*
+3. Check related risks: *"What are the data leakage risks?"*
+
+### "I'm worried about prompt injection"
+1. Search risks: *"Find prompt injection risks"*  
+2. Get details: *"Show me risk ri-2"*
+3. Find protections: *"Search for input validation mitigations"*
+
+### "I need a governance overview"
+1. Browse content: *"List all mitigations and risks"*
+2. Focus areas: *"Search for compliance-related content"*
+
+---
+
+## ⚙️ Configuration (Optional)
+
+Set environment variables for better performance:
+
+```bash
+# Better GitHub API limits (optional)
+export FINOS_MCP_GITHUB_TOKEN="your_github_token"
+
+# Faster responses (optional)  
+export FINOS_MCP_CACHE_MAX_SIZE=2000
+export FINOS_MCP_LOG_LEVEL=INFO
+```
+
+---
+
+## 🔍 Content Details
+
+- **17 AI Governance Mitigations** (mi-1 through mi-17)
+- **17 AI Risk Assessments** (ri-1, ri-2, ri-3, ri-5-ri-16, ri-19, ri-23)
+- Content from [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework)
+- Licensed under CC BY 4.0
+
+---
+
+## 📚 More Information
+
+- **[Tools Reference](tools-reference.md)** - Complete guide to all 10 tools
+- **[Troubleshooting](troubleshooting.md)** - Fix common issues
+
+## 🆘 Need Help?
+
+- 🐛 [Report bugs](https://github.com/hugo-calderon/finos-mcp-server/issues)
+- 💬 [Ask questions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
+- 🔧 [Troubleshooting guide](troubleshooting.md)
+
+---
+
+**Ready to start?** Pick your editor above and follow the setup! 🚀

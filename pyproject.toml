@@ -171,7 +171,7 @@ addopts = [
     "--disable-warnings",
     "-ra",
 ]
-testpaths = ["tests/unit", "tests/integration"]
+testpaths = ["tests/unit", "tests/integration", "tests/internal"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -183,6 +183,7 @@ markers = [
     "console: Console script tests",
     "slow: Slow running tests",
     "asyncio: Async tests",
+    "performance: Performance tests",
 ]
 
 [tool.coverage.run]
