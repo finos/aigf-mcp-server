@@ -227,7 +227,13 @@ def validate_tool_arguments(
 
         validator = get_validation_config()
 
-    return validator.validate_tool_arguments(tool_name, arguments)
+    result = validator.validate_tool_arguments(tool_name, arguments)
+    # Ensure the result is a dictionary for type safety
+    if not isinstance(result, dict):
+        raise SecurityValidationError(
+            f"Validator returned invalid type: {type(result)}"
+        )
+    return result
 
 
 # =============================================================================

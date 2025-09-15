@@ -326,7 +326,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         try:
             # Try to decompress - if it fails, assume it's not compressed
             decompressed = gzip.decompress(stored_value)
-            return pickle.loads(decompressed)  # nosec B301
+            return pickle.loads(decompressed)  # nosec B301  # type: ignore[no-any-return]
         except (gzip.BadGzipFile, pickle.PickleError, TypeError, ValueError):
             # If decompression fails, return as-is (likely not compressed)
             return stored_value  # type: ignore[return-value]
