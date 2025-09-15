@@ -71,7 +71,7 @@ class ValidationConfig:
 
         # Validate arguments type
         if not isinstance(arguments, dict):
-            if self.mode == ValidationMode.STRICT:  # type: ignore[unreachable]
+            if self.mode == ValidationMode.STRICT:
                 raise SecurityValidationError(
                     f"Tool arguments must be dict for {tool_name}"
                 )
@@ -103,7 +103,7 @@ class ValidationConfig:
         for key, value in working_args.items():
             # Key type validation
             if not isinstance(key, str):
-                if is_strict:  # type: ignore[unreachable]
+                if is_strict:
                     raise SecurityValidationError(
                         f"Argument key must be string for {tool_name}"
                     )

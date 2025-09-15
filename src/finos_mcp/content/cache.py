@@ -321,12 +321,12 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
     def _decompress_value(self, stored_value: Any) -> T:
         """Decompress value if it was compressed."""
         if not self.enable_compression or not isinstance(stored_value, bytes):
-            return stored_value  # type: ignore[no-any-return]
+            return stored_value
 
         try:
             # Try to decompress - if it fails, assume it's not compressed
             decompressed = gzip.decompress(stored_value)
-            return pickle.loads(decompressed)  # type: ignore[no-any-return] # nosec B301
+            return pickle.loads(decompressed)  # nosec B301
         except (gzip.BadGzipFile, pickle.PickleError, TypeError, ValueError):
             # If decompression fails, return as-is (likely not compressed)
             return stored_value  # type: ignore[return-value]

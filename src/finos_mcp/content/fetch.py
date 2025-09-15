@@ -478,7 +478,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
         """
         response = await self.get(url, **kwargs)
         response.raise_for_status()
-        return response.json()  # type: ignore[no-any-return]
+        return response.json()
 
     async def fetch_bytes(self, url: str, **kwargs: Any) -> bytes:
         """Fetch binary content from URL.

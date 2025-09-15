@@ -227,7 +227,7 @@ def validate_tool_arguments(
 
         validator = get_validation_config()
 
-    return validator.validate_tool_arguments(tool_name, arguments)  # type: ignore[no-any-return]
+    return validator.validate_tool_arguments(tool_name, arguments)
 
 
 # =============================================================================
@@ -299,7 +299,7 @@ _resource_rate_limiter = RateLimiter(
 )  # 200 resource requests per minute
 
 
-@server.list_resources()  # type: ignore[no-untyped-call]
+@server.list_resources()
 async def handle_list_resources() -> list[Resource]:
     """List available resources for the FINOS AI Governance content"""
     # Rate limiting check
@@ -409,7 +409,7 @@ async def handle_list_resources() -> list[Resource]:
         raise ValueError(f"Unable to retrieve resource list: {e}") from e
 
 
-@server.read_resource()  # type: ignore[no-untyped-call]
+@server.read_resource()
 async def handle_read_resource(uri: AnyUrl) -> str:
     """Read a specific resource by URI"""
     uri_str = str(uri)
@@ -474,7 +474,7 @@ async def handle_read_resource(uri: AnyUrl) -> str:
         raise ValueError(f"Unable to read resource: {e}") from e
 
 
-@server.list_tools()  # type: ignore[no-untyped-call]
+@server.list_tools()
 async def handle_list_tools() -> list[Tool]:
     """List available tools for interacting with FINOS AI Governance content"""
     return get_all_tools()

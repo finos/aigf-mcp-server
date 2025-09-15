@@ -247,8 +247,8 @@ print_summary() {
     echo "      scripts/dev-test.sh"
     echo
     echo "📚 Documentation available at:"
-    echo "   docs/developer/CONTRIBUTING.md"
-    echo "   docs/developer/development-guide.md"
+    echo "   docs/README.md - Setup guide"
+    echo "   docs/tools-reference.md - Complete tool reference"
     echo
     echo "🛠️ Development commands:"
     echo "   scripts/dev-test.sh      - Run development tests"
