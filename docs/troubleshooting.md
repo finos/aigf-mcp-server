@@ -16,14 +16,16 @@
    ```bash
    # If using virtual environment
    .venv/bin/finos-mcp --help
-   
+
    # Or find it
    which finos-mcp
    ```
 
-3. **Reinstall**: Clean install
+3. **Reinstall**: Clean install in development mode
    ```bash
-   pip uninstall finos-ai-governance-mcp-server
+   # Remove from current environment (if previously installed)
+   pip uninstall finos-ai-governance-mcp-server || true
+   # Install in development mode from source
    pip install -e .
    ```
 
