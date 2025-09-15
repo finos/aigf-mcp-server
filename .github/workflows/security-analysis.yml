@@ -110,7 +110,7 @@ jobs:
       id: pylint
       run: |
         echo "Running Pylint code quality analysis..."
-        python -m pylint src/finos_mcp \
+        python -m pylint src/ \
           --output-format=json \
           --reports=yes \
           --score=yes > security-reports/pylint-report.json
@@ -130,7 +130,7 @@ jobs:
       id: ruff
       run: |
         echo "Running Ruff linter..."
-        ruff check src/ --output-format=json > security-reports/ruff-report.json
+        ruff check src/ tests/ scripts/ --output-format=json > security-reports/ruff-report.json
 
         # Count the number of issues found
         RUFF_ISSUES=$(jq 'length' security-reports/ruff-report.json)
@@ -138,7 +138,7 @@ jobs:
 
         # Check formatting
         echo "Checking code formatting with Ruff..."
-        ruff format --check src/
+        ruff format --check src/ tests/ scripts/
 
         echo "✅ Ruff linting and formatting checks passed"
 
