@@ -42,8 +42,7 @@ class ToolGenerator:
 
         # Generate components
         pydantic_model = self._generate_pydantic_model(
-            self._to_pascal_case(template.name) + "Request",
-            template.input_schema
+            self._to_pascal_case(template.name) + "Request", template.input_schema
         )
         tool_definition = self._generate_tool_definition(template)
         handler_function = self._generate_handler_function(template)
@@ -78,10 +77,12 @@ logger = get_logger("{template.name}_tool")
             name=template.name,
             description=template.description,
             code=code,
-            test_code=test_code
+            test_code=test_code,
         )
 
-    async def write_tool_files(self, generated: GeneratedTool, output_dir: Path) -> dict[str, Path]:
+    async def write_tool_files(
+        self, generated: GeneratedTool, output_dir: Path
+    ) -> dict[str, Path]:
         """Write generated tool to files."""
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,10 +96,7 @@ logger = get_logger("{template.name}_tool")
         with open(test_file, "w") as f:
             f.write(generated.test_code)
 
-        return {
-            "tool_file": tool_file,
-            "test_file": test_file
-        }
+        return {"tool_file": tool_file, "test_file": test_file}
 
     def _validate_template(self, template: ToolTemplate) -> None:
         """Validate template configuration."""
@@ -111,16 +109,16 @@ logger = get_logger("{template.name}_tool")
     def _to_snake_case(self, name: str) -> str:
         """Convert name to snake_case."""
         # Insert underscore before uppercase letters that follow lowercase letters
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
         # Insert underscore before uppercase letters that are followed by lowercase letters
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+        return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
     def _to_pascal_case(self, name: str) -> str:
         """Convert name to PascalCase."""
         # If already PascalCase, return as-is
-        if name and name[0].isupper() and '_' not in name and '-' not in name:
+        if name and name[0].isupper() and "_" not in name and "-" not in name:
             return name
-        return ''.join(word.capitalize() for word in name.replace('-', '_').split('_'))
+        return "".join(word.capitalize() for word in name.replace("-", "_").split("_"))
 
     def _generate_pydantic_model(self, class_name: str, schema: dict[str, Any]) -> str:
         """Generate Pydantic model from JSON schema."""
@@ -135,17 +133,25 @@ logger = get_logger("{template.name}_tool")
 
             if prop_name in required:
                 if default_value is not None:
-                    fields.append(f'    {prop_name}: {prop_type} = Field(default={default_value!r}, description="{description}")')
+                    fields.append(
+                        f'    {prop_name}: {prop_type} = Field(default={default_value!r}, description="{description}")'
+                    )
                 else:
-                    fields.append(f'    {prop_name}: {prop_type} = Field(..., description="{description}")')
+                    fields.append(
+                        f'    {prop_name}: {prop_type} = Field(..., description="{description}")'
+                    )
             else:
                 if default_value is not None:
-                    fields.append(f'    {prop_name}: {prop_type} = Field(default={default_value!r}, description="{description}")')
+                    fields.append(
+                        f'    {prop_name}: {prop_type} = Field(default={default_value!r}, description="{description}")'
+                    )
                 else:
-                    fields.append(f'    {prop_name}: {prop_type} | None = Field(default=None, description="{description}")')
+                    fields.append(
+                        f'    {prop_name}: {prop_type} | None = Field(default=None, description="{description}")'
+                    )
 
         return f"""class {class_name}(BaseModel):
-    \"\"\"Request model for {class_name.replace('Request', '').lower()}.\"\"\"
+    \"\"\"Request model for {class_name.replace("Request", "").lower()}.\"\"\"
 
 {chr(10).join(fields)}"""
 
@@ -157,7 +163,7 @@ logger = get_logger("{template.name}_tool")
             "number": "float",
             "boolean": "bool",
             "array": "list",
-            "object": "dict"
+            "object": "dict",
         }
         return type_map.get(json_type, "Any")
 
@@ -185,10 +191,10 @@ logger = get_logger("{template.name}_tool")
 ) -> list[TextContent]:
     \"\"\"Handle {template.name} tool calls.\"\"\"
     logger.debug("Handling tool: %s", name, extra={{"tool_name": name, "arguments": arguments}})
-    
+
     # Validate input
     request = {request_class}(**arguments)
-    
+
     # Process request
     {logic}"""
 
@@ -200,7 +206,13 @@ logger = get_logger("{template.name}_tool")
         # Get first required field for test
         properties = template.input_schema.get("properties", {})
         required = template.input_schema.get("required", [])
-        test_field = required[0] if required else next(iter(properties.keys())) if properties else "test"
+        test_field = (
+            required[0]
+            if required
+            else next(iter(properties.keys()))
+            if properties
+            else "test"
+        )
 
         return f'''"""
 Tests for {template.name} tool.
@@ -221,7 +233,7 @@ class Test{class_name}:
         # Valid request
         request = {request_class}({test_field}="test_value")
         assert request.{test_field} == "test_value"
-        
+
         # Invalid request should raise validation error
         with pytest.raises(Exception):  # Pydantic validation error
             {request_class}()
@@ -230,9 +242,9 @@ class Test{class_name}:
     async def test_handle_{template.name}_tool(self):
         """Test tool handler."""
         arguments = {{"{test_field}": "test_value"}}
-        
+
         result = await handle_{template.name}_tool("{template.name}", arguments)
-        
+
         assert len(result) == 1
         assert result[0].type == "text"
         assert "test_value" in result[0].text or "success" in result[0].text

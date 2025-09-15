@@ -35,17 +35,17 @@ class ScenarioBuilder:
         self._current_service = None
         self._responses = {}
 
-    def description(self, desc: str) -> 'ScenarioBuilder':
+    def description(self, desc: str) -> "ScenarioBuilder":
         """Set scenario description."""
         self._description = desc
         return self
 
-    def mock_service(self, service_name: str) -> 'ScenarioBuilder':
+    def mock_service(self, service_name: str) -> "ScenarioBuilder":
         """Set current service for method configuration."""
         self._current_service = service_name
         return self
 
-    def method(self, method_name: str) -> 'ScenarioBuilder':
+    def method(self, method_name: str) -> "ScenarioBuilder":
         """Configure method for current service."""
         if not self._current_service:
             raise ValueError("Must call mock_service() before method()")
@@ -57,27 +57,27 @@ class ScenarioBuilder:
 
         return self
 
-    def returns(self, value: Any) -> 'ScenarioBuilder':
+    def returns(self, value: Any) -> "ScenarioBuilder":
         """Set return value for current method."""
-        if not hasattr(self, '_current_method'):
+        if not hasattr(self, "_current_method"):
             raise ValueError("Must call method() before returns()")
 
         key = (self._current_service, self._current_method)
         self._responses[key]["return_value"] = value
         return self
 
-    def side_effect(self, effect: Callable | Exception) -> 'ScenarioBuilder':
+    def side_effect(self, effect: Callable | Exception) -> "ScenarioBuilder":
         """Set side effect for current method."""
-        if not hasattr(self, '_current_method'):
+        if not hasattr(self, "_current_method"):
             raise ValueError("Must call method() before side_effect()")
 
         key = (self._current_service, self._current_method)
         self._responses[key]["side_effect"] = effect
         return self
 
-    def delay(self, seconds: float) -> 'ScenarioBuilder':
+    def delay(self, seconds: float) -> "ScenarioBuilder":
         """Set response delay for current method."""
-        if not hasattr(self, '_current_method'):
+        if not hasattr(self, "_current_method"):
             raise ValueError("Must call method() before delay()")
 
         key = (self._current_service, self._current_method)
@@ -89,7 +89,7 @@ class ScenarioBuilder:
         return MockServiceScenario(
             name=self.name,
             description=self._description,
-            responses=self._responses.copy()
+            responses=self._responses.copy(),
         )
 
 
@@ -101,7 +101,9 @@ class MockServiceRegistry:
         self._services = {}
         self._types = {}
 
-    def register(self, name: str, service: Any, service_type: type | None = None) -> None:
+    def register(
+        self, name: str, service: Any, service_type: type | None = None
+    ) -> None:
         """Register a service with optional type checking."""
         if service_type and not isinstance(service, service_type):
             raise TypeError(f"Service {name} must be instance of {service_type}")
@@ -169,15 +171,20 @@ class MockServiceFactory:
         # Configure async mock
         if "return_value" in config:
             if "delay" in config:
+
                 async def delayed_return(*args, **kwargs):
                     await asyncio.sleep(config["delay"])
                     return config["return_value"]
+
                 mock.side_effect = delayed_return
             else:
                 mock.return_value = config["return_value"]
         elif "side_effect" in config:
-            if "delay" in config and not asyncio.iscoroutinefunction(config["side_effect"]):
+            if "delay" in config and not asyncio.iscoroutinefunction(
+                config["side_effect"]
+            ):
                 original_side_effect = config["side_effect"]
+
                 async def delayed_side_effect(*args, **kwargs):
                     await asyncio.sleep(config["delay"])
                     if isinstance(original_side_effect, Exception):
@@ -186,6 +193,7 @@ class MockServiceFactory:
                         return original_side_effect(*args, **kwargs)
                     else:
                         return original_side_effect
+
                 mock.side_effect = delayed_side_effect
             else:
                 mock.side_effect = config["side_effect"]

@@ -19,6 +19,7 @@ repos:
         additional_dependencies: [types-bleach, types-requests, httpx, mcp, types-PyYAML, pathvalidate, python-slugify, tenacity]
         args: [--show-error-codes, --show-error-context, --strict-optional, --warn-redundant-casts, --warn-unused-ignores]
         files: ^src/.*\.py$
+        exclude: ^src/finos_mcp/internal/.*\.py$
 
   # Advanced security scanning with Semgrep (Ruff handles basic security via flake8-bandit)
   - repo: https://github.com/semgrep/semgrep

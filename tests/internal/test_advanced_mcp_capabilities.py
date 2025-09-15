@@ -23,9 +23,7 @@ class TestTenant:
     def test_tenant_creation(self):
         """Test creating tenant."""
         tenant = Tenant(
-            id="tenant_1",
-            name="Test Tenant",
-            config={"max_resources": 100}
+            id="tenant_1", name="Test Tenant", config={"max_resources": 100}
         )
         assert tenant.id == "tenant_1"
         assert tenant.name == "Test Tenant"
@@ -37,7 +35,7 @@ class TestTenant:
         tenant = Tenant(
             id="tenant_1",
             name="Test Tenant",
-            config={"max_resources": 5, "max_tools": 3}
+            config={"max_resources": 5, "max_tools": 3},
         )
 
         assert tenant.can_add_resource() is True
@@ -70,10 +68,7 @@ class TestTenantManager:
         """Test tenant registration."""
         manager = TenantManager()
 
-        tenant_config = {
-            "name": "Test Tenant",
-            "config": {"max_resources": 100}
-        }
+        tenant_config = {"name": "Test Tenant", "config": {"max_resources": 100}}
 
         tenant_id = manager.register_tenant("tenant_1", tenant_config)
         assert tenant_id == "tenant_1"
@@ -107,8 +102,12 @@ class TestTenantManager:
         manager.register_tenant("tenant_2", {"name": "Tenant 2"})
 
         # Add resources to different tenants
-        manager.isolation.add_resource("tenant_1", "resource_1", {"data": "tenant1_data"})
-        manager.isolation.add_resource("tenant_2", "resource_2", {"data": "tenant2_data"})
+        manager.isolation.add_resource(
+            "tenant_1", "resource_1", {"data": "tenant1_data"}
+        )
+        manager.isolation.add_resource(
+            "tenant_2", "resource_2", {"data": "tenant2_data"}
+        )
 
         # Check isolation
         tenant1_resources = manager.isolation.get_resources("tenant_1")
@@ -125,11 +124,7 @@ class TestPlugin:
 
     def test_plugin_creation(self):
         """Test creating plugin."""
-        plugin = Plugin(
-            name="test_plugin",
-            version="1.0.0",
-            description="Test plugin"
-        )
+        plugin = Plugin(name="test_plugin", version="1.0.0", description="Test plugin")
         assert plugin.name == "test_plugin"
         assert plugin.version == "1.0.0"
         assert plugin.enabled is True
@@ -221,7 +216,7 @@ class TestPluginManager:
         manager = PluginManager()
 
         # Mock plugin loading
-        with patch.object(manager, '_load_plugin_from_path') as mock_load:
+        with patch.object(manager, "_load_plugin_from_path") as mock_load:
             mock_plugin = Plugin(name="loaded_plugin")
             mock_load.return_value = mock_plugin
 
@@ -357,18 +352,19 @@ class TestAdvancedMCPServer:
         handled_requests = []
 
         async def mock_handler(request, tenant_context=None):
-            handled_requests.append({
-                "request": request,
-                "tenant": tenant_context.tenant_id if tenant_context else None
-            })
+            handled_requests.append(
+                {
+                    "request": request,
+                    "tenant": tenant_context.tenant_id if tenant_context else None,
+                }
+            )
             return {"result": "success"}
 
         server._base_handler = mock_handler
 
         # Handle request with tenant context
         result = await server.handle_request(
-            {"method": "test", "params": {}},
-            tenant_id="tenant_1"
+            {"method": "test", "params": {}}, tenant_id="tenant_1"
         )
 
         assert result["result"] == "success"
@@ -410,20 +406,23 @@ class TestAdvancedMCPServer:
         server = AdvancedMCPServer()
 
         # Register tenant with limits
-        server.tenant_manager.register_tenant("tenant_1", {
-            "name": "Limited Tenant",
-            "config": {"max_resources": 1}
-        })
+        server.tenant_manager.register_tenant(
+            "tenant_1", {"name": "Limited Tenant", "config": {"max_resources": 1}}
+        )
 
         tenant = server.tenant_manager.tenants["tenant_1"]
 
         # Add resource within limit
-        result1 = await server.add_tenant_resource("tenant_1", "resource_1", {"data": "test"})
+        result1 = await server.add_tenant_resource(
+            "tenant_1", "resource_1", {"data": "test"}
+        )
         assert result1 is True
         assert tenant.resource_count == 1
 
         # Try to add resource beyond limit
-        result2 = await server.add_tenant_resource("tenant_1", "resource_2", {"data": "test"})
+        result2 = await server.add_tenant_resource(
+            "tenant_1", "resource_2", {"data": "test"}
+        )
         assert result2 is False
         assert tenant.resource_count == 1
 
@@ -461,14 +460,12 @@ class TestIntegration:
         server = AdvancedMCPServer()
 
         # Register tenants
-        server.tenant_manager.register_tenant("tenant_1", {
-            "name": "Tenant 1",
-            "config": {"max_resources": 10}
-        })
-        server.tenant_manager.register_tenant("tenant_2", {
-            "name": "Tenant 2",
-            "config": {"max_resources": 5}
-        })
+        server.tenant_manager.register_tenant(
+            "tenant_1", {"name": "Tenant 1", "config": {"max_resources": 10}}
+        )
+        server.tenant_manager.register_tenant(
+            "tenant_2", {"name": "Tenant 2", "config": {"max_resources": 5}}
+        )
 
         # Create tenant-aware plugin
         plugin = Plugin(name="tenant_plugin")
@@ -485,20 +482,14 @@ class TestIntegration:
         async def mock_handler(request, tenant_context=None):
             return {
                 "tenant": tenant_context.tenant_id if tenant_context else None,
-                "method": request["method"]
+                "method": request["method"],
             }
 
         server._base_handler = mock_handler
 
         # Handle requests from different tenants
-        result1 = await server.handle_request(
-            {"method": "test1"},
-            tenant_id="tenant_1"
-        )
-        result2 = await server.handle_request(
-            {"method": "test2"},
-            tenant_id="tenant_2"
-        )
+        result1 = await server.handle_request({"method": "test1"}, tenant_id="tenant_1")
+        result2 = await server.handle_request({"method": "test2"}, tenant_id="tenant_2")
 
         assert result1["tenant"] == "tenant_1"
         assert result1["method"] == "test1"
@@ -540,10 +531,7 @@ class TestIntegration:
         server._base_handler = mock_handler
 
         # Handle request
-        result = await server.handle_request({
-            "method": "test",
-            "processed_by": []
-        })
+        result = await server.handle_request({"method": "test", "processed_by": []})
 
         assert len(execution_order) == 2
         assert len(result["processed_by"]) == 2

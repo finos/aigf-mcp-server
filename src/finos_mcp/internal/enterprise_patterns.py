@@ -32,7 +32,7 @@ class SearchCompletedEvent(DomainEvent):
         super().__init__(
             event_type="search_completed",
             data={"query": query, "results": results, "user_id": user_id},
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
         self.query = query
         self.results = results
@@ -50,8 +50,12 @@ class DocumentRetrievedEvent(DomainEvent):
     def __init__(self, document_id: str, document_type: str, user_id: str):
         super().__init__(
             event_type="document_retrieved",
-            data={"document_id": document_id, "document_type": document_type, "user_id": user_id},
-            timestamp=datetime.now()
+            data={
+                "document_id": document_id,
+                "document_type": document_type,
+                "user_id": user_id,
+            },
+            timestamp=datetime.now(),
         )
         self.document_id = document_id
         self.document_type = document_type
@@ -80,20 +84,24 @@ class EventBus:
 
     def handler(self, event_type: str):
         """Decorator for registering event handlers."""
+
         def decorator(func):
             self.register(event_type, func)
             return func
+
         return decorator
 
 
 # CQRS Base Classes
 class Command:
     """Base class for commands (write operations)."""
+
     pass
 
 
 class Query:
     """Base class for queries (read operations)."""
+
     pass
 
 
@@ -156,11 +164,15 @@ class CQRS:
         self._command_handlers: dict[type[Command], Callable] = {}
         self._query_handlers: dict[type[Query], Callable] = {}
 
-    def register_command_handler(self, command_type: type[Command], handler: Callable) -> None:
+    def register_command_handler(
+        self, command_type: type[Command], handler: Callable
+    ) -> None:
         """Register command handler."""
         self._command_handlers[command_type] = handler
 
-    def register_query_handler(self, query_type: type[Query], handler: Callable) -> None:
+    def register_query_handler(
+        self, query_type: type[Query], handler: Callable
+    ) -> None:
         """Register query handler."""
         self._query_handlers[query_type] = handler
 
@@ -200,7 +212,7 @@ class MessageBus:
                 # Run subscriber in background to avoid blocking
                 task = asyncio.create_task(subscriber(message))
                 # Store task reference to prevent garbage collection
-                self._tasks = getattr(self, '_tasks', set())
+                self._tasks = getattr(self, "_tasks", set())
                 self._tasks.add(task)
                 task.add_done_callback(self._tasks.discard)
             except Exception:

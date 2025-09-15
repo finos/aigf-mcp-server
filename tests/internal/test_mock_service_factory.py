@@ -27,7 +27,7 @@ class TestMockServiceScenario:
                 ("content_service", "get_document"): {
                     "return_value": {"content": "test"}
                 }
-            }
+            },
         )
 
         assert scenario.name == "basic_test"
@@ -36,6 +36,7 @@ class TestMockServiceScenario:
 
     def test_scenario_with_side_effects(self):
         """Test scenario with side effects."""
+
         def custom_side_effect(*args, **kwargs):
             return {"custom": "response"}
 
@@ -43,10 +44,8 @@ class TestMockServiceScenario:
             name="side_effect_test",
             description="Test with side effects",
             responses={
-                ("auth_service", "authenticate"): {
-                    "side_effect": custom_side_effect
-                }
-            }
+                ("auth_service", "authenticate"): {"side_effect": custom_side_effect}
+            },
         )
 
         key = ("auth_service", "authenticate")
@@ -60,9 +59,9 @@ class TestMockServiceScenario:
             responses={
                 ("slow_service", "slow_method"): {
                     "return_value": {"data": "slow"},
-                    "delay": 0.5
+                    "delay": 0.5,
                 }
-            }
+            },
         )
 
         key = ("slow_service", "slow_method")
@@ -77,7 +76,7 @@ class TestMockServiceScenario:
                 ("failing_service", "fail_method"): {
                     "side_effect": ValueError("Test error")
                 }
-            }
+            },
         )
 
         key = ("failing_service", "fail_method")
@@ -90,12 +89,13 @@ class TestScenarioBuilder:
     def test_builder_basic_creation(self):
         """Test basic scenario builder usage."""
         builder = ScenarioBuilder("test_scenario")
-        scenario = (builder
-                   .description("Test scenario description")
-                   .mock_service("content_service")
-                   .method("get_document")
-                   .returns({"content": "test"})
-                   .build())
+        scenario = (
+            builder.description("Test scenario description")
+            .mock_service("content_service")
+            .method("get_document")
+            .returns({"content": "test"})
+            .build()
+        )
 
         assert scenario.name == "test_scenario"
         assert scenario.description == "Test scenario description"
@@ -104,15 +104,16 @@ class TestScenarioBuilder:
     def test_builder_with_multiple_services(self):
         """Test builder with multiple services and methods."""
         builder = ScenarioBuilder("multi_service_test")
-        scenario = (builder
-                   .description("Multiple services test")
-                   .mock_service("content_service")
-                   .method("get_document")
-                   .returns({"type": "document"})
-                   .mock_service("auth_service")
-                   .method("authenticate")
-                   .returns({"token": "abc123"})
-                   .build())
+        scenario = (
+            builder.description("Multiple services test")
+            .mock_service("content_service")
+            .method("get_document")
+            .returns({"type": "document"})
+            .mock_service("auth_service")
+            .method("authenticate")
+            .returns({"token": "abc123"})
+            .build()
+        )
 
         assert len(scenario.responses) == 2
         assert ("content_service", "get_document") in scenario.responses
@@ -120,15 +121,17 @@ class TestScenarioBuilder:
 
     def test_builder_with_side_effects(self):
         """Test builder with side effects."""
+
         def custom_effect():
             return {"custom": True}
 
         builder = ScenarioBuilder("side_effect_test")
-        scenario = (builder
-                   .mock_service("test_service")
-                   .method("test_method")
-                   .side_effect(custom_effect)
-                   .build())
+        scenario = (
+            builder.mock_service("test_service")
+            .method("test_method")
+            .side_effect(custom_effect)
+            .build()
+        )
 
         key = ("test_service", "test_method")
         assert scenario.responses[key]["side_effect"] == custom_effect
@@ -136,12 +139,13 @@ class TestScenarioBuilder:
     def test_builder_with_delays(self):
         """Test builder with response delays."""
         builder = ScenarioBuilder("delay_test")
-        scenario = (builder
-                   .mock_service("slow_service")
-                   .method("slow_operation")
-                   .returns({"result": "slow"})
-                   .delay(1.0)
-                   .build())
+        scenario = (
+            builder.mock_service("slow_service")
+            .method("slow_operation")
+            .returns({"result": "slow"})
+            .delay(1.0)
+            .build()
+        )
 
         key = ("slow_service", "slow_operation")
         assert scenario.responses[key]["delay"] == 1.0
@@ -149,11 +153,14 @@ class TestScenarioBuilder:
     def test_builder_chaining_methods(self):
         """Test chaining multiple methods for same service."""
         builder = ScenarioBuilder("chaining_test")
-        scenario = (builder
-                   .mock_service("api_service")
-                   .method("get_user").returns({"id": 1})
-                   .method("get_profile").returns({"name": "test"})
-                   .build())
+        scenario = (
+            builder.mock_service("api_service")
+            .method("get_user")
+            .returns({"id": 1})
+            .method("get_profile")
+            .returns({"name": "test"})
+            .build()
+        )
 
         assert len(scenario.responses) == 2
         assert ("api_service", "get_user") in scenario.responses
@@ -233,7 +240,7 @@ class TestMockServiceFactory:
                 ("content_service", "get_document"): {
                     "return_value": {"content": "test"}
                 }
-            }
+            },
         )
 
         factory = MockServiceFactory()
@@ -252,7 +259,7 @@ class TestMockServiceFactory:
                 ("async_service", "async_method"): {
                     "return_value": {"async_result": True}
                 }
-            }
+            },
         )
 
         factory = MockServiceFactory()
@@ -270,9 +277,9 @@ class TestMockServiceFactory:
             responses={
                 ("delayed_service", "slow_method"): {
                     "return_value": {"delayed": True},
-                    "delay": 0.1
+                    "delay": 0.1,
                 }
-            }
+            },
         )
 
         factory = MockServiceFactory()
@@ -288,6 +295,7 @@ class TestMockServiceFactory:
     @pytest.mark.asyncio
     async def test_mock_with_side_effect(self):
         """Test mock with side effect."""
+
         def custom_side_effect(*args, **kwargs):
             return {"args": args, "kwargs": kwargs}
 
@@ -295,10 +303,8 @@ class TestMockServiceFactory:
             name="side_effect_test",
             description="Side effect test scenario",
             responses={
-                ("effect_service", "effect_method"): {
-                    "side_effect": custom_side_effect
-                }
-            }
+                ("effect_service", "effect_method"): {"side_effect": custom_side_effect}
+            },
         )
 
         factory = MockServiceFactory()
@@ -318,7 +324,7 @@ class TestMockServiceFactory:
                 ("error_service", "error_method"): {
                     "side_effect": ValueError("Test error")
                 }
-            }
+            },
         )
 
         factory = MockServiceFactory()
@@ -334,10 +340,8 @@ class TestMockServiceFactory:
             name="context_test",
             description="Context manager test",
             responses={
-                ("ctx_service", "ctx_method"): {
-                    "return_value": {"context": True}
-                }
-            }
+                ("ctx_service", "ctx_method"): {"return_value": {"context": True}}
+            },
         )
 
         factory = MockServiceFactory()
@@ -355,10 +359,8 @@ class TestMockServiceFactory:
             name="fast_mode_test",
             description="Fast mode integration test",
             responses={
-                ("fast_service", "fast_method"): {
-                    "return_value": {"fast": True}
-                }
-            }
+                ("fast_service", "fast_method"): {"return_value": {"fast": True}}
+            },
         )
 
         factory = MockServiceFactory()
@@ -379,27 +381,33 @@ class TestScenarioIntegration:
     async def test_content_service_scenario(self):
         """Test complete content service scenario."""
         # Build comprehensive scenario
-        scenario = (ScenarioBuilder("content_service_integration")
-                   .description("Complete content service test scenario")
-                   .mock_service("content_service")
-                   .method("get_document")
-                   .returns({
-                       "filename": "test.md",
-                       "type": "mitigation",
-                       "content": "# Test Document\n\nContent here",
-                       "metadata": {"title": "Test", "version": "1.0"}
-                   })
-                   .method("list_documents")
-                   .returns([
-                       {"filename": "doc1.md", "type": "risk"},
-                       {"filename": "doc2.md", "type": "mitigation"}
-                   ])
-                   .mock_service("auth_service")
-                   .method("authenticate")
-                   .returns({"token": "jwt_token_123", "expires_in": 3600})
-                   .method("validate_token")
-                   .side_effect(lambda token: {"valid": token == "jwt_token_123"})
-                   .build())
+        scenario = (
+            ScenarioBuilder("content_service_integration")
+            .description("Complete content service test scenario")
+            .mock_service("content_service")
+            .method("get_document")
+            .returns(
+                {
+                    "filename": "test.md",
+                    "type": "mitigation",
+                    "content": "# Test Document\n\nContent here",
+                    "metadata": {"title": "Test", "version": "1.0"},
+                }
+            )
+            .method("list_documents")
+            .returns(
+                [
+                    {"filename": "doc1.md", "type": "risk"},
+                    {"filename": "doc2.md", "type": "mitigation"},
+                ]
+            )
+            .mock_service("auth_service")
+            .method("authenticate")
+            .returns({"token": "jwt_token_123", "expires_in": 3600})
+            .method("validate_token")
+            .side_effect(lambda token: {"valid": token == "jwt_token_123"})
+            .build()
+        )
 
         factory = MockServiceFactory()
 
@@ -425,16 +433,18 @@ class TestScenarioIntegration:
     @pytest.mark.asyncio
     async def test_error_scenario_handling(self):
         """Test comprehensive error scenario handling."""
-        scenario = (ScenarioBuilder("error_scenarios")
-                   .description("Error handling test scenarios")
-                   .mock_service("unreliable_service")
-                   .method("network_call")
-                   .side_effect(ConnectionError("Network unavailable"))
-                   .method("timeout_call")
-                   .side_effect(asyncio.TimeoutError("Request timeout"))
-                   .method("invalid_data")
-                   .side_effect(ValueError("Invalid input data"))
-                   .build())
+        scenario = (
+            ScenarioBuilder("error_scenarios")
+            .description("Error handling test scenarios")
+            .mock_service("unreliable_service")
+            .method("network_call")
+            .side_effect(ConnectionError("Network unavailable"))
+            .method("timeout_call")
+            .side_effect(asyncio.TimeoutError("Request timeout"))
+            .method("invalid_data")
+            .side_effect(ValueError("Invalid input data"))
+            .build()
+        )
 
         factory = MockServiceFactory()
 
@@ -454,16 +464,18 @@ class TestScenarioIntegration:
     @pytest.mark.asyncio
     async def test_performance_scenario(self):
         """Test performance-related scenario."""
-        scenario = (ScenarioBuilder("performance_test")
-                   .description("Performance testing scenario")
-                   .mock_service("cache_service")
-                   .method("get_cached_data")
-                   .returns({"cached": True, "data": "fast_response"})
-                   .delay(0.001)  # Very fast cache hit
-                   .method("miss_and_fetch")
-                   .returns({"cached": False, "data": "slow_response"})
-                   .delay(0.1)  # Slow database fetch (reduced for faster tests)
-                   .build())
+        scenario = (
+            ScenarioBuilder("performance_test")
+            .description("Performance testing scenario")
+            .mock_service("cache_service")
+            .method("get_cached_data")
+            .returns({"cached": True, "data": "fast_response"})
+            .delay(0.001)  # Very fast cache hit
+            .method("miss_and_fetch")
+            .returns({"cached": False, "data": "slow_response"})
+            .delay(0.1)  # Slow database fetch (reduced for faster tests)
+            .build()
+        )
 
         factory = MockServiceFactory()
 

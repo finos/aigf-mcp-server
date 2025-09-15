@@ -13,9 +13,7 @@ class MockContentService:
     def __init__(self):
         self._cache = {}
 
-    async def get_document(
-        self, doc_type: str, filename: str
-    ) -> dict[str, Any] | None:
+    async def get_document(self, doc_type: str, filename: str) -> dict[str, Any] | None:
         """Get document by type and filename."""
         # Check if fast mode is active via global context
         try:

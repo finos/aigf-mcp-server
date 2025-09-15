@@ -37,13 +37,12 @@ class TestFileWatcher:
             test_file.write_text("# Initial content")
 
             changes = []
+
             async def on_change(file_path):
                 changes.append(file_path)
 
             watcher = FileWatcher(
-                watch_paths=[Path(temp_dir)],
-                patterns=["*.py"],
-                on_change=on_change
+                watch_paths=[Path(temp_dir)], patterns=["*.py"], on_change=on_change
             )
 
             # Start watching
@@ -75,13 +74,14 @@ class TestFileWatcher:
             txt_file.write_text("Not watched")
 
             changes = []
+
             async def on_change(file_path):
                 changes.append(Path(file_path).name)
 
             watcher = FileWatcher(
                 watch_paths=[Path(temp_dir)],
                 patterns=["*.py", "*.toml"],
-                on_change=on_change
+                on_change=on_change,
             )
 
             # Start watching
@@ -125,6 +125,7 @@ class TestFileWatcher:
             ignored_file.write_text("cached")
 
             changes = []
+
             async def on_change(file_path):
                 changes.append(Path(file_path).name)
 
@@ -132,7 +133,7 @@ class TestFileWatcher:
                 watch_paths=[Path(temp_dir)],
                 patterns=["*.py", "*.pyc"],
                 ignore_patterns=["__pycache__/**"],
-                on_change=on_change
+                on_change=on_change,
             )
 
             watch_task = asyncio.create_task(watcher.start())
@@ -157,8 +158,7 @@ class TestLiveReloadServer:
     async def test_server_creation(self):
         """Test creating live reload server."""
         server = LiveReloadServer(
-            mcp_command=["python", "-m", "finos_mcp"],
-            watch_paths=[Path("src")]
+            mcp_command=["python", "-m", "finos_mcp"], watch_paths=[Path("src")]
         )
 
         assert server.mcp_command == ["python", "-m", "finos_mcp"]
@@ -169,10 +169,7 @@ class TestLiveReloadServer:
     @pytest.mark.asyncio
     async def test_mcp_process_management(self):
         """Test starting and stopping MCP process."""
-        server = LiveReloadServer(
-            mcp_command=["echo", "test"],
-            watch_paths=[Path(".")]
-        )
+        server = LiveReloadServer(mcp_command=["echo", "test"], watch_paths=[Path(".")])
 
         # Mock process creation
         mock_process = Mock()
@@ -197,10 +194,7 @@ class TestLiveReloadServer:
             nonlocal restart_count
             restart_count += 1
 
-        server = LiveReloadServer(
-            mcp_command=["echo", "test"],
-            watch_paths=[Path(".")]
-        )
+        server = LiveReloadServer(mcp_command=["echo", "test"], watch_paths=[Path(".")])
         server.restart_mcp_process = mock_restart
 
         # Simulate file change
@@ -218,10 +212,7 @@ class TestLiveReloadServer:
             nonlocal restart_count
             restart_count += 1
 
-        server = LiveReloadServer(
-            mcp_command=["echo", "test"],
-            watch_paths=[Path(".")]
-        )
+        server = LiveReloadServer(mcp_command=["echo", "test"], watch_paths=[Path(".")])
         server.restart_mcp_process = mock_restart
 
         # Rapid file changes
@@ -238,6 +229,7 @@ class TestLiveReloadServer:
         server = LiveReloadServer(mcp_command=["echo", "test"], watch_paths=[Path(".")])
 
         logs = []
+
         def mock_log_handler(level, message):
             logs.append((level, message))
 
@@ -286,13 +278,17 @@ class TestTestSession:
 
         # Mock MCP client
         mock_client = AsyncMock()
-        mock_client.call_tool.return_value = {"content": [{"type": "text", "text": "Tool result"}]}
+        mock_client.call_tool.return_value = {
+            "content": [{"type": "text", "text": "Tool result"}]
+        }
 
         with patch.object(session, "_get_mcp_client", return_value=mock_client):
             result = await session.execute_tool("search_documents", {"query": "test"})
 
             assert "Tool result" in str(result)
-            mock_client.call_tool.assert_called_once_with("search_documents", {"query": "test"})
+            mock_client.call_tool.assert_called_once_with(
+                "search_documents", {"query": "test"}
+            )
 
     @pytest.mark.asyncio
     async def test_session_history_tracking(self):
@@ -301,7 +297,9 @@ class TestTestSession:
 
         # Mock successful execution
         mock_client = AsyncMock()
-        mock_client.call_tool.return_value = {"content": [{"type": "text", "text": "Success"}]}
+        mock_client.call_tool.return_value = {
+            "content": [{"type": "text", "text": "Success"}]
+        }
 
         with patch.object(session, "_get_mcp_client", return_value=mock_client):
             await session.execute_tool("test_tool", {"param": "value"})
@@ -343,12 +341,14 @@ class TestTestSession:
         """Test saving and loading session state."""
         session = TestSession(mcp_server_url="test://server")
         session.set_context("test_key", "test_value")
-        session.history.append({
-            "tool": "test_tool",
-            "arguments": {},
-            "result": "test_result",
-            "timestamp": "2025-01-01T00:00:00Z"
-        })
+        session.history.append(
+            {
+                "tool": "test_tool",
+                "arguments": {},
+                "result": "test_result",
+                "timestamp": "2025-01-01T00:00:00Z",
+            }
+        )
 
         # Serialize session
         serialized = session.to_dict()
@@ -368,8 +368,7 @@ class TestInteractiveCLI:
     def test_cli_creation(self):
         """Test creating interactive CLI."""
         cli = InteractiveCLI(
-            mcp_server_url="stdio://server",
-            session_file=Path("test_session.json")
+            mcp_server_url="stdio://server", session_file=Path("test_session.json")
         )
 
         assert cli.server_url == "stdio://server"
@@ -406,7 +405,7 @@ class TestInteractiveCLI:
         mock_client.list_tools.return_value = {
             "tools": [
                 {"name": "search_documents", "description": "Search documents"},
-                {"name": "get_document", "description": "Get document by ID"}
+                {"name": "get_document", "description": "Get document by ID"},
             ]
         }
 
@@ -426,10 +425,17 @@ class TestInteractiveCLI:
         cli.session.execute_tool = AsyncMock(return_value={"result": "Success"})
 
         with patch("builtins.input", side_effect=["test query", "10"]):
-            result = await cli.call_tool_interactive("search_documents", {
-                "query": {"type": "string", "description": "Search query"},
-                "limit": {"type": "integer", "description": "Result limit", "default": 5}
-            })
+            result = await cli.call_tool_interactive(
+                "search_documents",
+                {
+                    "query": {"type": "string", "description": "Search query"},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Result limit",
+                        "default": 5,
+                    },
+                },
+            )
 
         assert result is not None
         cli.session.execute_tool.assert_called_once()
@@ -441,8 +447,7 @@ class TestInteractiveCLI:
 
             # Create CLI and modify session
             cli = InteractiveCLI(
-                mcp_server_url="test://server",
-                session_file=session_file
+                mcp_server_url="test://server", session_file=session_file
             )
             cli.session.set_context("test", "value")
 
@@ -452,8 +457,7 @@ class TestInteractiveCLI:
 
             # Load session in new CLI
             new_cli = InteractiveCLI(
-                mcp_server_url="test://server",
-                session_file=session_file
+                mcp_server_url="test://server", session_file=session_file
             )
             new_cli.load_session()
 
@@ -503,14 +507,12 @@ class TestIntegration:
         mock_session.reconnect = AsyncMock()
 
         # Create live reload server
-        server = LiveReloadServer(
-            mcp_command=["echo", "test"],
-            watch_paths=[Path(".")]
-        )
+        server = LiveReloadServer(mcp_command=["echo", "test"], watch_paths=[Path(".")])
         server.register_session(mock_session)
 
         # Mock restart method to track calls
         restart_called = False
+
         async def mock_restart():
             nonlocal restart_called
             restart_called = True
@@ -541,13 +543,12 @@ class TestIntegration:
             # Create live reload server
             server = LiveReloadServer(
                 mcp_command=["python", "-c", "print('MCP Server Started')"],
-                watch_paths=[Path(temp_dir)]
+                watch_paths=[Path(temp_dir)],
             )
 
             # Create CLI session
             cli = InteractiveCLI(
-                mcp_server_url="stdio://server",
-                session_file=session_file
+                mcp_server_url="stdio://server", session_file=session_file
             )
 
             # Register CLI with server for reload notifications
@@ -559,6 +560,7 @@ class TestIntegration:
 
             # Simulate development cycle
             restart_called = False
+
             async def mock_restart():
                 nonlocal restart_called
                 restart_called = True
@@ -575,4 +577,3 @@ class TestIntegration:
 
             # CLI session should be ready for testing
             assert cli.session is not None
-

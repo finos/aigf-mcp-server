@@ -62,7 +62,9 @@ class ResourceIsolation:
         """Initialize resource isolation."""
         self.tenant_resources: dict[str, dict[str, Any]] = {}
 
-    def add_resource(self, tenant_id: str, resource_id: str, resource_data: Any) -> None:
+    def add_resource(
+        self, tenant_id: str, resource_id: str, resource_data: Any
+    ) -> None:
         """Add resource to tenant."""
         if tenant_id not in self.tenant_resources:
             self.tenant_resources[tenant_id] = {}
@@ -98,7 +100,7 @@ class TenantManager:
         tenant = Tenant(
             id=tenant_id,
             name=tenant_config.get("name", tenant_id),
-            config=tenant_config.get("config", {})
+            config=tenant_config.get("config", {}),
         )
 
         self.tenants[tenant_id] = tenant
@@ -149,7 +151,7 @@ class Plugin:
         name: str,
         version: str = "1.0.0",
         description: str = "",
-        dependencies: list[str] | None = None
+        dependencies: list[str] | None = None,
     ):
         """Initialize plugin."""
         self.name = name
@@ -162,11 +164,13 @@ class Plugin:
 
     def hook(self, hook_name: str):
         """Decorator for registering plugin hooks."""
+
         def decorator(handler):
             if hook_name not in self.hooks:
                 self.hooks[hook_name] = []
             self.hooks[hook_name].append(handler)
             return handler
+
         return decorator
 
     def enable(self) -> None:
@@ -267,7 +271,9 @@ class PluginManager:
                         if result is not None:
                             results.append(result)
                     except Exception as e:
-                        logger.error(f"Error in plugin {plugin.name} hook {hook_name}: {e}")
+                        logger.error(
+                            f"Error in plugin {plugin.name} hook {hook_name}: {e}"
+                        )
                         continue
 
         return results
@@ -300,17 +306,11 @@ class AdvancedMCPServer:
         self._base_handler: Callable | None = None
 
     async def handle_request(
-        self,
-        request: dict[str, Any],
-        tenant_id: str | None = None
+        self, request: dict[str, Any], tenant_id: str | None = None
     ) -> dict[str, Any]:
         """Handle request with tenant and plugin support."""
         # Create context for plugins
-        context = {
-            "request": request,
-            "tenant_id": tenant_id,
-            "server": self
-        }
+        context = {"request": request, "tenant_id": tenant_id, "server": self}
 
         # Execute before_request hooks
         await self.plugin_manager.execute_hook("before_request", context)
@@ -332,9 +332,7 @@ class AdvancedMCPServer:
         return result
 
     async def _handle_with_context(
-        self,
-        request: dict[str, Any],
-        tenant_context: TenantContext | None
+        self, request: dict[str, Any], tenant_context: TenantContext | None
     ) -> dict[str, Any]:
         """Handle request with tenant context."""
         if self._base_handler:
@@ -344,10 +342,7 @@ class AdvancedMCPServer:
         return {"result": "success", "method": request.get("method")}
 
     async def add_tenant_resource(
-        self,
-        tenant_id: str,
-        resource_id: str,
-        resource_data: Any
+        self, tenant_id: str, resource_id: str, resource_data: Any
     ) -> bool:
         """Add resource to tenant with limit checking."""
         tenant = self.tenant_manager.get_tenant(tenant_id)
@@ -357,7 +352,9 @@ class AdvancedMCPServer:
         if not tenant.can_add_resource():
             return False
 
-        self.tenant_manager.isolation.add_resource(tenant_id, resource_id, resource_data)
+        self.tenant_manager.isolation.add_resource(
+            tenant_id, resource_id, resource_data
+        )
         tenant.resource_count += 1
         return True
 

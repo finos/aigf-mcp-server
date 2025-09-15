@@ -33,9 +33,7 @@ class TestDomainEvent:
     def test_event_creation(self):
         """Test creating domain events."""
         event = DomainEvent(
-            event_type="test_event",
-            data={"key": "value"},
-            timestamp=datetime.now()
+            event_type="test_event", data={"key": "value"}, timestamp=datetime.now()
         )
 
         assert event.event_type == "test_event"
@@ -47,7 +45,7 @@ class TestDomainEvent:
         event = SearchCompletedEvent(
             query="data leakage",
             results=[{"title": "mi-1"}, {"title": "mi-2"}],
-            user_id="test_user"
+            user_id="test_user",
         )
 
         assert event.event_type == "search_completed"
@@ -58,9 +56,7 @@ class TestDomainEvent:
     def test_document_retrieved_event(self):
         """Test document retrieved event."""
         event = DocumentRetrievedEvent(
-            document_id="mi-1",
-            document_type="mitigation",
-            user_id="test_user"
+            document_id="mi-1", document_type="mitigation", user_id="test_user"
         )
 
         assert event.event_type == "document_retrieved"
@@ -94,9 +90,7 @@ class TestEventBus:
         bus.register("test_event", handler)
 
         event = DomainEvent(
-            event_type="test_event",
-            data={"test": True},
-            timestamp=datetime.now()
+            event_type="test_event", data={"test": True}, timestamp=datetime.now()
         )
 
         bus.publish(event)
@@ -146,8 +140,7 @@ class TestCQRS:
     def test_command_creation(self):
         """Test creating commands."""
         command = UpdateSearchCacheCommand(
-            query="test query",
-            results=[{"title": "result1"}]
+            query="test query", results=[{"title": "result1"}]
         )
 
         assert isinstance(command, Command)
@@ -156,10 +149,7 @@ class TestCQRS:
 
     def test_query_creation(self):
         """Test creating queries."""
-        query = SearchMitigationsQuery(
-            query="data leakage",
-            exact_match=False
-        )
+        query = SearchMitigationsQuery(query="data leakage", exact_match=False)
 
         assert isinstance(query, Query)
         assert query.query == "data leakage"
@@ -168,14 +158,10 @@ class TestCQRS:
     def test_command_handler(self):
         """Test command handler."""
         handler = CommandHandler()
-        command = LogSearchCommand(
-            query="test",
-            results_count=5,
-            user_id="user1"
-        )
+        command = LogSearchCommand(query="test", results_count=5, user_id="user1")
 
         # Should be able to handle command
-        assert hasattr(handler, 'handle')
+        assert hasattr(handler, "handle")
 
     def test_query_handler(self):
         """Test query handler."""
@@ -183,7 +169,7 @@ class TestCQRS:
         query = GetDocumentDetailsQuery(document_id="mi-1")
 
         # Should be able to handle query
-        assert hasattr(handler, 'handle')
+        assert hasattr(handler, "handle")
 
     @pytest.mark.asyncio
     async def test_cqrs_integration(self):
@@ -349,19 +335,20 @@ class TestMCPIntegration:
         async def content_service_handler(message):
             if message["type"] == "search_request":
                 # Simulate search processing
-                processed_messages.append({
-                    "type": "search_response",
-                    "query": message["query"],
-                    "results": ["mi-1", "mi-2"]
-                })
+                processed_messages.append(
+                    {
+                        "type": "search_response",
+                        "query": message["query"],
+                        "results": ["mi-1", "mi-2"],
+                    }
+                )
 
         bus.subscribe("content_service", content_service_handler)
 
         # Send search request
-        await bus.send({
-            "type": "search_request",
-            "query": "AI governance"
-        }, "content_service")
+        await bus.send(
+            {"type": "search_request", "query": "AI governance"}, "content_service"
+        )
 
         await asyncio.sleep(0.01)
 
@@ -403,11 +390,14 @@ class TestMCPIntegration:
         event_bus.publish(search_event)
 
         # Send analytics message
-        await message_bus.send({
-            "event_type": "search_completed",
-            "query": "prompt injection",
-            "user_id": "user1"
-        }, "analytics")
+        await message_bus.send(
+            {
+                "event_type": "search_completed",
+                "query": "prompt injection",
+                "user_id": "user1",
+            },
+            "analytics",
+        )
 
         await asyncio.sleep(0.01)
 

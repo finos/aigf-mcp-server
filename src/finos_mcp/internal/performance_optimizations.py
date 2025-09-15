@@ -95,7 +95,7 @@ class SmartCache:
             "misses": self._stats["misses"],
             "hit_rate": hit_rate,
             "entries": len(self._cache),
-            "max_size": self.max_size
+            "max_size": self.max_size,
         }
 
     def clear(self) -> None:
@@ -114,7 +114,9 @@ class RequestCoalescer:
         self._pending_requests: dict[str, asyncio.Future] = {}
         self._batch_queues: dict[str, list] = {}
 
-    async def coalesce(self, key: str, request: dict[str, Any], handler: Callable) -> Any:
+    async def coalesce(
+        self, key: str, request: dict[str, Any], handler: Callable
+    ) -> Any:
         """Coalesce identical requests."""
         request_key = self._generate_key(key, request)
 
@@ -144,14 +146,16 @@ class RequestCoalescer:
         # Start handler as background task
         task = asyncio.create_task(handle_request())
         # Store reference to prevent garbage collection
-        self._tasks = getattr(self, '_tasks', set())
+        self._tasks = getattr(self, "_tasks", set())
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
         # Return result from future
         return await future
 
-    async def coalesce_batch(self, operation: str, request: dict[str, Any], batch_handler: Callable) -> Any:
+    async def coalesce_batch(
+        self, operation: str, request: dict[str, Any], batch_handler: Callable
+    ) -> Any:
         """Coalesce requests into batches."""
         if operation not in self._batch_queues:
             self._batch_queues[operation] = []
@@ -165,9 +169,11 @@ class RequestCoalescer:
             await self._process_batch(operation, batch_handler)
         else:
             # Schedule timeout processing
-            task = asyncio.create_task(self._timeout_batch_processing(operation, batch_handler))
+            task = asyncio.create_task(
+                self._timeout_batch_processing(operation, batch_handler)
+            )
             # Store reference to prevent garbage collection
-            self._timeout_tasks = getattr(self, '_timeout_tasks', set())
+            self._timeout_tasks = getattr(self, "_timeout_tasks", set())
             self._timeout_tasks.add(task)
             task.add_done_callback(self._timeout_tasks.discard)
 
@@ -195,7 +201,9 @@ class RequestCoalescer:
                 if not future.done():
                     future.set_exception(e)
 
-    async def _timeout_batch_processing(self, operation: str, batch_handler: Callable) -> None:
+    async def _timeout_batch_processing(
+        self, operation: str, batch_handler: Callable
+    ) -> None:
         """Process batch after timeout."""
         await asyncio.sleep(self.batch_timeout)
         await self._process_batch(operation, batch_handler)
@@ -204,7 +212,9 @@ class RequestCoalescer:
         """Generate unique key for request."""
         # Sort dictionary for consistent key generation
         sorted_request = json.dumps(request, sort_keys=True)
-        request_hash = hashlib.sha256(f"{operation}:{sorted_request}".encode()).hexdigest()
+        request_hash = hashlib.sha256(
+            f"{operation}:{sorted_request}".encode()
+        ).hexdigest()
         return f"{operation}:{request_hash}"
 
 
@@ -231,7 +241,9 @@ class TaskInfo:
 class BackgroundTaskManager:
     """Manage background tasks with concurrency control."""
 
-    def __init__(self, max_concurrent_tasks: int = 10, task_cleanup_interval: float = 300.0):
+    def __init__(
+        self, max_concurrent_tasks: int = 10, task_cleanup_interval: float = 300.0
+    ):
         """Initialize background task manager."""
         self.max_concurrent_tasks = max_concurrent_tasks
         self.task_cleanup_interval = task_cleanup_interval
@@ -239,7 +251,9 @@ class BackgroundTaskManager:
         self._running_tasks: set[str] = set()
         self._semaphore = asyncio.Semaphore(max_concurrent_tasks)
 
-    async def submit_task(self, name: str, coro_func: Callable, *args, priority: int = 5, **kwargs) -> str:
+    async def submit_task(
+        self, name: str, coro_func: Callable, *args, priority: int = 5, **kwargs
+    ) -> str:
         """Submit background task."""
         task_id = str(uuid4())
         task_info = self._create_task_info(name, priority)
@@ -249,13 +263,15 @@ class BackgroundTaskManager:
         # Create and start task
         task = asyncio.create_task(self._run_task(task_id, coro_func, *args, **kwargs))
         # Store reference to prevent garbage collection
-        self._background_tasks = getattr(self, '_background_tasks', set())
+        self._background_tasks = getattr(self, "_background_tasks", set())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
         return task_id
 
-    async def _run_task(self, task_id: str, coro_func: Callable, *args, **kwargs) -> None:
+    async def _run_task(
+        self, task_id: str, coro_func: Callable, *args, **kwargs
+    ) -> None:
         """Run individual task with concurrency control."""
         async with self._semaphore:
             task_info = self._tasks.get(task_id)
@@ -280,7 +296,7 @@ class BackgroundTaskManager:
                 # Schedule cleanup
                 task = asyncio.create_task(self._cleanup_task_after_delay(task_id))
                 # Store reference to prevent garbage collection
-                self._cleanup_tasks = getattr(self, '_cleanup_tasks', set())
+                self._cleanup_tasks = getattr(self, "_cleanup_tasks", set())
                 self._cleanup_tasks.add(task)
                 task.add_done_callback(self._cleanup_tasks.discard)
 
@@ -314,6 +330,5 @@ class BackgroundTaskManager:
         return TaskInfo(
             task_id="",  # Will be set by submit_task
             name=name,
-            priority=priority
+            priority=priority,
         )
-

@@ -16,7 +16,7 @@ class InMemoryCache:
     def __init__(self, max_size: int = 1000):
         self._cache: dict[str, Any] = {}
         self._max_size = max_size
-        self._access_order = []
+        self._access_order: list[str] = []
 
     async def get(self, key: str) -> Any | None:
         """Get value from cache."""

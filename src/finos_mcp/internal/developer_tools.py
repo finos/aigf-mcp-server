@@ -23,7 +23,7 @@ class FileWatcher:
         patterns: list[str] | None = None,
         ignore_patterns: list[str] | None = None,
         on_change: Callable | None = None,
-        debounce_delay: float = 0.1
+        debounce_delay: float = 0.1,
     ):
         """Initialize file watcher."""
         self.watch_paths = watch_paths
@@ -67,7 +67,9 @@ class FileWatcher:
                             if str(file_path) in file_stats:
                                 if current_mtime != file_stats[str(file_path)]:
                                     if not self._should_debounce(str(file_path)):
-                                        self._last_change_times[str(file_path)] = time.time()
+                                        self._last_change_times[str(file_path)] = (
+                                            time.time()
+                                        )
                                         file_stats[str(file_path)] = current_mtime
 
                                         if self.on_change:
@@ -76,7 +78,9 @@ class FileWatcher:
                                 # New file
                                 file_stats[str(file_path)] = current_mtime
                                 if not self._should_debounce(str(file_path)):
-                                    self._last_change_times[str(file_path)] = time.time()
+                                    self._last_change_times[str(file_path)] = (
+                                        time.time()
+                                    )
 
                                     if self.on_change:
                                         await self.on_change(file_path)
@@ -106,11 +110,15 @@ class FileWatcher:
         try:
             for root, dirs, filenames in os.walk(watch_path):
                 # Filter directories by ignore patterns
-                dirs[:] = [d for d in dirs if not any(
-                    Path(root) / d == Path(root) / pattern.replace('/**', '')
-                    for pattern in self.ignore_patterns
-                    if '/**' in pattern
-                )]
+                dirs[:] = [
+                    d
+                    for d in dirs
+                    if not any(
+                        Path(root) / d == Path(root) / pattern.replace("/**", "")
+                        for pattern in self.ignore_patterns
+                        if "/**" in pattern
+                    )
+                ]
 
                 for filename in filenames:
                     file_path = Path(root) / filename
@@ -154,7 +162,7 @@ class LiveReloadServer:
         self,
         mcp_command: list[str],
         watch_paths: list[Path],
-        restart_delay: float = 1.0
+        restart_delay: float = 1.0,
     ):
         """Initialize live reload server."""
         self.mcp_command = mcp_command
@@ -178,7 +186,7 @@ class LiveReloadServer:
         self.file_watcher = FileWatcher(
             watch_paths=self.watch_paths,
             patterns=["*.py", "*.toml", "*.json"],
-            on_change=self._on_file_change
+            on_change=self._on_file_change,
         )
 
         # Start watching files
@@ -192,7 +200,7 @@ class LiveReloadServer:
             self.process = await asyncio.create_subprocess_exec(
                 *self.mcp_command,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
 
             # Start output handling
@@ -277,7 +285,7 @@ class LiveReloadServer:
         await asyncio.gather(
             read_stream(self.process.stdout, "INFO"),
             read_stream(self.process.stderr, "ERROR"),
-            return_exceptions=True
+            return_exceptions=True,
         )
 
     def _handle_process_output(self, line: str):
@@ -338,12 +346,14 @@ class TestSession:
             result = await client.call_tool(tool_name, arguments)
 
             # Add to history
-            self.history.append({
-                "tool": tool_name,
-                "arguments": arguments,
-                "result": result,
-                "timestamp": datetime.now().isoformat()
-            })
+            self.history.append(
+                {
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "result": result,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
             return result
 
@@ -351,12 +361,14 @@ class TestSession:
             error_result = {"error": str(e), "type": type(e).__name__}
 
             # Add error to history
-            self.history.append({
-                "tool": tool_name,
-                "arguments": arguments,
-                "result": error_result,
-                "timestamp": datetime.now().isoformat()
-            })
+            self.history.append(
+                {
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "result": error_result,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
             return error_result
 
@@ -365,8 +377,11 @@ class TestSession:
         # In real implementation, this would create an actual MCP client
         # For testing, we'll use a mock
         from unittest.mock import AsyncMock
+
         mock_client = AsyncMock()
-        mock_client.call_tool.return_value = {"content": [{"type": "text", "text": "Mock response"}]}
+        mock_client.call_tool.return_value = {
+            "content": [{"type": "text", "text": "Mock response"}]
+        }
         mock_client.list_tools.return_value = {"tools": []}
         return mock_client
 
@@ -389,7 +404,7 @@ class TestSession:
             "server_url": self.server_url,
             "history": self.history,
             "current_context": self.current_context,
-            "connected": self.connected
+            "connected": self.connected,
         }
 
     @classmethod
@@ -591,7 +606,9 @@ class InteractiveCLI:
                     result = await self.handle_list_command(args["type"])
                     print(result)
                 elif command == "call":
-                    result = await self.session.execute_tool(args["tool"], {k: v for k, v in args.items() if k != "tool"})
+                    result = await self.session.execute_tool(
+                        args["tool"], {k: v for k, v in args.items() if k != "tool"}
+                    )
                     print(f"Result: {result}")
                 elif command == "history":
                     self._show_history()
@@ -660,4 +677,3 @@ Examples:
             value = args["value"]
             self.session.set_context(key, value)
             print(f"Set {key} = {value}")
-

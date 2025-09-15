@@ -99,7 +99,7 @@ class QualityGate:
         try:
             # Initial linting check
             result = subprocess.run(
-                ["ruff", "check"] + python_files,
+                ["ruff", "check", *python_files],
                 capture_output=True,
                 text=True,
             )
@@ -110,15 +110,15 @@ class QualityGate:
                 # If auto-fix is enabled, try to fix and re-check
                 if self.auto_fix_enabled:
                     # Try auto-fix
-                    fix_result = subprocess.run(
-                        ["ruff", "check", "--fix"] + python_files,
+                    subprocess.run(
+                        ["ruff", "check", "--fix", *python_files],
                         capture_output=True,
                         text=True,
                     )
 
                     # Re-check after fix
                     recheck_result = subprocess.run(
-                        ["ruff", "check"] + python_files,
+                        ["ruff", "check", *python_files],
                         capture_output=True,
                         text=True,
                     )
@@ -126,9 +126,15 @@ class QualityGate:
                     if recheck_result.returncode == 0:
                         report.add_passed("linting")
                     else:
-                        report.add_failed("linting", recheck_result.stderr or "Linting errors remain after auto-fix")
+                        report.add_failed(
+                            "linting",
+                            recheck_result.stderr
+                            or "Linting errors remain after auto-fix",
+                        )
                 else:
-                    report.add_failed("linting", result.stderr or "Linting errors found")
+                    report.add_failed(
+                        "linting", result.stderr or "Linting errors found"
+                    )
         except FileNotFoundError:
             report.add_passed("linting")  # No linter available
 
@@ -173,7 +179,8 @@ class QualityGate:
 
         try:
             result = subprocess.run(
-                ["python", "-m", "pytest", "--tb=no", "-q"] + [str(f) for f in test_files],
+                ["python", "-m", "pytest", "--tb=no", "-q"]
+                + [str(f) for f in test_files],
                 capture_output=True,
                 text=True,
             )
@@ -183,8 +190,6 @@ class QualityGate:
                 report.add_failed("tests", result.stdout or "Tests failed")
         except FileNotFoundError:
             report.add_failed("tests", "pytest not available")
-
-
 
 
 class PreCommitHook:
@@ -205,7 +210,9 @@ class PreCommitHook:
             min_coverage=80.0 if check_coverage else 0.0,
         )
 
-    async def run(self, commit_message: str | None = None) -> tuple[bool, QualityReport]:
+    async def run(
+        self, commit_message: str | None = None
+    ) -> tuple[bool, QualityReport]:
         """Run full pre-commit workflow."""
         files = await self._get_staged_files()
 
@@ -228,7 +235,11 @@ class PreCommitHook:
                 text=True,
             )
             if result.returncode == 0:
-                return [Path(line.strip()) for line in result.stdout.split("\n") if line.strip()]
+                return [
+                    Path(line.strip())
+                    for line in result.stdout.split("\n")
+                    if line.strip()
+                ]
             return []
         except FileNotFoundError:
             return []
@@ -266,7 +277,15 @@ class PreCommitHook:
             return False
 
         # Check for conventional commit prefixes
-        conventional_prefixes = ['feat:', 'fix:', 'docs:', 'style:', 'refactor:', 'test:', 'chore:']
+        conventional_prefixes = [
+            "feat:",
+            "fix:",
+            "docs:",
+            "style:",
+            "refactor:",
+            "test:",
+            "chore:",
+        ]
         return any(message.startswith(prefix) for prefix in conventional_prefixes)
 
     async def _auto_fix_formatting(self, files: list[Path]) -> bool:
@@ -284,7 +303,8 @@ class PreCommitHook:
 
         try:
             result = subprocess.run(
-                ["python", "-m", "pytest", "--tb=no", "-q"] + [str(f) for f in related_tests],
+                ["python", "-m", "pytest", "--tb=no", "-q"]
+                + [str(f) for f in related_tests],
                 capture_output=True,
                 text=True,
             )
@@ -297,7 +317,9 @@ class PreCommitHook:
         related_tests = []
 
         for changed_file in changed_files:
-            if changed_file.suffix == ".py" and not str(changed_file).startswith("test_"):
+            if changed_file.suffix == ".py" and not str(changed_file).startswith(
+                "test_"
+            ):
                 test_files = self.find_related_tests(changed_file)
                 related_tests.extend(test_files)
 
@@ -358,7 +380,9 @@ class CodeTemplate:
         """Process simple conditional blocks."""
         # Simple regex for {%- if condition %}...{%- endif %}
         while True:
-            match = re.search(r'{%-\s*if\s+(\w+)\s*%}(.*?){%-\s*endif\s*%}', content, re.DOTALL)
+            match = re.search(
+                r"{%-\s*if\s+(\w+)\s*%}(.*?){%-\s*endif\s*%}", content, re.DOTALL
+            )
             if not match:
                 break
 
@@ -378,7 +402,11 @@ class CodeTemplate:
         """Process simple for loops."""
         # Simple regex for {%- for item in list %}...{%- endfor %}
         while True:
-            match = re.search(r'{%-\s*for\s+(\w+)\s+in\s+(\w+)\s*%}(.*?){%-\s*endfor\s*%}', content, re.DOTALL)
+            match = re.search(
+                r"{%-\s*for\s+(\w+)\s+in\s+(\w+)\s*%}(.*?){%-\s*endfor\s*%}",
+                content,
+                re.DOTALL,
+            )
             if not match:
                 break
 
@@ -389,7 +417,9 @@ class CodeTemplate:
                 # Expand the loop
                 expanded_content = ""
                 for item in list_value:
-                    loop_iteration = loop_content.replace("{{" + item_var + "}}", str(item))
+                    loop_iteration = loop_content.replace(
+                        "{{" + item_var + "}}", str(item)
+                    )
                     expanded_content += loop_iteration
                 content = content.replace(match.group(0), expanded_content)
             else:
@@ -435,7 +465,7 @@ async def {{function_name}}(request: {{class_name}}Request) -> TextContent:
     description="{{description}}",
     inputSchema={{class_name}}Request.model_json_schema(),
 )
-'''
+''',
         )
 
         # Test file template
@@ -451,26 +481,26 @@ from {{module_path}} import {{class_name}}
 
 class Test{{class_name}}:
     """Test {{class_name}} functionality."""
-    
+
     def test_{{method_name}}_creation(self):
         """Test creating {{class_name}}."""
         instance = {{class_name}}()
         assert instance is not None
-        
+
     @pytest.mark.asyncio
     async def test_{{method_name}}_async_operation(self):
         """Test async operation."""
         instance = {{class_name}}()
         result = await instance.some_async_method()
         assert result is not None
-'''
+''',
         )
 
         # Documentation template
         doc_template = CodeTemplate(
             name="documentation",
             description="Documentation template",
-            template_content='''# {{title}}
+            template_content="""# {{title}}
 
 {{description}}
 
@@ -489,7 +519,7 @@ class Test{{class_name}}:
 #### Methods
 
 {{methods_list}}
-'''
+""",
         )
 
         # Test class template
@@ -503,12 +533,12 @@ import pytest
 
 class Test{{class_name}}:
     """Test {{class_name}} functionality."""
-    
+
     def test_creation(self):
         """Test creating {{class_name}}."""
         instance = {{class_name}}()
         assert instance is not None
-'''
+''',
         )
 
         # Pydantic model template
@@ -523,7 +553,7 @@ from pydantic import BaseModel
 class {{class_name}}(BaseModel):
     """{{description}}."""
     pass
-'''
+''',
         )
 
         self.templates["mcp_tool"] = mcp_tool_template
@@ -606,12 +636,12 @@ async def {function_name}(request: {class_name}Request) -> str:
 
 import pytest
 
-from {module_name} import {', '.join(functions + classes)}
+from {module_name} import {", ".join(functions + classes)}
 
 
 class Test{module_name.capitalize()}:
     """Test {module_name} functionality."""
-    {''.join(test_methods)}
+    {"".join(test_methods)}
 '''
         return test_code
 
@@ -639,7 +669,7 @@ class Test{module_name.capitalize()}:
             methods = ", ".join(f"`{m}()`" for m in cls.get("methods", []))
             class_docs.append(f"### {name}\n\n{desc}\n\nMethods: {methods}")
 
-        docs = f'''# {module}
+        docs = f"""# {module}
 
 {description}
 
@@ -650,10 +680,12 @@ class Test{module_name.capitalize()}:
 ## Classes
 
 {chr(10).join(class_docs) if class_docs else "No classes documented."}
-'''
+"""
         return docs
 
-    async def analyze_and_generate(self, source_files: list[Path]) -> list[dict[str, Any]]:
+    async def analyze_and_generate(
+        self, source_files: list[Path]
+    ) -> list[dict[str, Any]]:
         """Analyze source files and generate improvements."""
         suggestions = []
 
@@ -661,27 +693,33 @@ class Test{module_name.capitalize()}:
             # Analyze file and generate suggestions
             if source_file.suffix == ".py":
                 # Check for missing docstrings
-                suggestions.append({
-                    "type": "missing_docstring",
-                    "file": str(source_file),
-                    "description": "Functions missing docstrings"
-                })
+                suggestions.append(
+                    {
+                        "type": "missing_docstring",
+                        "file": str(source_file),
+                        "description": "Functions missing docstrings",
+                    }
+                )
 
                 # Check for missing type hints
-                suggestions.append({
-                    "type": "missing_type_hints",
-                    "file": str(source_file),
-                    "description": "Functions missing type hints"
-                })
+                suggestions.append(
+                    {
+                        "type": "missing_type_hints",
+                        "file": str(source_file),
+                        "description": "Functions missing type hints",
+                    }
+                )
 
                 # Check if test file exists
                 test_file = source_file.parent / f"test_{source_file.name}"
                 if not test_file.exists():
-                    suggestions.append({
-                        "type": "missing_tests",
-                        "file": str(source_file),
-                        "description": f"No test file found for {source_file.name}"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "missing_tests",
+                            "file": str(source_file),
+                            "description": f"No test file found for {source_file.name}",
+                        }
+                    )
 
         return suggestions
 
@@ -695,24 +733,21 @@ class Test{module_name.capitalize()}:
             param_list = ", ".join(params)
 
             docstring = f'''def {function_name}({param_list}):
-    """{function_name.replace('_', ' ').title()}.
-    
+    """{function_name.replace("_", " ").title()}.
+
     Args:
 {chr(10).join(f"        {param}: Parameter description." for param in params)}
-    
+
     Returns:
         Result description.
     """
     pass  # Existing implementation here'''
 
-            return {
-                "type": "add_docstring",
-                "generated_code": docstring
-            }
+            return {"type": "add_docstring", "generated_code": docstring}
 
         return {
             "type": "unknown_pattern",
-            "generated_code": f"# Generated code for pattern: {pattern_type}"
+            "generated_code": f"# Generated code for pattern: {pattern_type}",
         }
 
     def _to_pascal_case(self, snake_str: str) -> str:
@@ -721,23 +756,23 @@ class Test{module_name.capitalize()}:
 
     def _to_snake_case(self, pascal_str: str) -> str:
         """Convert PascalCase to snake_case."""
-        result = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', pascal_str)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', result).lower()
+        result = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", pascal_str)
+        return re.sub("([a-z0-9])([A-Z])", r"\1_\2", result).lower()
 
     def _extract_main_class(self, file_path: Path) -> str | None:
         """Extract main class name from Python file."""
         try:
-            with open(file_path, encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             # Find class definitions
-            for line in content.split('\n'):
+            for line in content.split("\n"):
                 if line.strip().startswith("class ") and ":" in line:
-                    class_def = line.split("class ")[1].split("(")[0].split(":")[0].strip()
+                    class_def = (
+                        line.split("class ")[1].split("(")[0].split(":")[0].strip()
+                    )
                     return class_def
 
             return None
         except Exception:
             return None
-
-

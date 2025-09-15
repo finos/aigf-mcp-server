@@ -25,8 +25,8 @@ class TestToolTemplate:
             input_schema={
                 "type": "object",
                 "properties": {"query": {"type": "string"}},
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         )
 
         assert template.name == "test_tool"
@@ -43,7 +43,7 @@ class TestGeneratedTool:
             name="example_tool",
             description="Example tool",
             code="# Generated code here",
-            test_code="# Test code here"
+            test_code="# Test code here",
         )
 
         assert tool.name == "example_tool"
@@ -70,8 +70,8 @@ class TestToolGenerator:
                 "properties": {
                     "query": {"type": "string", "description": "Search query"}
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         )
 
         generator = ToolGenerator()
@@ -93,10 +93,14 @@ class TestToolGenerator:
                 "properties": {
                     "query": {"type": "string", "description": "Search query"},
                     "category": {"type": "string", "description": "Search category"},
-                    "limit": {"type": "integer", "description": "Result limit", "default": 10}
+                    "limit": {
+                        "type": "integer",
+                        "description": "Result limit",
+                        "default": 10,
+                    },
                 },
-                "required": ["query", "category"]
-            }
+                "required": ["query", "category"],
+            },
         )
 
         generator = ToolGenerator()
@@ -116,9 +120,9 @@ class TestToolGenerator:
                 "properties": {
                     "data": {"type": "string", "description": "Data to process"}
                 },
-                "required": ["data"]
+                "required": ["data"],
             },
-            custom_logic="processed_data = arguments['data'].upper()\nreturn processed_data"
+            custom_logic="processed_data = arguments['data'].upper()\nreturn processed_data",
         )
 
         generator = ToolGenerator()
@@ -137,17 +141,21 @@ class TestToolGenerator:
                 "properties": {
                     "content": {"type": "string", "description": "Content to write"}
                 },
-                "required": ["content"]
-            }
+                "required": ["content"],
+            },
         )
 
         generator = ToolGenerator()
         generated = generator.generate_tool(template)
 
         import tempfile
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir) / "tools"
-            with patch("builtins.open"), patch("pathlib.Path.exists", return_value=False):
+            with (
+                patch("builtins.open"),
+                patch("pathlib.Path.exists", return_value=False),
+            ):
                 result = await generator.write_tool_files(generated, temp_path)
 
                 assert result["tool_file"] == temp_path / "test_writer.py"
@@ -158,7 +166,10 @@ class TestToolGenerator:
         generator = ToolGenerator()
 
         assert generator._to_snake_case("SimpleSearch") == "simple_search"
-        assert generator._to_snake_case("AdvancedDataProcessor") == "advanced_data_processor"
+        assert (
+            generator._to_snake_case("AdvancedDataProcessor")
+            == "advanced_data_processor"
+        )
         assert generator._to_snake_case("already_snake_case") == "already_snake_case"
 
     def test_pascal_case_conversion(self):
@@ -166,7 +177,10 @@ class TestToolGenerator:
         generator = ToolGenerator()
 
         assert generator._to_pascal_case("simple_search") == "SimpleSearch"
-        assert generator._to_pascal_case("advanced_data_processor") == "AdvancedDataProcessor"
+        assert (
+            generator._to_pascal_case("advanced_data_processor")
+            == "AdvancedDataProcessor"
+        )
         assert generator._to_pascal_case("AlreadyPascal") == "AlreadyPascal"
 
     def test_validate_template(self):
@@ -177,7 +191,7 @@ class TestToolGenerator:
         valid_template = ToolTemplate(
             name="valid_tool",
             description="Valid tool",
-            input_schema={"type": "object", "properties": {}}
+            input_schema={"type": "object", "properties": {}},
         )
 
         # Should not raise
@@ -185,9 +199,7 @@ class TestToolGenerator:
 
         # Invalid template - empty name
         invalid_template = ToolTemplate(
-            name="",
-            description="Invalid",
-            input_schema={"type": "object"}
+            name="", description="Invalid", input_schema={"type": "object"}
         )
 
         with pytest.raises(ValueError, match="Tool name cannot be empty"):
@@ -202,9 +214,13 @@ class TestToolGenerator:
             "properties": {
                 "name": {"type": "string", "description": "User name"},
                 "age": {"type": "integer", "description": "User age", "default": 18},
-                "active": {"type": "boolean", "description": "Is active", "default": True}
+                "active": {
+                    "type": "boolean",
+                    "description": "Is active",
+                    "default": True,
+                },
             },
-            "required": ["name"]
+            "required": ["name"],
         }
 
         model_code = generator._generate_pydantic_model("UserRequest", schema)
@@ -226,8 +242,8 @@ class TestToolGenerator:
                 "properties": {
                     "query": {"type": "string", "description": "Search query"}
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         )
 
         tool_def = generator._generate_tool_definition(template)
@@ -248,9 +264,9 @@ class TestToolGenerator:
                 "properties": {
                     "input_data": {"type": "string", "description": "Data to process"}
                 },
-                "required": ["input_data"]
+                "required": ["input_data"],
             },
-            custom_logic="result = arguments['input_data'].upper()\nreturn [TextContent(type='text', text=result)]"
+            custom_logic="result = arguments['input_data'].upper()\nreturn [TextContent(type='text', text=result)]",
         )
 
         handler = generator._generate_handler_function(template)
@@ -271,8 +287,8 @@ class TestToolGenerator:
                 "properties": {
                     "value": {"type": "string", "description": "Input value"}
                 },
-                "required": ["value"]
-            }
+                "required": ["value"],
+            },
         )
 
         test_code = generator._generate_test_code(template)

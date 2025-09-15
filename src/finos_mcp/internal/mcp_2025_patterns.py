@@ -27,7 +27,9 @@ class ProtocolNegotiator:
         if not client_capabilities:
             return "stdio"
 
-        transport_caps = client_capabilities.get("capabilities", {}).get("transport", {})
+        transport_caps = client_capabilities.get("capabilities", {}).get(
+            "transport", {}
+        )
 
         # Check if client supports streamable HTTP
         if transport_caps.get("streamable_http") and self.supports_streamable_http:
@@ -56,14 +58,19 @@ class StreamableHTTPTransport:
         """Set stream handler for streaming responses."""
         self._stream_handler = handler
 
-    async def handle_request(self, request: dict[str, Any], fallback_stdio: bool = False) -> dict[str, Any]:
+    async def handle_request(
+        self, request: dict[str, Any], fallback_stdio: bool = False
+    ) -> dict[str, Any]:
         """Handle request with optional stdio fallback."""
         if fallback_stdio:
             # Provide stdio-compatible response
             return {
                 "jsonrpc": "2.0",
                 "id": request.get("id", 1),
-                "result": {"status": "handled", "transport": "streamable_http_with_stdio_fallback"}
+                "result": {
+                    "status": "handled",
+                    "transport": "streamable_http_with_stdio_fallback",
+                },
             }
 
         # Handle as streamable HTTP request
@@ -114,7 +121,9 @@ class ToolOutputSchema:
 class OAuth21Handler:
     """OAuth 2.1 authentication handler with PKCE support."""
 
-    def __init__(self, client_id: str, authorization_endpoint: str, token_endpoint: str):
+    def __init__(
+        self, client_id: str, authorization_endpoint: str, token_endpoint: str
+    ):
         """Initialize OAuth 2.1 handler."""
         self.client_id = client_id
         self.authorization_endpoint = authorization_endpoint
@@ -133,19 +142,24 @@ class OAuth21Handler:
     def generate_pkce_challenge(self) -> dict[str, str]:
         """Generate PKCE code challenge and verifier."""
         # Generate code verifier (43-128 characters)
-        code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+        code_verifier = (
+            base64.urlsafe_b64encode(secrets.token_bytes(32))
+            .decode("utf-8")
+            .rstrip("=")
+        )
 
         # Generate code challenge
-        code_challenge = base64.urlsafe_b64encode(
-            hashlib.sha256(code_verifier.encode('utf-8')).digest()
-        ).decode('utf-8').rstrip('=')
+        code_challenge = (
+            base64.urlsafe_b64encode(
+                hashlib.sha256(code_verifier.encode("utf-8")).digest()
+            )
+            .decode("utf-8")
+            .rstrip("=")
+        )
 
         self._code_verifier = code_verifier
 
-        return {
-            "code_challenge": code_challenge,
-            "code_challenge_method": "S256"
-        }
+        return {"code_challenge": code_challenge, "code_challenge_method": "S256"}
 
     async def get_valid_token(self) -> str | None:
         """Get valid access token, refreshing if necessary."""
@@ -158,7 +172,9 @@ class OAuth21Handler:
                 token_data = await self._refresh_access_token()
                 if token_data:
                     self.access_token = token_data["access_token"]
-                    self.token_expires_at = time.time() + token_data.get("expires_in", 3600)
+                    self.token_expires_at = time.time() + token_data.get(
+                        "expires_in", 3600
+                    )
                     return self.access_token
             return None
 
@@ -172,7 +188,7 @@ class OAuth21Handler:
             "access_token": "new_access_token",
             "token_type": "Bearer",
             "expires_in": 3600,
-            "refresh_token": self.refresh_token
+            "refresh_token": self.refresh_token,
         }
 
 
@@ -182,9 +198,9 @@ class MCP2025Server:
     def __init__(self, config: dict[str, Any] | None = None):
         """Initialize MCP 2025 server."""
         self.config = config or {}
-        self.transports = {}
+        self.transports: dict[str, Any] = {}
         self.auth_handler: OAuth21Handler | None = None
-        self.enhanced_tools = {}
+        self.enhanced_tools: dict[str, Any] = {}
 
         # Determine transport type from config
         if isinstance(self.config.get("transport"), str):
@@ -201,7 +217,11 @@ class MCP2025Server:
     def supports_streamable_http(self) -> bool:
         """Check if streamable HTTP is supported."""
         if self.transport_type == "multi":
-            return self.config.get("transports", {}).get("streamable_http", {}).get("enabled", False)
+            return (
+                self.config.get("transports", {})
+                .get("streamable_http", {})
+                .get("enabled", False)
+            )
         # Default server supports streamable HTTP (can be enabled)
         return True
 
@@ -226,13 +246,13 @@ class MCP2025Server:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "result": {"tools": list(self.enhanced_tools.keys())}
+                "result": {"tools": list(self.enhanced_tools.keys())},
             }
 
         return {
             "jsonrpc": "2.0",
             "id": request_id,
-            "error": {"code": -32601, "message": "Method not found"}
+            "error": {"code": -32601, "message": "Method not found"},
         }
 
     async def handle_streamable_request(self, request: dict[str, Any]) -> Any:
@@ -258,7 +278,12 @@ class MCP2025Server:
         """Detect protocol from request format."""
         if "jsonrpc" in request:
             return "stdio"
-        elif "method" in request and request.get("method") in ["GET", "POST", "PUT", "DELETE"]:
+        elif "method" in request and request.get("method") in [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+        ]:
             return "http"
         else:
             return "unknown"
@@ -272,7 +297,9 @@ class MCP2025Server:
         """List all registered tools."""
         return list(self.enhanced_tools.values())
 
-    def negotiate_capabilities(self, client_capabilities: dict[str, Any]) -> dict[str, Any]:
+    def negotiate_capabilities(
+        self, client_capabilities: dict[str, Any]
+    ) -> dict[str, Any]:
         """Negotiate capabilities with client."""
         transport = client_capabilities.get("transport", "stdio")
 

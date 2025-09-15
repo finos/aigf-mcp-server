@@ -30,13 +30,9 @@ class TestProtocolNegotiator:
     def test_streamable_http_negotiation(self):
         """Test negotiating streamable HTTP when supported."""
         negotiator = ProtocolNegotiator()
-        protocol = negotiator.negotiate_protocol({
-            "capabilities": {
-                "transport": {
-                    "streamable_http": True
-                }
-            }
-        })
+        protocol = negotiator.negotiate_protocol(
+            {"capabilities": {"transport": {"streamable_http": True}}}
+        )
 
         # Should still default to stdio for compatibility
         assert protocol in ["stdio", "streamable_http"]
@@ -108,14 +104,16 @@ class TestToolOutputSchema:
 
     def test_basic_schema_validation(self):
         """Test basic schema validation."""
-        schema = ToolOutputSchema({
-            "type": "object",
-            "properties": {
-                "result": {"type": "string"},
-                "confidence": {"type": "number", "minimum": 0, "maximum": 1}
-            },
-            "required": ["result"]
-        })
+        schema = ToolOutputSchema(
+            {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"},
+                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                },
+                "required": ["result"],
+            }
+        )
 
         # Valid output
         valid_output = {"result": "success", "confidence": 0.95}
@@ -135,27 +133,26 @@ class TestToolOutputSchema:
 
     def test_enhanced_schema_features(self):
         """Test MCP 2025 enhanced schema features."""
-        schema = ToolOutputSchema({
-            "type": "object",
-            "properties": {
-                "data": {"type": "string"},
-                "metadata": {
-                    "type": "object",
-                    "properties": {
-                        "source": {"type": "string"},
-                        "timestamp": {"type": "string", "format": "date-time"}
-                    }
-                }
-            },
-            "additionalProperties": False
-        })
+        schema = ToolOutputSchema(
+            {
+                "type": "object",
+                "properties": {
+                    "data": {"type": "string"},
+                    "metadata": {
+                        "type": "object",
+                        "properties": {
+                            "source": {"type": "string"},
+                            "timestamp": {"type": "string", "format": "date-time"},
+                        },
+                    },
+                },
+                "additionalProperties": False,
+            }
+        )
 
         valid_output = {
             "data": "some content",
-            "metadata": {
-                "source": "test",
-                "timestamp": "2025-01-01T00:00:00Z"
-            }
+            "metadata": {"source": "test", "timestamp": "2025-01-01T00:00:00Z"},
         }
 
         assert schema.validate(valid_output) is True
@@ -163,15 +160,20 @@ class TestToolOutputSchema:
 
     def test_streaming_output_schema(self):
         """Test schema validation for streaming outputs."""
-        stream_schema = ToolOutputSchema({
-            "type": "object",
-            "properties": {
-                "type": {"type": "string", "enum": ["progress", "data", "complete"]},
-                "content": {"type": "string"},
-                "progress": {"type": "number", "minimum": 0, "maximum": 1}
-            },
-            "required": ["type"]
-        })
+        stream_schema = ToolOutputSchema(
+            {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["progress", "data", "complete"],
+                    },
+                    "content": {"type": "string"},
+                    "progress": {"type": "number", "minimum": 0, "maximum": 1},
+                },
+                "required": ["type"],
+            }
+        )
 
         progress_chunk = {"type": "progress", "progress": 0.3}
         data_chunk = {"type": "data", "content": "streaming content"}
@@ -190,7 +192,7 @@ class TestOAuth21Handler:
         handler = OAuth21Handler(
             client_id="test_client",
             authorization_endpoint="https://auth.example.com/oauth/authorize",
-            token_endpoint="https://auth.example.com/oauth/token"
+            token_endpoint="https://auth.example.com/oauth/token",
         )
 
         assert handler.client_id == "test_client"
@@ -201,7 +203,7 @@ class TestOAuth21Handler:
         handler = OAuth21Handler(
             client_id="test_client",
             authorization_endpoint="https://auth.example.com/oauth/authorize",
-            token_endpoint="https://auth.example.com/oauth/token"
+            token_endpoint="https://auth.example.com/oauth/token",
         )
 
         # Should still support basic auth for compatibility
@@ -213,7 +215,7 @@ class TestOAuth21Handler:
         handler = OAuth21Handler(
             client_id="test_client",
             authorization_endpoint="https://auth.example.com/oauth/authorize",
-            token_endpoint="https://auth.example.com/oauth/token"
+            token_endpoint="https://auth.example.com/oauth/token",
         )
 
         # Generate PKCE challenge
@@ -229,7 +231,7 @@ class TestOAuth21Handler:
         handler = OAuth21Handler(
             client_id="test_client",
             authorization_endpoint="https://auth.example.com/oauth/authorize",
-            token_endpoint="https://auth.example.com/oauth/token"
+            token_endpoint="https://auth.example.com/oauth/token",
         )
 
         # Mock expired token
@@ -237,10 +239,10 @@ class TestOAuth21Handler:
         handler.refresh_token = "valid_refresh_token"
         handler.token_expires_at = 1640995200  # Past timestamp
 
-        with patch.object(handler, '_refresh_access_token') as mock_refresh:
+        with patch.object(handler, "_refresh_access_token") as mock_refresh:
             mock_refresh.return_value = {
                 "access_token": "new_token",
-                "expires_in": 3600
+                "expires_in": 3600,
             }
 
             token = await handler.get_valid_token()
@@ -268,12 +270,7 @@ class TestMCP2025Server:
         server = MCP2025Server()
 
         # Traditional stdio request
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/list",
-            "params": {}
-        }
+        request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
 
         response = await server.handle_stdio_request(request)
 
@@ -289,11 +286,8 @@ class TestMCP2025Server:
         # Streamable HTTP request
         request = {
             "method": "tools/call",
-            "params": {
-                "name": "search_documents",
-                "arguments": {"query": "test"}
-            },
-            "stream": True
+            "params": {"name": "search_documents", "arguments": {"query": "test"}},
+            "stream": True,
         }
 
         response = await server.handle_streamable_request(request)
@@ -307,11 +301,7 @@ class TestMCP2025Server:
         server = MCP2025Server()
 
         # stdio-style request
-        stdio_request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/list"
-        }
+        stdio_request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
 
         protocol = server.detect_protocol(stdio_request)
         assert protocol == "stdio"
@@ -320,7 +310,7 @@ class TestMCP2025Server:
         http_request = {
             "method": "GET",
             "path": "/tools",
-            "headers": {"accept": "application/json"}
+            "headers": {"accept": "application/json"},
         }
 
         protocol = server.detect_protocol(http_request)
@@ -337,17 +327,15 @@ class TestMCP2025Server:
             "description": "Enhanced search with structured output",
             "input_schema": {
                 "type": "object",
-                "properties": {
-                    "query": {"type": "string"}
-                }
+                "properties": {"query": {"type": "string"}},
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "results": {"type": "array"},
-                    "metadata": {"type": "object"}
-                }
-            }
+                    "metadata": {"type": "object"},
+                },
+            },
         }
 
         server.register_enhanced_tool(tool_config)
@@ -359,10 +347,7 @@ class TestMCP2025Server:
     def test_configuration_compatibility(self):
         """Test that existing configurations still work."""
         # Existing stdio configuration
-        stdio_config = {
-            "transport": "stdio",
-            "tools": ["search", "details"]
-        }
+        stdio_config = {"transport": "stdio", "tools": ["search", "details"]}
 
         server = MCP2025Server(config=stdio_config)
         assert server.transport_type == "stdio"
@@ -371,9 +356,9 @@ class TestMCP2025Server:
         multi_config = {
             "transports": {
                 "stdio": {"enabled": True},
-                "streamable_http": {"enabled": True, "port": 8080}
+                "streamable_http": {"enabled": True, "port": 8080},
             },
-            "tools": ["search", "details"]
+            "tools": ["search", "details"],
         }
 
         server2 = MCP2025Server(config=multi_config)
@@ -391,7 +376,7 @@ class TestIntegration:
         oauth_handler = OAuth21Handler(
             client_id="test_client",
             authorization_endpoint="https://auth.example.com/oauth/authorize",
-            token_endpoint="https://auth.example.com/oauth/token"
+            token_endpoint="https://auth.example.com/oauth/token",
         )
 
         # Setup server with streamable transport
@@ -414,9 +399,7 @@ class TestIntegration:
         server = MCP2025Server()
 
         # Client that only supports stdio
-        client_capabilities = {
-            "transport": "stdio"
-        }
+        client_capabilities = {"transport": "stdio"}
 
         negotiated = server.negotiate_capabilities(client_capabilities)
 
@@ -425,12 +408,7 @@ class TestIntegration:
         assert "streamable_http" not in negotiated
 
         # But server should still work
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/list",
-            "params": {}
-        }
+        request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
 
         response = await server.handle_request(request)
         assert response["id"] == 1

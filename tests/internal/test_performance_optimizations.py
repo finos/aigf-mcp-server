@@ -48,7 +48,7 @@ class TestRequestCoalescer:
         tasks = [
             coalescer.coalesce("same_key", {"query": "test"}, handler),
             coalescer.coalesce("same_key", {"query": "test"}, handler),
-            coalescer.coalesce("same_key", {"query": "test"}, handler)
+            coalescer.coalesce("same_key", {"query": "test"}, handler),
         ]
 
         results = await asyncio.gather(*tasks)
@@ -67,7 +67,7 @@ class TestRequestCoalescer:
         tasks = [
             coalescer.coalesce("key1", {"query": "test1"}, handler),
             coalescer.coalesce("key2", {"query": "test2"}, handler),
-            coalescer.coalesce("key3", {"query": "test3"}, handler)
+            coalescer.coalesce("key3", {"query": "test3"}, handler),
         ]
 
         results = await asyncio.gather(*tasks)
@@ -86,18 +86,16 @@ class TestRequestCoalescer:
         tasks = [
             coalescer.coalesce_batch("search", {"query": "test1"}, handler),
             coalescer.coalesce_batch("search", {"query": "test2"}, handler),
-            coalescer.coalesce_batch("search", {"query": "test3"}, handler)
+            coalescer.coalesce_batch("search", {"query": "test3"}, handler),
         ]
 
         results = await asyncio.gather(*tasks)
 
         assert results == ["result1", "result2", "result3"]
         # Batch handler called once with all requests
-        handler.assert_called_once_with([
-            {"query": "test1"},
-            {"query": "test2"},
-            {"query": "test3"}
-        ])
+        handler.assert_called_once_with(
+            [{"query": "test1"}, {"query": "test2"}, {"query": "test3"}]
+        )
 
     @pytest.mark.asyncio
     async def test_partial_batch_timeout(self):
@@ -109,7 +107,7 @@ class TestRequestCoalescer:
         start_time = time.time()
         tasks = [
             coalescer.coalesce_batch("search", {"query": "test1"}, handler),
-            coalescer.coalesce_batch("search", {"query": "test2"}, handler)
+            coalescer.coalesce_batch("search", {"query": "test2"}, handler),
         ]
 
         results = await asyncio.gather(*tasks)
@@ -192,7 +190,7 @@ class TestSmartCache:
         cache.set("key4", "value4")
 
         assert cache.get("key1") == "value1"  # Still there
-        assert cache.get("key2") is None      # Evicted
+        assert cache.get("key2") is None  # Evicted
         assert cache.get("key3") == "value3"  # Still there
         assert cache.get("key4") == "value4"  # New item
 
@@ -211,8 +209,8 @@ class TestSmartCache:
         # Wait for short TTL expiration
         time.sleep(0.15)
 
-        assert cache.get("short_key") is None   # Expired
-        assert cache.get("long_key") == "value" # Still valid
+        assert cache.get("short_key") is None  # Expired
+        assert cache.get("long_key") == "value"  # Still valid
 
     def test_cache_warming(self):
         """Test cache warming functionality."""
@@ -245,7 +243,7 @@ class TestSmartCache:
         stats = cache.get_stats()
         assert stats["hits"] == 2
         assert stats["misses"] == 1
-        assert stats["hit_rate"] == 2/3
+        assert stats["hit_rate"] == 2 / 3
 
     def test_clear_cache(self):
         """Test cache clearing."""
@@ -462,10 +460,7 @@ class TestIntegration:
 
         # Submit cache warming task
         await manager.submit_task(
-            "warm_cache",
-            cache_warming_task,
-            "search_results",
-            "expensive_data"
+            "warm_cache", cache_warming_task, "search_results", "expensive_data"
         )
 
         # Wait for task completion
@@ -500,7 +495,7 @@ class TestIntegration:
                 # Submit background analytics task
                 await manager.submit_task(
                     "analytics",
-                    lambda q=req['query']: asyncio.sleep(0.001)  # Mock analytics
+                    lambda q=req["query"]: asyncio.sleep(0.001),  # Mock analytics
                 )
 
             return results
@@ -511,7 +506,7 @@ class TestIntegration:
             task = coalescer.coalesce_batch(
                 "search",
                 {"query": f"test{i % 3}"},  # Some duplicates
-                expensive_search
+                expensive_search,
             )
             tasks.append(task)
 
@@ -529,4 +524,3 @@ class TestIntegration:
 
         # Background tasks should be submitted
         await asyncio.sleep(0.05)  # Let background tasks complete
-
