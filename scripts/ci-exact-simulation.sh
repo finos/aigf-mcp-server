@@ -30,6 +30,10 @@ fi
 echo "📦 Installing CI-specific dependencies..."
 pip install lxml > /dev/null 2>&1 || echo "⚠️  lxml installation failed - some CI reports may not work"
 
+# Ensure all dev dependencies including type stubs are installed
+echo "📦 Installing dev dependencies with type stubs..."
+pip install -e .[security,dev] > /dev/null 2>&1 || echo "⚠️  Dev dependencies installation failed"
+
 # Create the same directories as CI
 echo "📁 Creating CI directories..."
 mkdir -p security-reports

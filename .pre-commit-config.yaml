@@ -36,6 +36,7 @@ repos:
       - id: pylint
         args: [--rcfile=.pylintrc, --fail-under=8.0]
         files: ^src/.*\.py$
+        exclude: ^src/finos_mcp/_version\.py$
         additional_dependencies: [
           mcp>=1.0.0,
           httpx>=0.25.0,
