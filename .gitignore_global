@@ -1,0 +1,520 @@
+# ===============================================================================
+# GLOBAL GITIGNORE FOR IRONCLAD PROTECTION
+# ===============================================================================
+# This file provides system-wide protection against committing internal files.
+# It should be installed globally using:
+# git config --global core.excludesfile ~/.gitignore_global
+# ===============================================================================
+
+# ===============================================================================
+# CRITICAL AI/AGENT CONFIGURATIONS
+# ===============================================================================
+# Claude AI and other AI agents
+.claude/
+.claude
+.Claude/
+.Claude
+.CLAUDE/
+.CLAUDE
+claude/
+Claude/
+CLAUDE/
+*claude*
+*Claude*
+*CLAUDE*
+claude-*
+Claude-*
+CLAUDE-*
+*-claude*
+*-Claude*
+*-CLAUDE*
+claude.*
+Claude.*
+CLAUDE.*
+.claude.*
+.Claude.*
+.CLAUDE.*
+claude_*
+Claude_*
+CLAUDE_*
+*claude_*
+*Claude_*
+*CLAUDE_*
+
+# Other AI configurations
+.ai/
+.ai
+ai-config*
+*ai-config*
+agent-config*
+*agent-config*
+llm-config*
+*llm-config*
+openai-*
+*openai*
+anthropic-*
+*anthropic*
+
+# ===============================================================================
+# PERSONAL AND LOCAL CONFIGURATIONS
+# ===============================================================================
+# Local files (all variations)
+*.local
+*.local.*
+*-local
+*-local.*
+*_local
+*_local.*
+.local
+.local.*
+local-*
+*local*
+
+# Personal files
+personal-*
+*personal*
+.personal/
+.personal
+private-*
+*private*
+.private/
+.private
+
+# User-specific configurations
+user-*
+*user*
+my-*
+*my-*
+config.local*
+settings.local*
+*-config.local*
+*-settings.local*
+
+# ===============================================================================
+# SECRETS AND SENSITIVE DATA
+# ===============================================================================
+# Cryptographic keys
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+*.csr
+*.jks
+*.keystore
+
+# Secret patterns (all case variations)
+*secret*
+*Secret*
+*SECRET*
+*password*
+*Password*
+*PASSWORD*
+*passwd*
+*Passwd*
+*PASSWD*
+*token*
+*Token*
+*TOKEN*
+*credential*
+*Credential*
+*CREDENTIAL*
+*cred*
+*Cred*
+*CRED*
+
+# Authentication files
+.auth
+.auth.*
+auth.*
+*auth*
+*api-key*
+*apikey*
+*api_key*
+*access-token*
+*access_token*
+*refresh-token*
+*refresh_token*
+*bearer*
+*Bearer*
+*BEARER*
+
+# SSH keys and configurations
+.ssh/
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+known_hosts*
+authorized_keys*
+ssh_config*
+
+# Cloud provider credentials
+.aws/
+.azure/
+.gcp/
+.google/
+*aws-credentials*
+*azure-credentials*
+*gcp-credentials*
+
+# ===============================================================================
+# ENVIRONMENT AND CONFIGURATION FILES
+# ===============================================================================
+# Environment files (comprehensive)
+.env
+.env.*
+.env.local*
+.env.personal*
+.env.private*
+.env.secret*
+.env.development*
+.env.production*
+.env.staging*
+.env.test*
+*.env
+*.env.*
+env.*
+*env*
+
+# Configuration files that might contain secrets
+config.json
+config.yml
+config.yaml
+settings.json
+settings.yml
+settings.yaml
+*config.local*
+*settings.local*
+
+# ===============================================================================
+# IDE AND EDITOR CONFIGURATIONS
+# ===============================================================================
+# Visual Studio Code
+.vscode/
+.vscode
+*.code-workspace
+.vscode-*
+
+# JetBrains IDEs
+.idea/
+.idea
+*.iml
+*.ipr
+*.iws
+
+# Vim and Neovim
+*.swp
+*.swo
+*.swn
+*~
+.*.swp
+.*.swo
+.*.swn
+.*~
+.vimrc.local
+.nvimrc.local
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+.sublime-project
+.sublime-workspace
+
+# Atom
+.atom/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# Xcode
+*.xcuserstate
+*.xcworkspace
+xcuserdata/
+
+# ===============================================================================
+# OPERATING SYSTEM FILES
+# ===============================================================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===============================================================================
+# DEVELOPMENT ARTIFACTS
+# ===============================================================================
+# Logs and debugging
+*.log
+*.log.*
+*.logs
+logs/
+log/
+debug*
+*debug*
+trace*
+*trace*
+
+# Cache directories
+.cache/
+.cache
+cache/
+*cache*
+*Cache*
+*CACHE*
+
+# Temporary files
+temp/
+tmp/
+*temp*
+*tmp*
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+*~
+*.copy
+
+# Runtime files
+*.pid
+*.lock
+.lock
+lock
+*lock*
+*.lockfile
+
+# ===============================================================================
+# TESTING AND COVERAGE
+# ===============================================================================
+# Test results
+test-results/
+test-output/
+*test-results*
+*test-output*
+junit.xml
+test.xml
+
+# Coverage reports
+coverage/
+coverage-reports/
+*coverage*
+*.coverage
+htmlcov/
+.nyc_output/
+.coverage.*
+
+# ===============================================================================
+# BUILD AND PACKAGE ARTIFACTS
+# ===============================================================================
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# .NET
+bin/
+obj/
+*.dll
+*.exe
+
+# Go
+*.exe
+*.test
+*.prof
+
+# Rust
+target/
+Cargo.lock
+
+# ===============================================================================
+# DOCUMENTATION AND NOTES
+# ===============================================================================
+# Development documentation
+dev-notes*
+*dev-notes*
+development-*
+*development*
+internal-*
+*internal*
+scratch*
+*scratch*
+notes*
+*notes*
+todo*
+*todo*
+TODO*
+*TODO*
+
+# Personal documentation
+readme-personal*
+README-personal*
+personal-readme*
+PERSONAL-README*
+
+# ===============================================================================
+# SECURITY AND MONITORING
+# ===============================================================================
+# Security reports
+security-*
+*security*
+scan-*
+*scan*
+audit-*
+*audit*
+vulnerability-*
+*vulnerability*
+pentest-*
+*pentest*
+
+# Monitoring files
+analytics*
+*analytics*
+metrics*
+*metrics*
+monitoring*
+*monitoring*
+
+# ===============================================================================
+# LOCAL SCRIPTS AND UTILITIES
+# ===============================================================================
+# Development scripts
+local-*
+*local*
+dev-*
+*dev*
+script-*
+*script*
+util-*
+*util*
+tools-*
+*tools*
+helper-*
+*helper*
+
+# Personal automation
+personal-script*
+*personal-script*
+my-script*
+*my-script*
+
+# ===============================================================================
+# REDUNDANT CRITICAL PROTECTION
+# ===============================================================================
+# Ensure absolutely critical patterns are multiply covered
+
+# Claude protection (multiple patterns)
+.claude
+.claude/
+.claude/*
+.claude/**
+claude/
+claude/*
+claude/**
+*claude*
+claude-*
+*-claude*
+
+# Local file protection (multiple patterns)
+*.local
+*.local.*
+*-local
+*-local.*
+*_local
+*_local.*
+.local
+.local.*
+
+# Secret protection (multiple patterns)
+*secret*
+*Secret*
+*SECRET*
+*password*
+*Password*
+*PASSWORD*
+
+# ===============================================================================
+# END GLOBAL GITIGNORE
+# ===============================================================================
