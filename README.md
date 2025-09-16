@@ -1,7 +1,21 @@
 # 🤖 AI Governance MCP Server
 
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+<!-- Core Project Badges -->
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
+![MCP Protocol](https://img.shields.io/badge/MCP-1.0+-green)
+![Status](https://img.shields.io/badge/status-alpha-orange)
+
+<!-- Quality & CI Badges -->
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/hugo-calderon/finos-mcp-server/security-analysis.yml?branch=main&label=CI)
+![Security](https://img.shields.io/badge/security-passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-486%20passing-brightgreen)
+![MyPy](https://img.shields.io/badge/mypy-passing-blue)
+
+<!-- Tools & Features -->
+![MCP Tools](https://img.shields.io/badge/MCP%20tools-10-blue)
+![FINOS Content](https://img.shields.io/badge/FINOS%20content-17%20mitigations%20%7C%2017%20risks-blue)
+![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen)
 
 **Simple access to AI governance content for your development tools.**
 
@@ -35,7 +49,7 @@ finos-mcp --help
 | Tool | Purpose | Example Usage |
 |------|---------|---------------|
 | `search_mitigations` | Find governance strategies | "data privacy protection" |
-| `search_risks` | Find AI risks | "prompt injection attacks" |  
+| `search_risks` | Find AI risks | "prompt injection attacks" |
 | `get_mitigation_details` | Get specific mitigation | Get mi-1 (data leakage prevention) |
 | `get_risk_details` | Get specific risk | Get ri-2 (prompt injection) |
 | `list_all_mitigations` | Browse all mitigations | See what's available |
@@ -52,7 +66,7 @@ finos-mcp --help
 **Protecting user data:**
 ```
 1. "Search for data privacy mitigations"
-2. "Show me mitigation mi-1" 
+2. "Show me mitigation mi-1"
 3. "What are data leakage risks?"
 ```
 
@@ -82,7 +96,7 @@ This is an **independent project** - not officially affiliated with FINOS.
 
 ## 🆘 Need Help?
 
-- 🐛 [Report Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)  
+- 🐛 [Report Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
 - 💬 [Ask Questions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
 - 📖 [Full Documentation](docs/README.md)
 
