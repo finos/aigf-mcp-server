@@ -188,6 +188,33 @@ fi
 echo "✅ Unit tests passed"
 
 # =============================================================================
+# PHASE 7: PIP-AUDIT DEPENDENCY SCANNER (EXACT CI COMMAND)
+# =============================================================================
+echo ""
+echo "🔐 PHASE 7: pip-audit Dependency Scanner (EXACT CI COMMAND)"
+echo "------------------------------------------------------------"
+
+echo "Running pip-audit dependency vulnerability scanner..."
+pip freeze > security-reports/requirements.txt
+
+# Install pip-audit (Python Packaging Authority's official tool)
+python -m pip install pip-audit
+
+# Run pip-audit scan - fail on any known vulnerabilities
+pip-audit --format json --output security-reports/pip-audit-report.json
+
+# Check for vulnerabilities
+VULNS=$(jq '.dependencies | map(select(.vulns | length > 0)) | length' security-reports/pip-audit-report.json)
+
+if [ "$VULNS" -gt 0 ]; then
+  echo "❌ CRITICAL: Found vulnerabilities in $VULNS dependencies"
+  jq '.dependencies | map(select(.vulns | length > 0))' security-reports/pip-audit-report.json
+  exit 1
+fi
+
+echo "✅ No known vulnerabilities found in dependencies"
+
+# =============================================================================
 # FINAL VALIDATION SUMMARY
 # =============================================================================
 echo ""
@@ -200,6 +227,7 @@ echo "  ✅ Pylint Code Quality"
 echo "  ✅ Ruff Linter & Formatter"
 echo "  ✅ MyPy Type Checking"
 echo "  ✅ Unit Tests"
+echo "  ✅ pip-audit Dependency Scanner"
 echo ""
 echo "🚀 This code is ready for CI - all checks will pass"
 echo "⏰ Completed: $(date)"
