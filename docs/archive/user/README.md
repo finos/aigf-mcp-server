@@ -19,7 +19,7 @@ New to this AI Governance MCP Server? Start here:
 
 ### Enterprise Features
 - **[Multi-Tenant Architecture](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)** - Isolated environments and resource management
-- **[Plugin Development](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)** - Extend functionality with custom plugins  
+- **[Plugin Development](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)** - Extend functionality with custom plugins
 - **[Performance Tuning](../../src/finos_mcp/internal/performance_optimizations.py)** - Optimize for scale
 - **[Security & Compliance](../../src/finos_mcp/security/)** - Security validation and rate limiting
 

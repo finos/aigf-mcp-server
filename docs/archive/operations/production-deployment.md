@@ -153,7 +153,7 @@ from finos_mcp.content.service import get_content_service
 async def test():
     service = await get_content_service()
     print('Content service: READY')
-    
+
 asyncio.run(test())
 print('Service connectivity: PASSED')
 "
@@ -287,37 +287,37 @@ from finos_mcp.content.service import get_content_service
 async def warm_cache():
     try:
         service = await get_content_service()
-        
+
         # Common queries to pre-populate cache
         mitigation_queries = ['data privacy', 'security', 'governance', 'compliance']
         risk_queries = ['prompt injection', 'data poisoning', 'adversarial', 'bias']
-        
+
         print('Warming mitigation cache...')
         for query in mitigation_queries:
             result = await service.search_mitigations(query)
             print(f'  - {query}: {len(result)} results cached')
-            
+
         print('Warming risk cache...')
         for query in risk_queries:
             result = await service.search_risks(query)
             print(f'  - {query}: {len(result)} results cached')
-            
+
         # Pre-load popular documents
         popular_mitigations = ['mi-1', 'mi-2', 'mi-3', 'mi-7']
         popular_risks = ['ri-10', 'ri-3', 'ri-12', 'ri-15']
-        
+
         print('Pre-loading popular mitigations...')
         for mitigation_id in popular_mitigations:
             await service.get_mitigation_details(mitigation_id)
             print(f'  - {mitigation_id} cached')
-            
+
         print('Pre-loading popular risks...')
         for risk_id in popular_risks:
             await service.get_risk_details(risk_id)
             print(f'  - {risk_id} cached')
-            
+
         print('Cache warming completed successfully!')
-        
+
     except Exception as e:
         print(f'Cache warming failed: {e}')
 
@@ -339,7 +339,7 @@ import sys
 async def check_health():
     try:
         from finos_mcp.tools.system import handle_system_tools
-        
+
         # Check service health
         result = await handle_system_tools('get_service_health', {})
         print("Health check: PASSED")
@@ -508,14 +508,14 @@ async def backup_metrics():
         health = await handle_system_tools('get_service_health', {})
         metrics = await handle_system_tools('get_service_metrics', {})
         cache_stats = await handle_system_tools('get_cache_stats', {})
-        
+
         backup_data = {
             'timestamp': '$(date -Iseconds)',
             'health': health[0].text if health else 'N/A',
             'metrics': metrics[0].text if metrics else 'N/A',
             'cache': cache_stats[0].text if cache_stats else 'N/A'
         }
-        
+
         with open('$BACKUP_DIR/$DATE/app_state.json', 'w') as f:
             json.dump(backup_data, f, indent=2)
         print('Application state backed up')
@@ -613,7 +613,7 @@ async def test():
     service = await get_content_service()
     result = await service.search_mitigations('security')
     print(f'Recovery test: Functionality PASSED ({len(result)} results)')
-    
+
 asyncio.run(test())
 "
 
@@ -730,18 +730,18 @@ async def check():
         health = await handle_system_tools('get_service_health', {})
         metrics = await handle_system_tools('get_service_metrics', {})
         cache = await handle_system_tools('get_cache_stats', {})
-        
+
         print('=== Service Health ===')
         print(health[0].text if health else 'Health check failed')
         print()
-        print('=== Performance Metrics ===')  
+        print('=== Performance Metrics ===')
         print(metrics[0].text if metrics else 'Metrics unavailable')
         print()
         print('=== Cache Statistics ===')
         print(cache[0].text if cache else 'Cache stats unavailable')
     except Exception as e:
         print(f'System check failed: {e}')
-    
+
 asyncio.run(check())
 "
 ```

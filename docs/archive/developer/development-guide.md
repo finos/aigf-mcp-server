@@ -18,7 +18,7 @@ This independent AI Governance MCP Server is a Model Context Protocol (MCP) serv
 ### Key Capabilities
 - **Content Access**: 17 AI governance mitigations and 17 risk assessments
 - **Search Functionality**: Intelligent search across all governance content
-- **MCP Compliance**: Full support for MCP 2024-11-05 specification  
+- **MCP Compliance**: Full support for MCP 2024-11-05 specification
 - **System Tools**: Health monitoring, cache statistics, service metrics
 - **Performance Features**: Intelligent caching, async operations, error resilience
 

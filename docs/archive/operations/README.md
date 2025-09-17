@@ -245,7 +245,7 @@ Need production assistance with this independent project?
 </td>
 <td width="50%">
 
-### Enterprise Community Support  
+### Enterprise Community Support
 - 💬 **General Questions**: [GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
 - 🏢 **Enterprise Configuration**: [Advanced Implementation](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)

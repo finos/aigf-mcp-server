@@ -99,11 +99,11 @@ class SearchQueryValidator(BaseModel):
     def validate_query_schema(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Search query cannot be empty")
-        
+
         query = v.strip()
         if len(query) > 500:
             raise ValueError("Search query exceeds 500 character limit")
-        
+
         return query
 
 # Usage in application

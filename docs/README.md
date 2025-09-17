@@ -23,7 +23,7 @@ finos-mcp --help
 ### 3. Connect to your editor
 Choose your tool:
 - **[Claude Desktop](#claude-desktop)** - Most popular
-- **[VS Code](#vs-code)** - With Continue.dev extension  
+- **[VS Code](#vs-code)** - With Continue.dev extension
 - **[Cursor](#cursor)** - Built-in MCP support
 - **[Other clients](#other-clients)** - See full list
 
@@ -65,7 +65,7 @@ Choose your tool:
 
 ### Cursor
 1. Open Cursor settings
-2. Go to "MCP Servers"  
+2. Go to "MCP Servers"
 3. Add new server:
    - **Name**: `finos-ai-governance`
    - **Command**: `finos-mcp`
@@ -103,7 +103,7 @@ This server works with any MCP-compatible client. See [MCP Client Directory](htt
 3. Check related risks: *"What are the data leakage risks?"*
 
 ### "I'm worried about prompt injection"
-1. Search risks: *"Find prompt injection risks"*  
+1. Search risks: *"Find prompt injection risks"*
 2. Get details: *"Show me risk ri-2"*
 3. Find protections: *"Search for input validation mitigations"*
 
@@ -121,7 +121,7 @@ Set environment variables for better performance:
 # Better GitHub API limits (optional)
 export FINOS_MCP_GITHUB_TOKEN="your_github_token"
 
-# Faster responses (optional)  
+# Faster responses (optional)
 export FINOS_MCP_CACHE_MAX_SIZE=2000
 export FINOS_MCP_LOG_LEVEL=INFO
 ```

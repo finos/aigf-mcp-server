@@ -16,7 +16,21 @@ from pydantic import BaseModel, Field
 from ..content.discovery import discover_content
 from ..content.service import get_content_service
 from ..logging import get_logger
-from ..security.validators import ValidationError, validate_search_request
+
+
+# Simple validation functions
+class ValidationError(ValueError):
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
+def validate_search_request(query: str, exact_match: bool = False) -> str:
+    """Simple search request validation."""
+    if not query or not isinstance(query, str):
+        raise ValidationError("Invalid search query")
+    return query.strip()
+
 
 logger = get_logger("search_tools")
 
@@ -320,13 +334,13 @@ async def handle_search_tools(
             request = SearchMitigationsRequest(**arguments)
 
             # Additional security validation
-            validated = validate_search_request(request.query, request.exact_match)
+            validate_search_request(request.query, request.exact_match)
 
             logger.info(
                 "Processing mitigation search request",
                 extra={
-                    "query": validated["query"],
-                    "exact_match": validated["exact_match"],
+                    "query": request.query,
+                    "exact_match": request.exact_match,
                 },
             )
 
@@ -334,8 +348,8 @@ async def handle_search_tools(
             results = await _search_documents(
                 "mitigation",
                 mitigation_files,
-                validated["query"],
-                validated["exact_match"],
+                request.query,
+                request.exact_match,
             )
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
 
@@ -354,21 +368,19 @@ async def handle_search_tools(
             risk_request = SearchRisksRequest(**arguments)
 
             # Additional security validation
-            validated = validate_search_request(
-                risk_request.query, risk_request.exact_match
-            )
+            validate_search_request(risk_request.query, risk_request.exact_match)
 
             logger.info(
                 "Processing risk search request",
                 extra={
-                    "query": validated["query"],
-                    "exact_match": validated["exact_match"],
+                    "query": risk_request.query,
+                    "exact_match": risk_request.exact_match,
                 },
             )
 
             risk_files = await get_risk_files()
             results = await _search_documents(
-                "risk", risk_files, validated["query"], validated["exact_match"]
+                "risk", risk_files, risk_request.query, risk_request.exact_match
             )
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
 

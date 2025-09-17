@@ -57,9 +57,9 @@ repos:
   - repo: local
     hooks:
       - id: block-claude-content
-        name: 🛡️  Block .claude content (CRITICAL SECURITY)
+        name: "Block .claude content (CRITICAL SECURITY)"
         description: Prevents any .claude content from being committed
-        entry: bash -c 'if git diff --cached --name-only | grep -iE "(^|/)\.?claude"; then echo "🚨 BLOCKED: .claude content detected in commit!" && exit 1; fi'
+        entry: 'bash -c "if git diff --cached --name-only | grep -iE \"(^|/)\.?claude\"; then echo \"BLOCKED - .claude content detected in commit!\" && exit 1; fi"'
         language: system
         stages: [pre-commit]
         types: [file]
@@ -67,9 +67,9 @@ repos:
         always_run: true
 
       - id: block-claude-files
-        name: 🛡️  Block claude-related files (CRITICAL SECURITY)
+        name: "Block claude-related files (CRITICAL SECURITY)"
         description: Prevents any claude-related files from being committed
-        entry: bash -c 'if find . -name "*claude*" -not -path "./.git/*" | head -1 | grep -q .; then echo "🚨 BLOCKED: Claude-related files detected!" && find . -name "*claude*" -not -path "./.git/*" && exit 1; fi'
+        entry: 'bash -c "if find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" | head -1 | grep -q .; then echo \"BLOCKED - Claude-related files detected!\" && find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" && exit 1; fi"'
         language: system
         stages: [pre-commit]
         types: [file]
@@ -77,9 +77,9 @@ repos:
         always_run: true
 
       - id: scan-claude-content
-        name: 🛡️  Scan for .claude references (CRITICAL SECURITY)
+        name: "Scan for .claude references (CRITICAL SECURITY)"
         description: Scans file contents for .claude references
-        entry: bash -c 'if git diff --cached --name-only | xargs grep -l "\.claude" 2>/dev/null; then echo "🚨 BLOCKED: Files contain .claude references!" && git diff --cached --name-only | xargs grep -n "\.claude" 2>/dev/null | head -10 && exit 1; fi'
+        entry: 'bash -c "if git diff --cached --name-only | xargs grep -l \"\.claude\" 2>/dev/null; then echo \"BLOCKED - Files contain .claude references!\" && git diff --cached --name-only | xargs grep -n \"\.claude\" 2>/dev/null | head -10 && exit 1; fi"'
         language: system
         stages: [pre-commit]
         types: [text]

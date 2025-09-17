@@ -10,8 +10,22 @@ from pydantic import BaseModel, Field
 
 from ..content.service import get_content_service
 from ..logging import get_logger
-from ..security.validators import ValidationError, validate_document_id
 from .search import get_mitigation_files, get_risk_files
+
+
+# Simple validation functions
+class ValidationError(ValueError):
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
+def validate_document_id(doc_id: str) -> str:
+    """Simple document ID validation."""
+    if not doc_id or not isinstance(doc_id, str):
+        raise ValidationError("Invalid document ID")
+    return doc_id.strip()
+
 
 logger = get_logger("details_tools")
 

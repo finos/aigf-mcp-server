@@ -8,7 +8,7 @@ Complete API reference for developers working with this independent AI Governanc
 - [Server Capabilities](#server-capabilities)
 - [Tools API](#tools-api)
   - [Search Tools](#search-tools)
-  - [Details Tools](#details-tools) 
+  - [Details Tools](#details-tools)
   - [Listing Tools](#listing-tools)
   - [System Tools](#system-tools)
 - [Resources API](#resources-api)

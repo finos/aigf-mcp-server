@@ -50,7 +50,7 @@ This project adheres to our [Contributor Code of Conduct](../governance/code-of-
    ```bash
    # Run tests to verify installation
    python -m pytest tests/ -v
-   
+
    # Verify CLI works
    finos-mcp --help
    ```
@@ -94,7 +94,7 @@ We use **feature branch workflow** with strict quality gates:
    ```bash
    # Run tests
    python -m pytest tests/ -v
-   
+
    # Check code quality
    ruff check .
    ruff format --check .
@@ -405,8 +405,8 @@ async with httpx.AsyncClient(timeout=30.0) as client:
    ```bash
    # Run tests
    python -m pytest tests/ -v --tb=short
-   
-   # Check code quality  
+
+   # Check code quality
    ruff check .
    ruff format --check .
    mypy src/
@@ -535,7 +535,7 @@ For detailed release procedures, see [`release-process.md`](../operations/releas
 
 For urgent issues or security concerns:
 - **Security Issues**: Use GitHub Security Advisories
-- **General Support**: GitHub Issues and Discussions  
+- **General Support**: GitHub Issues and Discussions
 - **Direct Contact**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
 
 ## 🙏 Recognition

@@ -120,7 +120,7 @@ async def test():
     service = await get_content_service()
     result = await service.search_mitigations('data')
     print(f'Found {len(result)} results')
-    
+
 asyncio.run(test())
 "
 ```

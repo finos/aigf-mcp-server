@@ -181,7 +181,7 @@ We track this independent project's health using comprehensive metrics:
 - **[FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework)** - Source content repository (CC BY 4.0)
 - **[FINOS Foundation](https://finos.org)** - Original governance framework organization
 
-### Technical Standards  
+### Technical Standards
 - **[Model Context Protocol](https://modelcontextprotocol.io/)** - MCP specification and documentation
 - **[MCP Protocol Specification](https://github.com/modelcontextprotocol/specification)** - Technical MCP specification
 - **[AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)** - NIST AI RMF standards

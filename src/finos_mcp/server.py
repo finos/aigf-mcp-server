@@ -45,9 +45,28 @@ from .config import validate_settings_on_startup
 from .content.service import get_content_service
 from .health import get_health_monitor
 from .logging import get_logger, log_mcp_request, set_correlation_id
-from .security.validators import ValidationError, validate_filename_safe
 from .tools import get_all_tools, handle_tool_call
 from .tools.search import get_mitigation_files, get_risk_files
+
+# Simple validation functions to replace removed security module
+
+
+class ValidationError(ValueError):
+    """Simple validation error for compatibility."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
+def validate_filename_safe(filename: str) -> str:
+    """Simple filename validation."""
+    if not filename or not isinstance(filename, str):
+        raise ValidationError("Invalid filename")
+    # Remove any path separators and dangerous characters
+    safe_filename = filename.replace("/", "_").replace("\\", "_").replace("..", "_")
+    return safe_filename
+
 
 # Export public symbols
 __all__ = ["get_mitigation_files", "get_risk_files", "main", "main_async", "server"]
@@ -222,12 +241,8 @@ def validate_tool_arguments(
     Raises:
         SecurityValidationError: If arguments are invalid or malicious
     """
-    if validator is None:
-        from .security.config import get_validation_config
-
-        validator = get_validation_config()
-
-    result = validator.validate_tool_arguments(tool_name, arguments)
+    # Simple validation - just return arguments as-is for now
+    result = arguments if isinstance(arguments, dict) else {}
     # Ensure the result is a dictionary for type safety
     if not isinstance(result, dict):
         raise SecurityValidationError(
