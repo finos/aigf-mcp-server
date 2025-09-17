@@ -73,11 +73,29 @@ jobs:
 
         echo "🔍 Scanning for critical internal file patterns..."
 
-        # Check all files in repository (excluding legitimate security tool files)
+        # Check all files in repository (excluding legitimate development files)
         for pattern in "${CRITICAL_PATTERNS[@]}"; do
-          if find . -name "$pattern" -not -path "./.git/*" -not -name ".secrets.baseline" | head -1 | grep -q .; then
+          if find . -name "$pattern" \
+            -not -path "./.git/*" \
+            -not -path "./.venv/*" \
+            -not -path "./.mypy_cache/*" \
+            -not -path "./venv/*" \
+            -not -path "./__pycache__/*" \
+            -not -path "./.pytest_cache/*" \
+            -not -path "./.ruff_cache/*" \
+            -not -name ".secrets.baseline" \
+            | head -1 | grep -q .; then
             echo "🚫 CRITICAL VIOLATION: Found files matching '$pattern'"
-            find . -name "$pattern" -not -path "./.git/*" -not -name ".secrets.baseline" | head -10
+            find . -name "$pattern" \
+              -not -path "./.git/*" \
+              -not -path "./.venv/*" \
+              -not -path "./.mypy_cache/*" \
+              -not -path "./venv/*" \
+              -not -path "./__pycache__/*" \
+              -not -path "./.pytest_cache/*" \
+              -not -path "./.ruff_cache/*" \
+              -not -name ".secrets.baseline" \
+              | head -10
             ((VIOLATIONS++))
           fi
         done
