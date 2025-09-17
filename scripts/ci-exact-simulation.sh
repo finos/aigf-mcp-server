@@ -310,13 +310,22 @@ echo "🧹 Generated reports in:"
 echo "  📁 security-reports/"
 echo "  📁 coverage-reports/"
 echo ""
-echo "Keep reports? (y/N): "
-read -r KEEP_REPORTS
-if [ "$KEEP_REPORTS" != "y" ] && [ "$KEEP_REPORTS" != "Y" ]; then
+
+# Check for non-interactive mode via CI environment variable or command line
+if [ "${CI:-false}" = "true" ] || [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+    # In CI environments, always clean up reports to keep runners clean
     rm -rf security-reports coverage-reports
-    echo "✅ Reports cleaned up"
+    echo "✅ Reports cleaned up (CI mode)"
 else
-    echo "📋 Reports preserved for review"
+    # Interactive mode - ask user
+    echo "Keep reports? (y/N): "
+    read -r KEEP_REPORTS
+    if [ "$KEEP_REPORTS" != "y" ] && [ "$KEEP_REPORTS" != "Y" ]; then
+        rm -rf security-reports coverage-reports
+        echo "✅ Reports cleaned up"
+    else
+        echo "📋 Reports preserved for review"
+    fi
 fi
 
 # Exit with overall status

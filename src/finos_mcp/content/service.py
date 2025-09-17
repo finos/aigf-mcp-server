@@ -303,7 +303,9 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         It ensures proper async context management and lifecycle.
         """
         # Start cache warming if enabled and not already started
-        if self._warming_enabled and (self._warming_task is None or self._warming_task.done()):
+        if self._warming_enabled and (
+            self._warming_task is None or self._warming_task.done()
+        ):
             self._start_cache_warming()
             self.logger.info("Cache warming started in async context")
 
@@ -322,15 +324,19 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
     def _start_cache_warming(self) -> None:
         """Start background cache warming task."""
         try:
+            # Check if we have a running event loop
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                self.logger.debug("Cannot start cache warming: no event loop running")
+                return
+
             if self._warming_task is None or self._warming_task.done():
                 self._warming_task = asyncio.create_task(self._cache_warming_loop())
                 self.logger.info("Cache warming started")
-        except RuntimeError as e:
-            if "no running event loop" in str(e):
-                self.logger.debug("Cannot start cache warming: no event loop running")
-                # Cache warming will be started when start() is called in async context
-            else:
-                raise
+        except Exception as e:
+            self.logger.warning(f"Failed to start cache warming: {e}")
+            # Don't raise - cache warming is optional
 
     async def _cache_warming_loop(self) -> None:
         """Background loop for cache warming."""

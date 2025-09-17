@@ -150,10 +150,17 @@ class TestContentServiceOperations:
     """Test ContentService main operations."""
 
     @pytest.fixture
-    def service(self):
-        """Create a ContentService instance for testing."""
+    async def service(self):
+        """Create a ContentService instance for testing with proper cleanup."""
         with patch("finos_mcp.content.service.asyncio.create_task"):
-            return ContentService()
+            service_instance = ContentService()
+            yield service_instance
+            # Ensure proper cleanup after each test
+            try:
+                await service_instance.close()
+            except Exception:
+                # Ignore cleanup errors in tests
+                pass
 
     @pytest.mark.asyncio
     async def test_get_health_status(self, service):
@@ -277,10 +284,15 @@ class TestGetDocumentFunctionality:
     """Test the core get_document functionality to boost coverage."""
 
     @pytest.fixture
-    def service(self):
-        """Create a ContentService instance for testing."""
+    async def service(self):
+        """Create a ContentService instance for testing with proper cleanup."""
         with patch("finos_mcp.content.service.asyncio.create_task"):
-            return ContentService()
+            service_instance = ContentService()
+            yield service_instance
+            try:
+                await service_instance.close()
+            except Exception:
+                pass
 
     @pytest.mark.asyncio
     async def test_get_document_mitigation_success(self, service):
@@ -398,10 +410,15 @@ class TestErrorBoundaryProtection:
     """Test error boundary protection functionality to boost coverage."""
 
     @pytest.fixture
-    def service(self):
-        """Create a ContentService instance for testing."""
+    async def service(self):
+        """Create a ContentService instance for testing with proper cleanup."""
         with patch("finos_mcp.content.service.asyncio.create_task"):
-            return ContentService()
+            service_instance = ContentService()
+            yield service_instance
+            try:
+                await service_instance.close()
+            except Exception:
+                pass
 
     @pytest.mark.asyncio
     async def test_error_boundary_circuit_breaker_error(self, service):
@@ -562,10 +579,15 @@ class TestErrorBoundaries:
     """Test error boundary functionality."""
 
     @pytest.fixture
-    def service(self):
-        """Create a ContentService instance for testing."""
+    async def service(self):
+        """Create a ContentService instance for testing with proper cleanup."""
         with patch("finos_mcp.content.service.asyncio.create_task"):
-            return ContentService()
+            service_instance = ContentService()
+            yield service_instance
+            try:
+                await service_instance.close()
+            except Exception:
+                pass
 
     def test_error_boundaries_initialization(self, service):
         """Test that error boundaries are properly initialized."""
@@ -640,10 +662,15 @@ class TestServiceStatistics:
     """Test service statistics tracking."""
 
     @pytest.fixture
-    def service(self):
-        """Create a ContentService instance for testing."""
+    async def service(self):
+        """Create a ContentService instance for testing with proper cleanup."""
         with patch("finos_mcp.content.service.asyncio.create_task"):
-            return ContentService()
+            service_instance = ContentService()
+            yield service_instance
+            try:
+                await service_instance.close()
+            except Exception:
+                pass
 
     def test_initial_statistics(self, service):
         """Test initial statistics values."""
