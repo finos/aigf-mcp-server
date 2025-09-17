@@ -158,8 +158,8 @@ class TestContentServiceOperations:
             # Ensure proper cleanup after each test
             try:
                 await service_instance.close()
-            except Exception:
-                # Ignore cleanup errors in tests
+            except Exception:  # noqa: S110
+                # Ignore cleanup errors in tests - exceptions during test cleanup are expected
                 pass
 
     @pytest.mark.asyncio
@@ -291,7 +291,8 @@ class TestGetDocumentFunctionality:
             yield service_instance
             try:
                 await service_instance.close()
-            except Exception:
+            except Exception:  # noqa: S110
+                # Ignore cleanup errors in tests - exceptions during test cleanup are expected
                 pass
 
     @pytest.mark.asyncio
@@ -417,7 +418,8 @@ class TestErrorBoundaryProtection:
             yield service_instance
             try:
                 await service_instance.close()
-            except Exception:
+            except Exception:  # noqa: S110
+                # Ignore cleanup errors in tests - exceptions during test cleanup are expected
                 pass
 
     @pytest.mark.asyncio
@@ -586,7 +588,8 @@ class TestErrorBoundaries:
             yield service_instance
             try:
                 await service_instance.close()
-            except Exception:
+            except Exception:  # noqa: S110
+                # Ignore cleanup errors in tests - exceptions during test cleanup are expected
                 pass
 
     def test_error_boundaries_initialization(self, service):
@@ -669,7 +672,8 @@ class TestServiceStatistics:
             yield service_instance
             try:
                 await service_instance.close()
-            except Exception:
+            except Exception:  # noqa: S110
+                # Ignore cleanup errors in tests - exceptions during test cleanup are expected
                 pass
 
     def test_initial_statistics(self, service):
