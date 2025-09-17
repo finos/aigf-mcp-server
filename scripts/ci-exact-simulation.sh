@@ -3,14 +3,45 @@
 # This script runs the IDENTICAL commands that GitHub Actions CI runs
 # to prevent local/CI validation mismatches
 
-set -e  # Exit on any error
+set -uo pipefail  # Exit on undefined variables or pipe failures, but not regular errors
+
+# Initialize exit code tracking
+OVERALL_EXIT_CODE=0
+FAILED_PHASES=()
+
+# Function to handle errors but continue execution
+handle_phase_error() {
+    local phase_name="$1"
+    local exit_code="$2"
+    echo "❌ PHASE FAILED: $phase_name (exit code: $exit_code)"
+    FAILED_PHASES+=("$phase_name")
+    if [ $OVERALL_EXIT_CODE -eq 0 ]; then
+        OVERALL_EXIT_CODE=$exit_code
+    fi
+}
+
+# Function to run command with error handling
+run_phase() {
+    local phase_name="$1"
+    shift
+    echo "🔄 Running: $*"
+    set +e  # Temporarily disable exit on error
+    "$@"
+    local exit_code=$?
+    set -e  # Re-enable exit on error
+
+    if [ $exit_code -eq 0 ]; then
+        echo "✅ $phase_name passed"
+        return 0
+    else
+        handle_phase_error "$phase_name" $exit_code
+        return $exit_code
+    fi
+}
 
 echo "🔍 EXACT CI SIMULATION - FINOS MCP Server"
 echo "=========================================="
 echo "📍 Location: $(pwd)"
-echo "🐍 Python: $(python --version)"
-echo "⏰ Started: $(date)"
-echo ""
 
 # Ensure we're in the right directory
 if [ ! -f "pyproject.toml" ] || [ ! -d "src/finos_mcp" ]; then
@@ -19,12 +50,22 @@ if [ ! -f "pyproject.toml" ] || [ ! -d "src/finos_mcp" ]; then
     exit 1
 fi
 
-# Ensure virtual environment is activated
-if [ -z "$VIRTUAL_ENV" ]; then
-    echo "❌ ERROR: Virtual environment not activated"
-    echo "Run: source .venv/bin/activate"
-    exit 1
+# Activate virtual environment if not already active
+if [ -z "${VIRTUAL_ENV:-}" ]; then
+    echo "🔄 Activating virtual environment..."
+    if [ -f ".venv/bin/activate" ]; then
+        source .venv/bin/activate
+    else
+        echo "❌ ERROR: Virtual environment not found at .venv/bin/activate"
+        echo "Run: python -m venv .venv && source .venv/bin/activate && pip install -e .[dev,security]"
+        exit 1
+    fi
 fi
+
+echo "🐍 Python: $(python --version)"
+echo "📦 Virtual Environment: $VIRTUAL_ENV"
+echo "⏰ Started: $(date)"
+echo ""
 
 # Install CI-specific dependencies that may not be in local environment
 echo "📦 Installing CI-specific dependencies..."
@@ -174,6 +215,7 @@ echo "---------------------------------------"
 echo "Running all tests..."
 if [ -d "tests" ]; then
   # Run tests with less verbose output to avoid truncation
+  set +e  # Temporarily disable exit on error for this section
   python -m pytest tests/ \
     --cov=src/finos_mcp \
     --cov-report=json:coverage-reports/coverage.json \
@@ -186,6 +228,8 @@ if [ -d "tests" ]; then
 
   # Show summary of test results
   PYTEST_EXIT_CODE=$?
+  set -e  # Re-enable exit on error
+
   if [ $PYTEST_EXIT_CODE -eq 0 ]; then
     echo "✅ All tests passed successfully"
 
@@ -196,7 +240,7 @@ if [ -d "tests" ]; then
     fi
   else
     echo "❌ Tests failed with exit code: $PYTEST_EXIT_CODE"
-    exit 1
+    handle_phase_error "All Tests" $PYTEST_EXIT_CODE
   fi
 else
   echo "⚠️  No tests directory found - skipping tests"
@@ -233,18 +277,31 @@ echo "✅ No known vulnerabilities found in dependencies"
 # FINAL VALIDATION SUMMARY
 # =============================================================================
 echo ""
-echo "🎉 EXACT CI SIMULATION COMPLETED SUCCESSFULLY"
-echo "============================================="
-echo "📊 All phases passed:"
-echo "  ✅ Bandit Security Scanner"
-echo "  ✅ Semgrep Static Analysis"
-echo "  ✅ Pylint Code Quality"
-echo "  ✅ Ruff Linter & Formatter"
-echo "  ✅ MyPy Type Checking"
-echo "  ✅ All Tests (unit/integration/internal)"
-echo "  ✅ pip-audit Dependency Scanner"
-echo ""
-echo "🚀 This code is ready for CI - all checks will pass"
+echo "📋 CI SIMULATION SUMMARY"
+echo "========================="
+
+if [ $OVERALL_EXIT_CODE -eq 0 ]; then
+    echo "🎉 EXACT CI SIMULATION COMPLETED SUCCESSFULLY"
+    echo "📊 All phases passed:"
+    echo "  ✅ Bandit Security Scanner"
+    echo "  ✅ Semgrep Static Analysis"
+    echo "  ✅ Pylint Code Quality"
+    echo "  ✅ Ruff Linter & Formatter"
+    echo "  ✅ MyPy Type Checking"
+    echo "  ✅ All Tests (unit/integration/internal)"
+    echo "  ✅ pip-audit Dependency Scanner"
+    echo ""
+    echo "🚀 This code is ready for CI - all checks will pass"
+else
+    echo "❌ CI SIMULATION FAILED"
+    echo "📊 Failed phases (${#FAILED_PHASES[@]} total):"
+    for phase in "${FAILED_PHASES[@]}"; do
+        echo "  ❌ $phase"
+    done
+    echo ""
+    echo "🔧 Fix the above issues before pushing to CI"
+fi
+
 echo "⏰ Completed: $(date)"
 
 # Cleanup (optional)
@@ -261,3 +318,13 @@ if [ "$KEEP_REPORTS" != "y" ] && [ "$KEEP_REPORTS" != "Y" ]; then
 else
     echo "📋 Reports preserved for review"
 fi
+
+# Exit with overall status
+echo ""
+if [ $OVERALL_EXIT_CODE -eq 0 ]; then
+    echo "✅ CI simulation completed successfully"
+else
+    echo "❌ CI simulation failed with exit code: $OVERALL_EXIT_CODE"
+fi
+
+exit $OVERALL_EXIT_CODE

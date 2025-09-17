@@ -240,13 +240,30 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
         # Background cleanup task
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._enable_background_cleanup = enable_background_cleanup
         if enable_background_cleanup:
             self._start_cleanup_task()
 
     def _start_cleanup_task(self) -> None:
         """Start background cleanup task."""
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._background_cleanup())
+        try:
+            if self._cleanup_task is None or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(self._background_cleanup())
+        except RuntimeError as e:
+            if "no running event loop" in str(e):
+                logger.debug("Cannot start cache cleanup: no event loop running")
+                # Cleanup will be started when cache is accessed in async context
+            else:
+                raise
+
+    async def start(self) -> None:
+        """Start async components of the cache.
+
+        This method must be called in an async context to start background tasks.
+        """
+        if self._enable_background_cleanup and (self._cleanup_task is None or self._cleanup_task.done()):
+            self._start_cleanup_task()
+            logger.debug("Cache background cleanup started in async context")
 
     async def _background_cleanup(self) -> None:
         """Background task to clean up expired entries."""
@@ -615,6 +632,13 @@ class CacheManager:
                 max_size,
                 default_ttl,
             )
+
+            # Start async components if we're in an async context
+            try:
+                await self._cache.start()
+            except RuntimeError:
+                # Not in async context, that's okay
+                pass
 
         return self._cache
 
