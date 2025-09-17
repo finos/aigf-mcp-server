@@ -73,11 +73,11 @@ jobs:
 
         echo "🔍 Scanning for critical internal file patterns..."
 
-        # Check all files in repository
+        # Check all files in repository (excluding legitimate security tool files)
         for pattern in "${CRITICAL_PATTERNS[@]}"; do
-          if find . -name "$pattern" -not -path "./.git/*" | head -1 | grep -q .; then
+          if find . -name "$pattern" -not -path "./.git/*" -not -name ".secrets.baseline" | head -1 | grep -q .; then
             echo "🚫 CRITICAL VIOLATION: Found files matching '$pattern'"
-            find . -name "$pattern" -not -path "./.git/*" | head -10
+            find . -name "$pattern" -not -path "./.git/*" -not -name ".secrets.baseline" | head -10
             ((VIOLATIONS++))
           fi
         done
@@ -117,7 +117,7 @@ jobs:
         )
 
         for pattern in "${CONTENT_PATTERNS[@]}"; do
-          if grep -r -i -E "$pattern" . --exclude-dir=.git --exclude="*.md" --exclude="*.yml" --exclude="*.yaml" 2>/dev/null | head -1 | grep -q .; then
+          if grep -r -i -E "$pattern" . --exclude-dir=.git --exclude="*.md" --exclude="*.yml" --exclude="*.yaml" --exclude=".secrets.baseline" 2>/dev/null | head -1 | grep -q .; then
             echo "📄 CONTENT VIOLATION: Found sensitive content pattern '$pattern'"
             ((VIOLATIONS++))
           fi
