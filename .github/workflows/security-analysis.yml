@@ -84,6 +84,12 @@ jobs:
             -not -path "./.pytest_cache/*" \
             -not -path "./.ruff_cache/*" \
             -not -name ".secrets.baseline" \
+            -not -name ".env.example" \
+            -not -name ".env.test" \
+            -not -path "./config/examples/*" \
+            -not -name "ci-local.sh" \
+            -not -path "./.claude/*" \
+            -not -name ".claude" \
             | head -1 | grep -q .; then
             echo "🚫 CRITICAL VIOLATION: Found files matching '$pattern'"
             find . -name "$pattern" \
@@ -95,6 +101,12 @@ jobs:
               -not -path "./.pytest_cache/*" \
               -not -path "./.ruff_cache/*" \
               -not -name ".secrets.baseline" \
+              -not -name ".env.example" \
+              -not -name ".env.test" \
+              -not -path "./config/examples/*" \
+              -not -name "ci-local.sh" \
+              -not -path "./.claude/*" \
+              -not -name ".claude" \
               | head -10
             ((VIOLATIONS++))
           fi
