@@ -2,6 +2,7 @@
 # 🎯 EXACT CI SIMULATION SCRIPT
 # This script runs the IDENTICAL commands that GitHub Actions CI runs
 # to prevent local/CI validation mismatches
+# UPDATED: Fixed CI workflow discrepancies (Ruff & Pylint error handling)
 
 set -uo pipefail  # Exit on undefined variables or pipe failures, but not regular errors
 
@@ -171,11 +172,21 @@ echo "🎨 PHASE 4: Ruff Linter (EXACT CI COMMAND)"
 echo "-----------------------------------------"
 
 echo "Running Ruff linter..."
+set +e  # Temporarily disable exit on error to capture Ruff exit code
 ruff check src/ tests/ scripts/ --output-format=json > security-reports/ruff-report.json
+RUFF_EXIT_CODE=$?
+set -e  # Re-enable exit on error
 
 # Count the number of issues found (EXACT CI LOGIC)
 RUFF_ISSUES=$(jq 'length' security-reports/ruff-report.json)
 echo "Ruff found $RUFF_ISSUES linting issues"
+
+# CRITICAL: Fail if Ruff found any issues (EXACT CI BEHAVIOR)
+if [ $RUFF_EXIT_CODE -ne 0 ]; then
+  echo "❌ CRITICAL: Ruff found $RUFF_ISSUES linting issues"
+  jq '.' security-reports/ruff-report.json
+  exit 1
+fi
 
 # Check formatting (EXACT CI COMMAND)
 echo "Checking code formatting with Ruff..."
