@@ -79,13 +79,13 @@ class PackageSkeletonTester:
                 return False
 
             # Test version format
-            version = finos_mcp.__version__
+            version = finos_mcp.__version__  # type: ignore[attr-defined]
             if not isinstance(version, str) or not version:
                 self.log_test("Package Import", False, f"Invalid version: {version}")
                 return False
 
             # Test version_info tuple
-            version_info = finos_mcp.version_info
+            version_info = finos_mcp.version_info  # type: ignore[attr-defined]
             if not isinstance(version_info, tuple) or len(version_info) < 2:
                 self.log_test(
                     "Package Import", False, f"Invalid version_info: {version_info}"
@@ -93,13 +93,13 @@ class PackageSkeletonTester:
                 return False
 
             # Test helper functions
-            if finos_mcp.get_version() != version:
+            if finos_mcp.get_version() != version:  # type: ignore[attr-defined]
                 self.log_test(
                     "Package Import", False, "get_version() doesn't match __version__"
                 )
                 return False
 
-            package_info = finos_mcp.get_package_info()
+            package_info = finos_mcp.get_package_info()  # type: ignore[attr-defined]
             if not isinstance(package_info, dict) or "version" not in package_info:
                 self.log_test("Package Import", False, "get_package_info() invalid")
                 return False

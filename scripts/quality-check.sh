@@ -302,9 +302,9 @@ print_quality_summary() {
 
     echo
     echo "📚 For more information:"
-    echo "  • Contributing Guide: docs/developer/CONTRIBUTING.md"
-    echo "  • Development Guide: docs/developer/development-guide.md"
-    echo "  • Quality Standards: docs/governance/README.md"
+    echo "  • Setup Guide: docs/README.md"
+    echo "  • Tool Reference: docs/tools-reference.md"
+    echo "  • Troubleshooting: docs/troubleshooting.md"
 }
 
 # Clean up temporary files

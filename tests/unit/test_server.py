@@ -134,10 +134,8 @@ class TestServerFunctions:
     @pytest.mark.asyncio
     async def test_handle_call_tool_search_mitigations(self):
         """Test calling the search_mitigations tool."""
-        from finos_mcp.security.config import ValidationConfig, ValidationMode
-
-        # Create disabled validator for testing
-        test_validator = ValidationConfig(ValidationMode.DISABLED)
+        # Simple test without security validator
+        test_validator = None
 
         with patch("finos_mcp.server.handle_tool_call") as mock_handler:
             mock_handler.return_value = [TextContent(type="text", text="Search result")]

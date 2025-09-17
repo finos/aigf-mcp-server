@@ -1,0 +1,11 @@
+{
+    "filename": "sample-risk.md",
+    "type": "risk",
+    "metadata": {
+        "title": "Sample AI Risk",
+        "category": "model-security",
+        "severity": "high"
+    },
+    "content": "# Sample Risk\n\nThis is a sample risk for testing purposes.\n\n## Description\n\nThis risk represents potential security vulnerabilities in AI model deployment.\n\n## Impact\n\n- Data exposure\n- Model manipulation\n- Service disruption",
+    "full_text": "---\ntitle: Sample AI Risk\ncategory: model-security\nseverity: high\n---\n\n# Sample Risk\n\nThis is a sample risk for testing purposes.\n\n## Description\n\nThis risk represents potential security vulnerabilities in AI model deployment.\n\n## Impact\n\n- Data exposure\n- Model manipulation\n- Service disruption"
+}

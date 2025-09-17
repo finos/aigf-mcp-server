@@ -16,7 +16,8 @@ import httpx
 from ..config import get_settings
 from ..health import get_health_monitor
 from ..logging import get_logger
-from ..security.rate_limit import get_github_rate_limiter, rate_limited_github_request
+
+# Removed security rate limiting - using simple HTTP requests
 
 logger = get_logger("content_discovery")
 
@@ -156,14 +157,7 @@ class GitHubDiscoveryService:
         return self._create_static_fallback()
 
     async def _fetch_from_github(self) -> DiscoveryResult | None:
-        """Fetch file listings from GitHub API with intelligent rate limiting."""
-        # Get rate limiter to check status before making requests
-        rate_limiter = get_github_rate_limiter()
-
-        # Check if we should proceed with requests
-        if not rate_limiter.should_proceed_with_request():
-            logger.info("Skipping GitHub API request due to rate limit proximity")
-            return None
+        """Fetch file listings from GitHub API with simple HTTP requests."""
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
@@ -190,11 +184,8 @@ class GitHubDiscoveryService:
                 assert isinstance(mitigation_files, list)
                 assert isinstance(risk_files, list)
 
-                # Get rate limit info from the rate limiter
-                current_rate_limit = rate_limiter.current_rate_limit
-                rate_limit_remaining = (
-                    current_rate_limit.remaining if current_rate_limit else None
-                )
+                # Rate limiting removed for simplicity
+                rate_limit_remaining = None
 
                 logger.info(
                     "GitHub API discovery successful",
@@ -260,10 +251,8 @@ class GitHubDiscoveryService:
             headers["Authorization"] = f"token {github_token}"
             headers["Accept"] = "application/vnd.github.v3+json"
 
-        # Use rate-limited request with automatic retry and backoff
-        response = await rate_limited_github_request(
-            client, "GET", url, headers=headers
-        )
+        # Make simple HTTP request
+        response = await client.get(url, headers=headers)
 
         # Store rate limit info for backwards compatibility (dynamic attribute)
         client._last_rate_limit = int(response.headers.get("X-RateLimit-Remaining", 0))  # type: ignore[attr-defined]

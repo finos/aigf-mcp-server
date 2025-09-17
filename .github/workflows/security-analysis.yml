@@ -34,6 +34,7 @@ jobs:
         # Full history needed for some security scanners
         fetch-depth: 0
 
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
@@ -50,6 +51,7 @@ jobs:
       run: |
         mkdir -p security-reports
         mkdir -p coverage-reports
+
 
     # Static Analysis with Bandit - STRICT: Will fail on high/medium severity issues
     - name: Run Bandit Security Scanner
@@ -110,7 +112,7 @@ jobs:
       id: pylint
       run: |
         echo "Running Pylint code quality analysis..."
-        python -m pylint src/finos_mcp \
+        python -m pylint src/ \
           --output-format=json \
           --reports=yes \
           --score=yes > security-reports/pylint-report.json
@@ -130,7 +132,7 @@ jobs:
       id: ruff
       run: |
         echo "Running Ruff linter..."
-        ruff check src/ --output-format=json > security-reports/ruff-report.json
+        ruff check src/ tests/ scripts/ --output-format=json > security-reports/ruff-report.json
 
         # Count the number of issues found
         RUFF_ISSUES=$(jq 'length' security-reports/ruff-report.json)
@@ -138,7 +140,7 @@ jobs:
 
         # Check formatting
         echo "Checking code formatting with Ruff..."
-        ruff format --check src/
+        ruff format --check src/ tests/ scripts/
 
         echo "✅ Ruff linting and formatting checks passed"
 
@@ -158,32 +160,24 @@ jobs:
         echo "✅ MyPy type checking passed - no type errors found"
 
     # Run actual tests - STRICT: Must pass
-    - name: Run Unit Tests
+    - name: Run All Tests
       id: tests
       run: |
-        echo "Running unit tests..."
-        if [ -d "tests" ]; then
-          python -m pytest tests/ \
-            --cov=src/finos_mcp \
-            --cov-report=json:coverage-reports/coverage.json \
-            --cov-report=xml:coverage-reports/coverage.xml \
-            --cov-report=html:coverage-reports/html \
-            --junit-xml=coverage-reports/pytest.xml \
-            --cov-fail-under=65 \
-            -v
-        else
-          echo "⚠️  No tests directory found - creating basic smoke test"
-          python -c "
-          import sys
-          sys.path.insert(0, 'src')
-          try:
-              import finos_mcp
-              from finos_mcp.server import main
-              print('✅ Basic import test passed')
-          except Exception as e:
-              print(f'❌ Import test failed: {e}')
-              sys.exit(1)
-          "
+        echo "Running all tests..."
+        python -m pytest tests/ \
+          --cov=src/finos_mcp \
+          --cov-report=json:coverage-reports/coverage.json \
+          --cov-report=xml:coverage-reports/coverage.xml \
+          --cov-report=html:coverage-reports/html \
+          --junit-xml=coverage-reports/pytest.xml \
+          --cov-fail-under=65 \
+          --tb=short \
+          --quiet
+
+        # Extract and display coverage metrics
+        if [ -f "coverage-reports/coverage.json" ]; then
+          COVERAGE=$(python -c "import json; data=json.load(open('coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}%')" 2>/dev/null || echo "unknown")
+          echo "📊 Test Coverage: $COVERAGE"
         fi
 
         echo "✅ All tests passed"

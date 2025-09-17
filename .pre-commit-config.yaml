@@ -19,6 +19,7 @@ repos:
         additional_dependencies: [types-bleach, types-requests, httpx, mcp, types-PyYAML, pathvalidate, python-slugify, tenacity]
         args: [--show-error-codes, --show-error-context, --strict-optional, --warn-redundant-casts, --warn-unused-ignores]
         files: ^src/.*\.py$
+        exclude: ^src/finos_mcp/internal/.*\.py$
 
   # Advanced security scanning with Semgrep (Ruff handles basic security via flake8-bandit)
   - repo: https://github.com/semgrep/semgrep
@@ -35,6 +36,7 @@ repos:
       - id: pylint
         args: [--rcfile=.pylintrc, --fail-under=8.0]
         files: ^src/.*\.py$
+        exclude: ^src/finos_mcp/_version\.py$
         additional_dependencies: [
           mcp>=1.0.0,
           httpx>=0.25.0,
@@ -48,6 +50,41 @@ repos:
     rev: v2.7.3
     hooks:
       - id: pip-audit
+
+  # ===============================================================================
+  # CRITICAL PROTECTION: .claude content blocking (CANNOT be disabled)
+  # ===============================================================================
+  - repo: local
+    hooks:
+      - id: block-claude-content
+        name: "Block .claude content (CRITICAL SECURITY)"
+        description: Prevents any .claude content from being committed
+        entry: 'bash -c "if git diff --cached --name-only | grep -iE \"(^|/)\.?claude\"; then echo \"BLOCKED - .claude content detected in commit!\" && exit 1; fi"'
+        language: system
+        stages: [pre-commit]
+        types: [file]
+        pass_filenames: false
+        always_run: true
+
+      - id: block-claude-files
+        name: "Block claude-related files (CRITICAL SECURITY)"
+        description: Prevents any claude-related files from being committed
+        entry: 'bash -c "if find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" | head -1 | grep -q .; then echo \"BLOCKED - Claude-related files detected!\" && find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" && exit 1; fi"'
+        language: system
+        stages: [pre-commit]
+        types: [file]
+        pass_filenames: false
+        always_run: true
+
+      - id: scan-claude-content
+        name: "Scan for .claude references (CRITICAL SECURITY)"
+        description: Scans file contents for .claude references
+        entry: 'bash -c "if git diff --cached --name-only | xargs grep -l \"\.claude\" 2>/dev/null; then echo \"BLOCKED - Files contain .claude references!\" && git diff --cached --name-only | xargs grep -n \"\.claude\" 2>/dev/null | head -10 && exit 1; fi"'
+        language: system
+        stages: [pre-commit]
+        types: [text]
+        pass_filenames: false
+        always_run: true
 
   # General file formatting
   - repo: https://github.com/pre-commit/pre-commit-hooks

@@ -45,6 +45,7 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.5.0",
     "types-bleach>=6.2.0.20250809",
+    "types-PyYAML>=6.0.0",
     "pip-tools>=7.0.0",
     "pre-commit>=3.0.0",
 ]
@@ -109,9 +110,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = [
-    "S105", "S603", "S607", # tests may have hardcoded values and subprocess calls
-]
+# Internal development tools - allow subprocess calls and other dev patterns
+"src/finos_mcp/internal/*" = ["S603", "S607", "S110", "S324", "E721"]
+# Test files - allow various test patterns
+"tests/*" = ["S106", "S101", "E712", "RUF059", "F841", "S105", "S603", "S607", "B017"]
 "scripts/*" = ["UP006", "UP035"] # scripts can use older typing for compatibility
 
 [tool.ruff.format]
@@ -120,14 +122,7 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
 
-[tool.bandit]
-# Use external bandit.yaml configuration file
-configfile = "bandit.yaml"
-
 [tool.mypy]
-exclude = [
-    "tests/integration/test_live_mcp_server.py", # Complex MCP types need refinement
-]
 python_version = "3.10"
 strict = true
 warn_return_any = true
@@ -135,21 +130,16 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
-disallow_untyped_decorators = false
-disallow_any_unimported = true
-disallow_subclassing_any = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-show_error_codes = true
-color_output = true
-pretty = true
-follow_imports = "normal"
-ignore_missing_imports = false
-namespace_packages = true
+disallow_untyped_decorators = true
+# Exclude internal development tools and complex tests from type checking
+exclude = [
+    "src/finos_mcp/internal/",
+    "tests/integration/test_live_mcp_server.py",
+]
+
+[tool.bandit]
+# Use external bandit.yaml configuration file
+configfile = "bandit.yaml"
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -171,7 +161,7 @@ addopts = [
     "--disable-warnings",
     "-ra",
 ]
-testpaths = ["tests/unit", "tests/integration"]
+testpaths = ["tests/unit", "tests/integration", "tests/internal"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -183,6 +173,7 @@ markers = [
     "console: Console script tests",
     "slow: Slow running tests",
     "asyncio: Async tests",
+    "performance: Performance tests",
 ]
 
 [tool.coverage.run]

@@ -36,10 +36,10 @@ title = "FINOS AI Governance MCP Server - Secret Detection"
     regex = '''(?i)(api[_\-\.]?key[\s:=]*(["']?)([a-z0-9_\-]{32,})\2)'''
     keywords = ["api_key", "api-key", "apikey"]
 
-# Allowlist for test files and documentation
-[[allowlist]]
+# Allowlists for test files and documentation (updated for gitleaks v8.25.0+)
+[[allowlists]]
     description = "Test fixtures and example data"
-    files = [
+    paths = [
         '''tests/.*\.py$''',
         '''docs/.*\.md$''',
         '''\.md$''',
@@ -47,7 +47,7 @@ title = "FINOS AI Governance MCP Server - Secret Detection"
         '''test_.*\.py$'''
     ]
 
-[[allowlist]]
+[[allowlists]]
     description = "Known false positives"
     regexes = [
         '''test[_\-]?key''',
