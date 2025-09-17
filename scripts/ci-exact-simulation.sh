@@ -165,14 +165,15 @@ python -m mypy src/finos_mcp \
 echo "✅ MyPy type checking passed - no type errors found"
 
 # =============================================================================
-# PHASE 6: UNIT TESTS (EXACT CI COMMAND)
+# PHASE 6: ALL TESTS (EXACT CI COMMAND)
 # =============================================================================
 echo ""
-echo "🧪 PHASE 6: Unit Tests (EXACT CI COMMAND)"
-echo "----------------------------------------"
+echo "🧪 PHASE 6: All Tests (EXACT CI COMMAND)"
+echo "---------------------------------------"
 
-echo "Running unit tests..."
+echo "Running all tests..."
 if [ -d "tests" ]; then
+  # Run tests with less verbose output to avoid truncation
   python -m pytest tests/ \
     --cov=src/finos_mcp \
     --cov-report=json:coverage-reports/coverage.json \
@@ -180,12 +181,26 @@ if [ -d "tests" ]; then
     --cov-report=html:coverage-reports/html \
     --junit-xml=coverage-reports/pytest.xml \
     --cov-fail-under=65 \
-    -v
+    --tb=short \
+    --quiet
+
+  # Show summary of test results
+  PYTEST_EXIT_CODE=$?
+  if [ $PYTEST_EXIT_CODE -eq 0 ]; then
+    echo "✅ All tests passed successfully"
+
+    # Extract key metrics from coverage report
+    if [ -f "coverage-reports/coverage.json" ]; then
+      COVERAGE=$(python -c "import json; data=json.load(open('coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}%')" 2>/dev/null || echo "unknown")
+      echo "📊 Test Coverage: $COVERAGE"
+    fi
+  else
+    echo "❌ Tests failed with exit code: $PYTEST_EXIT_CODE"
+    exit 1
+  fi
 else
   echo "⚠️  No tests directory found - skipping tests"
 fi
-
-echo "✅ Unit tests passed"
 
 # =============================================================================
 # PHASE 7: PIP-AUDIT DEPENDENCY SCANNER (EXACT CI COMMAND)
@@ -226,7 +241,7 @@ echo "  ✅ Semgrep Static Analysis"
 echo "  ✅ Pylint Code Quality"
 echo "  ✅ Ruff Linter & Formatter"
 echo "  ✅ MyPy Type Checking"
-echo "  ✅ Unit Tests"
+echo "  ✅ All Tests (unit/integration/internal)"
 echo "  ✅ pip-audit Dependency Scanner"
 echo ""
 echo "🚀 This code is ready for CI - all checks will pass"

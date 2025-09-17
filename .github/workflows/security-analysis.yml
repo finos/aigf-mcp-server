@@ -160,19 +160,25 @@ jobs:
         echo "✅ MyPy type checking passed - no type errors found"
 
     # Run actual tests - STRICT: Must pass
-    - name: Run Unit Tests
+    - name: Run All Tests
       id: tests
       run: |
-        echo "Running unit tests..."
-        python -m pytest tests/unit/ tests/integration/ \
+        echo "Running all tests..."
+        python -m pytest tests/ \
           --cov=src/finos_mcp \
           --cov-report=json:coverage-reports/coverage.json \
           --cov-report=xml:coverage-reports/coverage.xml \
           --cov-report=html:coverage-reports/html \
           --junit-xml=coverage-reports/pytest.xml \
           --cov-fail-under=65 \
-          -v \
-          --tb=short
+          --tb=short \
+          --quiet
+
+        # Extract and display coverage metrics
+        if [ -f "coverage-reports/coverage.json" ]; then
+          COVERAGE=$(python -c "import json; data=json.load(open('coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}%')" 2>/dev/null || echo "unknown")
+          echo "📊 Test Coverage: $COVERAGE"
+        fi
 
         echo "✅ All tests passed"
 
