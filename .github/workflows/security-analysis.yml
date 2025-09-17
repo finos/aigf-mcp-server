@@ -298,29 +298,15 @@ jobs:
       id: tests
       run: |
         echo "Running unit tests..."
-        if [ -d "tests" ]; then
-          python -m pytest tests/ \
-            --cov=src/finos_mcp \
-            --cov-report=json:coverage-reports/coverage.json \
-            --cov-report=xml:coverage-reports/coverage.xml \
-            --cov-report=html:coverage-reports/html \
-            --junit-xml=coverage-reports/pytest.xml \
-            --cov-fail-under=65 \
-            -v
-        else
-          echo "⚠️  No tests directory found - creating basic smoke test"
-          python -c "
-          import sys
-          sys.path.insert(0, 'src')
-          try:
-              import finos_mcp
-              from finos_mcp.server import main
-              print('✅ Basic import test passed')
-          except Exception as e:
-              print(f'❌ Import test failed: {e}')
-              sys.exit(1)
-          "
-        fi
+        python -m pytest tests/unit/ tests/integration/ \
+          --cov=src/finos_mcp \
+          --cov-report=json:coverage-reports/coverage.json \
+          --cov-report=xml:coverage-reports/coverage.xml \
+          --cov-report=html:coverage-reports/html \
+          --junit-xml=coverage-reports/pytest.xml \
+          --cov-fail-under=65 \
+          -v \
+          --tb=short
 
         echo "✅ All tests passed"
 
