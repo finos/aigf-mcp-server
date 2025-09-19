@@ -25,8 +25,8 @@ class TestToolsPackage:
         """Test that all tools are properly loaded."""
         tools = get_all_tools()
 
-        # Should have 10 tools total
-        assert len(tools) == 10
+        # Should have 15 tools total (10 original + 5 framework tools)
+        assert len(tools) == 15
 
         # Check tool names
         tool_names = [tool.name for tool in tools]
@@ -41,6 +41,12 @@ class TestToolsPackage:
             "get_service_health",
             "get_service_metrics",
             "reset_service_health",
+            # Framework tools
+            "search_frameworks",
+            "list_frameworks",
+            "get_framework_details",
+            "get_compliance_analysis",
+            "search_framework_references",
         ]
 
         for expected_tool in expected_tools:
