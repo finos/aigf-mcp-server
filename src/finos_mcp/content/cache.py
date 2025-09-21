@@ -317,7 +317,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             serialized = secure_cache_serializer(
                 data=value,
                 key=key,
-                ttl=int(self.default_ttl),
+                ttl=int(self.default_ttl or 0),
                 secret_key=secret_key
             )
             serialized_bytes = serialized.encode('utf-8')
@@ -361,7 +361,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             # Handle legacy or direct JSON strings
             if isinstance(stored_value, str):
                 return self._secure_deserialize_json(stored_value)
-            return stored_value  # type: ignore[return-value]
+            return stored_value
 
         try:
             # Security check: detect potential pickle data
@@ -402,7 +402,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
                 raise CacheSecurityError("Data does not appear to be valid JSON")
 
             # Securely deserialize using JSON + Pydantic validation
-            return secure_cache_deserializer(json_str, secret_key)  # type: ignore[return-value]
+            return secure_cache_deserializer(json_str, secret_key)
 
         except (
             CacheValidationError,
