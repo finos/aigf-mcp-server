@@ -6,10 +6,11 @@ Provides comprehensive framework search, analysis, and compliance mapping capabi
 """
 
 import logging
+import re
 from typing import Any
 
 from mcp.types import TextContent, Tool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..frameworks.data_loader import FrameworkDataLoader
 from ..frameworks.mappings import get_framework_correlations
@@ -79,6 +80,62 @@ def _ensure_correlations_service():
     return _correlations_service
 
 
+# Security Validation Utilities
+
+def sanitize_search_query(query: str) -> str:
+    """Sanitize search query to prevent injection attacks."""
+    # Remove potentially dangerous patterns
+    query = re.sub(r'[;\'"<>{}$`|&]', '', query)  # Remove injection chars
+    query = re.sub(r'(drop|delete|insert|update|select|union|exec|script)', '', query, flags=re.IGNORECASE)
+    query = re.sub(r'--.*$', '', query)  # Remove SQL comments
+    query = re.sub(r'/\*.*?\*/', '', query, flags=re.DOTALL)  # Remove block comments
+    return query.strip()
+
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename to prevent path traversal attacks."""
+    if not filename:
+        return filename
+
+    # Remove path traversal patterns
+    filename = re.sub(r'\.\.', '', filename)
+    filename = re.sub(r'[/\\:*?"<>|]', '', filename)
+    filename = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', filename)  # Control chars
+
+    # Remove dangerous patterns
+    filename = re.sub(r'(con|prn|aux|nul|com[1-9]|lpt[1-9])', '', filename, flags=re.IGNORECASE)
+
+    return filename.strip()
+
+
+def validate_csv_delimiter(delimiter: str) -> bool:
+    """Validate CSV delimiter for security."""
+    # Only allow safe single-character delimiters
+    safe_delimiters = {',', ';', '\t', '|'}
+    return len(delimiter) == 1 and delimiter in safe_delimiters
+
+
+def validate_text_content(text: str) -> str:
+    """Validate and sanitize general text content."""
+    if not text:
+        return text
+
+    # Check for dangerous patterns
+    dangerous_patterns = [
+        r'[;\'"<>{}$`]',  # Injection characters
+        r'(script|javascript|vbscript)',  # Script tags
+        r'(drop|delete|insert|update|union|exec)\s',  # SQL keywords
+        r'(\$\{|\#\{|\{\{)',  # Template injection
+        r'(\|\s*(rm|cat|ls|ps|kill|curl|wget))',  # Command injection
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            raise ValueError("Invalid characters detected in input")
+
+    return text
+
+
 # Pydantic Models for Tool Input Validation
 
 
@@ -86,7 +143,7 @@ class SearchFrameworksInput(BaseModel):
     """Input parameters for framework search."""
 
     query: str = Field(
-        ..., description="Search query text", min_length=1, max_length=500
+        ..., description="Search query text", min_length=1, max_length=200
     )
     frameworks: list[FrameworkType] = Field(
         default_factory=list,
@@ -106,6 +163,24 @@ class SearchFrameworksInput(BaseModel):
         default=False, description="Perform exact phrase matching"
     )
     limit: int = Field(default=10, ge=1, le=50, description="Maximum number of results")
+
+    @field_validator('query')
+    @classmethod
+    def validate_query_content(cls, v: str) -> str:
+        """Validate search query for security."""
+        return validate_text_content(v)
+
+    @field_validator('sections')
+    @classmethod
+    def validate_sections(cls, v: list[str]) -> list[str]:
+        """Validate sections list for security."""
+        return [validate_text_content(section) for section in v]
+
+    @field_validator('tags')
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        """Validate tags list for security."""
+        return [validate_text_content(tag) for tag in v]
 
 
 class ListFrameworksInput(BaseModel):
@@ -272,6 +347,46 @@ class ExportFrameworkDataInput(BaseModel):
     include_summary: bool = Field(
         default=True, description="Include summary statistics"
     )
+
+    @field_validator('filename')
+    @classmethod
+    def validate_filename_security(cls, v: str) -> str:
+        """Validate filename for security."""
+        if not v:
+            return v
+
+        # Check for path traversal patterns
+        dangerous_patterns = ['..', '/', '\\', ':', '*', '?', '<', '>', '|', '&', ';', '`', '$']
+        for pattern in dangerous_patterns:
+            if pattern in v:
+                raise ValueError("Invalid filename: contains dangerous characters")
+
+        # Additional validation
+        sanitized = sanitize_filename(v)
+        if len(sanitized) > 100:  # Reasonable filename length limit
+            raise ValueError("Filename too long (max 100 characters)")
+
+        return sanitized
+
+    @field_validator('csv_delimiter')
+    @classmethod
+    def validate_csv_delimiter_security(cls, v: str) -> str:
+        """Validate CSV delimiter for security."""
+        if not validate_csv_delimiter(v):
+            raise ValueError("Invalid CSV delimiter: only safe single characters allowed")
+        return v
+
+    @field_validator('categories')
+    @classmethod
+    def validate_categories(cls, v: list[str]) -> list[str]:
+        """Validate categories list for security."""
+        return [validate_text_content(category) for category in v]
+
+    @field_validator('sections')
+    @classmethod
+    def validate_sections_export(cls, v: list[str]) -> list[str]:
+        """Validate sections list for security."""
+        return [validate_text_content(section) for section in v]
 
 
 class BulkExportInput(BaseModel):
