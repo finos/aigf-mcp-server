@@ -29,9 +29,9 @@ from ..frameworks.query_engine import FrameworkQueryEngine
 logger = logging.getLogger(__name__)
 
 # Global framework components (initialized on first use)
-_framework_loader: FrameworkDataLoader = None
-_query_engine: FrameworkQueryEngine = None
-_cross_mapper: CrossFrameworkMapper = None
+_framework_loader: FrameworkDataLoader | None = None
+_query_engine: FrameworkQueryEngine | None = None
+_cross_mapper: CrossFrameworkMapper | None = None
 _correlations_service = None
 
 
@@ -56,6 +56,27 @@ async def _ensure_framework_components():
     if _correlations_service is None:
         logger.info("Initializing framework correlations service...")
         _correlations_service = get_framework_correlations()
+
+
+def _ensure_query_engine() -> FrameworkQueryEngine:
+    """Ensure query engine is initialized and return it."""
+    if _query_engine is None:
+        raise RuntimeError("Framework query engine not initialized")
+    return _query_engine
+
+
+def _ensure_cross_mapper() -> CrossFrameworkMapper:
+    """Ensure cross-framework mapper is initialized and return it."""
+    if _cross_mapper is None:
+        raise RuntimeError("Cross-framework mapper not initialized")
+    return _cross_mapper
+
+
+def _ensure_correlations_service():
+    """Ensure correlations service is initialized and return it."""
+    if _correlations_service is None:
+        raise RuntimeError("Correlations service not initialized")
+    return _correlations_service
 
 
 # Pydantic Models for Tool Input Validation
@@ -146,7 +167,7 @@ class GetFrameworkCorrelationsInput(BaseModel):
     """Input parameters for framework correlation analysis."""
 
     framework1: FrameworkType = Field(..., description="Primary framework")
-    framework2: FrameworkType = Field(
+    framework2: FrameworkType | None = Field(
         default=None, description="Secondary framework (optional for all correlations)"
     )
     min_strength: float = Field(
@@ -161,7 +182,7 @@ class FindComplianceGapsInput(BaseModel):
         ..., description="Source framework to analyze from"
     )
     target_frameworks: list[FrameworkType] = Field(
-        ..., description="Target frameworks to map to", min_items=1
+        ..., description="Target frameworks to map to", min_length=1
     )
     min_coverage: float = Field(
         default=0.7, ge=0.0, le=1.0, description="Minimum coverage threshold"
@@ -258,7 +279,7 @@ class BulkExportInput(BaseModel):
 
     # Export configurations
     exports: list[dict] = Field(
-        ..., description="List of export configurations", min_items=1, max_items=10
+        ..., description="List of export configurations", min_length=1, max_length=10
     )
 
     # Global options
@@ -780,7 +801,11 @@ async def _handle_search_frameworks(arguments: dict[str, Any]) -> list[TextConte
     )
 
     # Execute search
-    result = await _query_engine.search(query)
+    try:
+        query_engine = _ensure_query_engine()
+        result = await query_engine.search(query)
+    except RuntimeError as e:
+        return [TextContent(type="text", text=str(e))]
 
     # Format response
     response_text = _format_search_result(result)
@@ -792,7 +817,11 @@ async def _handle_list_frameworks(arguments: dict[str, Any]) -> list[TextContent
     """Handle list frameworks requests."""
     input_data = ListFrameworksInput(**arguments)
 
-    frameworks = _query_engine.frameworks
+    try:
+        query_engine = _ensure_query_engine()
+        frameworks = query_engine.frameworks
+    except RuntimeError as e:
+        return [TextContent(type="text", text=str(e))]
     response_lines = ["# Available Governance Frameworks\n"]
 
     for framework_type, framework in frameworks.items():
@@ -823,7 +852,11 @@ async def _handle_get_framework_details(arguments: dict[str, Any]) -> list[TextC
     """Handle framework details requests."""
     input_data = GetFrameworkDetailsInput(**arguments)
 
-    framework = _query_engine.frameworks.get(input_data.framework_type)
+    try:
+        query_engine = _ensure_query_engine()
+        framework = query_engine.frameworks.get(input_data.framework_type)
+    except RuntimeError as e:
+        return [TextContent(type="text", text=str(e))]
     if not framework:
         return [
             TextContent(
@@ -892,7 +925,11 @@ async def _handle_get_compliance_analysis(
     """Handle compliance analysis requests."""
     input_data = GetComplianceAnalysisInput(**arguments)
 
-    analytics = await _query_engine.get_analytics()
+    try:
+        query_engine = _ensure_query_engine()
+        analytics = await query_engine.get_analytics()
+    except RuntimeError as e:
+        return [TextContent(type="text", text=str(e))]
 
     response_lines = ["# Compliance Analysis Report\n"]
 
@@ -910,14 +947,14 @@ async def _handle_get_compliance_analysis(
     target_frameworks = (
         input_data.frameworks
         if input_data.frameworks
-        else list(_query_engine.frameworks.keys())
+        else list(_ensure_query_engine().frameworks.keys())
     )
 
     response_lines.append("## Framework Breakdown")
     for framework_type in target_frameworks:
         if framework_type in analytics.framework_stats:
             stats = analytics.framework_stats[framework_type]
-            framework = _query_engine.frameworks[framework_type]
+            framework = _ensure_query_engine().frameworks[framework_type]
 
             response_lines.extend(
                 [
@@ -973,10 +1010,10 @@ async def _handle_search_framework_references(
     )
 
     # Execute search
-    result = await _query_engine.search(query)
+    result = await _ensure_query_engine().search(query)
 
     # Format response focusing on references
-    framework = _query_engine.frameworks[input_data.framework_type]
+    framework = _ensure_query_engine().frameworks[input_data.framework_type]
     response_lines = [f"# {framework.name} Reference Search Results\n"]
 
     if result.total_results == 0:
@@ -1021,7 +1058,7 @@ async def _handle_get_related_controls(arguments: dict[str, Any]) -> list[TextCo
     min_strength = MappingStrength(input_data.min_strength)
 
     # Get related controls
-    related_controls = _cross_mapper.get_related_controls(
+    related_controls = _ensure_cross_mapper().get_related_controls(
         input_data.framework_type, input_data.control_id, min_strength
     )
 
@@ -1033,7 +1070,7 @@ async def _handle_get_related_controls(arguments: dict[str, Any]) -> list[TextCo
         response_lines.append(f"Found {len(related_controls)} related controls:\n")
 
         for mapping in related_controls:
-            target_framework = _query_engine.frameworks.get(mapping.target_framework)
+            target_framework = _ensure_query_engine().frameworks.get(mapping.target_framework)
             framework_name = (
                 target_framework.name
                 if target_framework
@@ -1065,6 +1102,8 @@ async def _handle_get_framework_correlations(
 
     if input_data.framework2:
         # Get correlations between two specific frameworks
+        if _correlations_service is None:
+            raise RuntimeError("Correlations service not initialized")
         correlations = _correlations_service.get_framework_correlations(
             input_data.framework1, input_data.framework2, input_data.min_strength
         )
@@ -1103,6 +1142,8 @@ async def _handle_get_framework_correlations(
             response_lines.append(summary["summary"])
     else:
         # Get all correlations for the framework
+        if _correlations_service is None:
+            raise RuntimeError("Correlations service not initialized")
         related_frameworks = _correlations_service.get_related_frameworks(
             input_data.framework1, input_data.min_strength
         )
@@ -1117,7 +1158,7 @@ async def _handle_get_framework_correlations(
             )
 
             for framework_type, correlations in related_frameworks.items():
-                target_framework = _query_engine.frameworks.get(framework_type)
+                target_framework = _ensure_query_engine().frameworks.get(framework_type)
                 framework_name = (
                     target_framework.name if target_framework else framework_type.value
                 )
@@ -1142,13 +1183,15 @@ async def _handle_find_compliance_gaps(arguments: dict[str, Any]) -> list[TextCo
     input_data = FindComplianceGapsInput(**arguments)
 
     # Perform gap analysis
+    if _correlations_service is None:
+        raise RuntimeError("Correlations service not initialized")
     gap_analysis = _correlations_service.find_compliance_gaps(
         input_data.source_framework,
         input_data.target_frameworks,
         input_data.min_coverage,
     )
 
-    source_framework = _query_engine.frameworks.get(input_data.source_framework)
+    source_framework = _ensure_query_engine().frameworks.get(input_data.source_framework)
     source_name = (
         source_framework.name if source_framework else input_data.source_framework.value
     )
@@ -1171,7 +1214,7 @@ async def _handle_find_compliance_gaps(arguments: dict[str, Any]) -> list[TextCo
         target_framework = next(
             (
                 f
-                for f in _query_engine.frameworks.values()
+                for f in _ensure_query_engine().frameworks.values()
                 if f.framework_type.value == framework_name
             ),
             None,
@@ -1256,7 +1299,7 @@ def _format_search_result(result: FrameworkSearchResult) -> str:
     if result.framework_coverage:
         lines.append("**Framework Coverage:**")
         for framework_type, count in result.framework_coverage.items():
-            framework_name = _query_engine.frameworks[framework_type].name
+            framework_name = _ensure_query_engine().frameworks[framework_type].name
             lines.append(f"- {framework_name}: {count} results")
         lines.append("")
 
@@ -1268,7 +1311,7 @@ def _format_search_result(result: FrameworkSearchResult) -> str:
         if result.references:
             lines.append("## Matching References")
             for ref in result.references:
-                framework_name = _query_engine.frameworks[ref.framework_type].name
+                framework_name = _ensure_query_engine().frameworks[ref.framework_type].name
                 lines.extend(
                     [
                         f"### {ref.title}",
@@ -1291,7 +1334,7 @@ def _format_search_result(result: FrameworkSearchResult) -> str:
         if result.sections:
             lines.append("## Matching Sections")
             for section in result.sections:
-                framework = _query_engine.frameworks.get(section.framework_type)
+                framework = _ensure_query_engine().frameworks.get(section.framework_type)
                 framework_name = framework.name if framework else "Unknown"
                 lines.extend(
                     [
@@ -1333,6 +1376,8 @@ async def _handle_advanced_search_frameworks(
         compliance_status=input_data.compliance_status,
         search_terms=input_data.search_terms,
         exclude_terms=input_data.exclude_terms,
+        updated_after=None,
+        updated_before=None,
     )
 
     # Parse date filters if provided
@@ -1353,7 +1398,7 @@ async def _handle_advanced_search_frameworks(
             pass
 
     # Execute advanced search
-    result = await _query_engine.advanced_search(export_filter)
+    result = await _ensure_query_engine().advanced_search(export_filter)
 
     # Apply limit to results
     if input_data.limit < len(result.references) + len(result.sections):
@@ -1410,7 +1455,7 @@ async def _handle_advanced_search_frameworks(
     if result.framework_coverage:
         response_lines.append("**Framework Coverage:**")
         for framework_type, count in result.framework_coverage.items():
-            framework_name = _query_engine.frameworks[framework_type].name
+            framework_name = _ensure_query_engine().frameworks[framework_type].name
             response_lines.append(f"- {framework_name}: {count} results")
         response_lines.append("")
 
@@ -1422,7 +1467,7 @@ async def _handle_advanced_search_frameworks(
         if result.references:
             response_lines.append("## Matching References")
             for ref in result.references:
-                framework_name = _query_engine.frameworks[ref.framework_type].name
+                framework_name = _ensure_query_engine().frameworks[ref.framework_type].name
                 response_lines.extend(
                     [
                         f"### {ref.title}",
@@ -1447,7 +1492,7 @@ async def _handle_advanced_search_frameworks(
         if result.sections:
             response_lines.append("## Matching Sections")
             for section in result.sections:
-                framework = _query_engine.frameworks.get(section.framework_type)
+                framework = _ensure_query_engine().frameworks.get(section.framework_type)
                 framework_name = framework.name if framework else "Unknown"
                 response_lines.extend(
                     [
@@ -1482,9 +1527,8 @@ async def _handle_export_framework_data(arguments: dict[str, Any]) -> list[TextC
         sections=input_data.sections,
         severity_levels=input_data.severity_levels,
         compliance_status=input_data.compliance_status,
-        include_descriptions=input_data.include_descriptions,
-        include_urls=input_data.include_urls,
-        include_metadata=input_data.include_metadata,
+        updated_after=None,
+        updated_before=None,
     )
 
     # Build export request
@@ -1497,7 +1541,7 @@ async def _handle_export_framework_data(arguments: dict[str, Any]) -> list[TextC
     )
 
     # Execute export
-    export_result = await _query_engine.export_data(export_request)
+    export_result = await _ensure_query_engine().export_data(export_request)
 
     # Format response
     response_lines = [
@@ -1575,7 +1619,7 @@ async def _handle_bulk_export_frameworks(
 
     export_results = []
     total_size = 0
-    total_time = 0
+    total_time = 0.0
 
     # Process each export
     for i, export_config in enumerate(input_data.exports, 1):
@@ -1589,6 +1633,8 @@ async def _handle_bulk_export_frameworks(
                 framework_types=[
                     FrameworkType(ft) for ft in export_config.get("frameworks", [])
                 ],
+                updated_after=None,
+                updated_before=None,
             )
 
             export_request = ExportRequest(
@@ -1599,7 +1645,7 @@ async def _handle_bulk_export_frameworks(
             )
 
             # Execute export
-            export_result = await _query_engine.export_data(export_request)
+            export_result = await _ensure_query_engine().export_data(export_request)
             export_results.append(export_result)
 
             total_size += export_result.content_size

@@ -436,15 +436,15 @@ class FrameworkDataLoader:
                         title=ref_info.get("title", ref_id),
                         description=ref_info.get("description", ""),
                         severity=SeverityLevel(ref_info.get("severity", "medium")),
-                        official_url=HttpUrl(ref_info.get("url"))
-                        if ref_info.get("url")
-                        and ref_info.get("url").startswith(("http://", "https://"))
+                        official_url=HttpUrl(url)
+                        if (url := ref_info.get("url"))
+                        and isinstance(url, str)
+                        and url.startswith(("http://", "https://"))
                         else None,
-                        documentation_url=HttpUrl(ref_info.get("documentation"))
-                        if ref_info.get("documentation")
-                        and ref_info.get("documentation").startswith(
-                            ("http://", "https://")
-                        )
+                        documentation_url=HttpUrl(doc_url)
+                        if (doc_url := ref_info.get("documentation"))
+                        and isinstance(doc_url, str)
+                        and doc_url.startswith(("http://", "https://"))
                         else None,
                         control_id=ref_info.get("control_id"),
                         category=ref_info.get("category"),
