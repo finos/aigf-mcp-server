@@ -276,8 +276,8 @@ class CCPALoader(BaseFrameworkLoader):
         Returns:
             Structured framework data
         """
-        sections_dict = {}
-        references = []
+        sections_dict: dict[str, dict[str, Any]] = {}
+        references: list[dict[str, Any]] = []
 
         # Group sections by category
         for section_data in self.ccpa_sections:
@@ -298,6 +298,7 @@ class CCPALoader(BaseFrameworkLoader):
                 section_id=category_info["section_id"],
                 title=category_info["title"],
                 description=f"CCPA {category_info['title']} provisions",
+                parent_section=None,
                 references=[],
                 reference_count=0,
                 order=i,
@@ -320,6 +321,10 @@ class CCPALoader(BaseFrameworkLoader):
                     tags=["ccpa", "privacy", "california", "consumer-rights"],
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow(),
+                    official_url=None,
+                    documentation_url=None,
+                    subcategory=section_data["title"],
+                    implementation_notes=f"Implementation guidance for CCPA {section_data['title']}",
                 )
                 section_refs.append(section_ref.dict())
                 references.append(section_ref.dict())
@@ -366,6 +371,7 @@ class CCPALoader(BaseFrameworkLoader):
             .replace(" ", "_"),
             title=section_data.get("category", "Unknown Section"),
             description=section_data.get("description", ""),
+            parent_section=None,
             references=[
                 f"ccpa-{section_data.get('section', 'unknown').replace('.', '-')}"
             ],
@@ -400,6 +406,10 @@ class CCPALoader(BaseFrameworkLoader):
             tags=["ccpa", "privacy", "california", *requirement_data.get("tags", [])],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
+            official_url=None,
+            documentation_url=None,
+            subcategory=requirement_data.get("subcategory", "General"),
+            implementation_notes=requirement_data.get("implementation_notes", ""),
         )
         return reference.dict()
 

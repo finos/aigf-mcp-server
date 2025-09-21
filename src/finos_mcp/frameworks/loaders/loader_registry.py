@@ -19,9 +19,10 @@ singleton pattern similar to ContentServiceManager.
 """
 
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 
 from ...logging import get_logger
+from ..models import GovernanceFramework
 from .base_loader import BaseFrameworkLoader
 
 logger = get_logger("loader_registry")
@@ -93,7 +94,9 @@ class FrameworkLoaderRegistry:
         """
         return list(self._loader_classes.keys())
 
-    async def load_framework(self, framework_name: str, **kwargs) -> dict | None:
+    async def load_framework(
+        self, framework_name: str, **kwargs
+    ) -> GovernanceFramework | None:
         """Load framework data using registered loader.
 
         Args:
@@ -120,13 +123,13 @@ class FrameworkLoaderRegistry:
             )
             return None
 
-    async def health_check_all(self) -> dict[str, dict]:
+    async def health_check_all(self) -> dict[str, Any]:
         """Perform health check on all registered loaders.
 
         Returns:
             Health check results for all loaders
         """
-        results = {}
+        results: dict[str, Any] = {}
 
         # Get all loader instances
         loaders = []
@@ -227,6 +230,9 @@ class FrameworkLoaderRegistryManager:
 
     async def _register_default_loaders(self) -> None:
         """Register default framework loaders."""
+        if self._registry is None:
+            return
+
         # Import here to avoid circular imports
         try:
             from .iso42001 import ISO42001Loader

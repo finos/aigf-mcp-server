@@ -225,24 +225,30 @@ class ISO42001Loader(BaseFrameworkLoader):
 
         # Generate sections
         for section_data in self.fallback_sections:
+            section_id_str = str(section_data["section_id"])
+            title_str = str(section_data["title"])
+            description_str = str(section_data["description"])
+
             section = FrameworkSection(
                 framework_type=FrameworkType.ISO_27001,  # Using closest available
-                section_id=section_data["section_id"],
-                title=section_data["title"],
-                description=section_data["description"],
+                section_id=section_id_str,
+                title=title_str,
+                description=description_str,
+                parent_section=None,
                 references=[],
                 reference_count=0,
-                order=int(section_data["section_id"].split(".")[0]),
+                order=int(section_id_str.split(".")[0]),
             )
-            sections.append(section.dict())
+            section_dict = section.dict()
+            sections.append(section_dict)
 
             # Generate references for each section
             section_refs = await self._generate_section_references(
                 section_data, context
             )
             references.extend(section_refs)
-            section["references"] = [ref["id"] for ref in section_refs]
-            section["reference_count"] = len(section_refs)
+            section_dict["references"] = [ref["id"] for ref in section_refs]
+            section_dict["reference_count"] = len(section_refs)
 
         return {
             "framework_type": FrameworkType.ISO_27001,
@@ -288,9 +294,13 @@ class ISO42001Loader(BaseFrameworkLoader):
             title=f"{section_id} {section_data['title']}",
             description=section_data["description"],
             severity=base_severity,
+            official_url=None,
+            documentation_url=None,
             control_id=section_id,
             category=section_data["title"],
+            subcategory=None,
             compliance_status=ComplianceStatus.UNDER_REVIEW,
+            implementation_notes=None,
             tags=["iso42001", "ai-management", "standard"],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
@@ -306,10 +316,13 @@ class ISO42001Loader(BaseFrameworkLoader):
                 title=f"{subsection_id} {self._get_subsection_title(subsection_id)}",
                 description=f"Requirement {subsection_id} under {section_data['title']}",
                 severity=base_severity,
+                official_url=None,
+                documentation_url=None,
                 control_id=subsection_id,
                 category=section_data["title"],
                 subcategory=subsection_id,
                 compliance_status=ComplianceStatus.UNDER_REVIEW,
+                implementation_notes=None,
                 related_references=[f"iso42001-{section_id}"],
                 tags=["iso42001", "ai-management", "standard", "subsection"],
                 created_at=datetime.utcnow(),
@@ -389,6 +402,7 @@ class ISO42001Loader(BaseFrameworkLoader):
             section_id=section_data.get("id", "unknown"),
             title=section_data.get("title", "Unknown Section"),
             description=section_data.get("description", ""),
+            parent_section=section_data.get("parent_section"),
             references=section_data.get("references", []),
             reference_count=len(section_data.get("references", [])),
             order=section_data.get("order", 0),
@@ -413,9 +427,13 @@ class ISO42001Loader(BaseFrameworkLoader):
             title=control_data.get("title", "Unknown Control"),
             description=control_data.get("description", ""),
             severity=SeverityLevel(control_data.get("severity", "medium")),
+            official_url=None,
+            documentation_url=None,
             control_id=control_data.get("id"),
             category=control_data.get("category"),
+            subcategory=control_data.get("subcategory"),
             compliance_status=ComplianceStatus.UNDER_REVIEW,
+            implementation_notes=control_data.get("implementation_notes"),
             tags=["iso42001", "ai-management", *control_data.get("tags", [])],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),

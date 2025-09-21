@@ -334,29 +334,31 @@ class FFIECLoader(BaseFrameworkLoader):
         Returns:
             Structured framework data
         """
-        sections = []
+        sections: list[dict[str, Any]] = []
         references = []
 
         # Generate sections
         for section_data in self.fallback_sections:
             section = FrameworkSection(
                 framework_type=FrameworkType.SOC2,  # Using closest available
-                section_id=section_data["section_id"],
-                title=section_data["title"],
-                description=section_data["description"],
+                section_id=str(section_data["section_id"]),
+                title=str(section_data["title"]),
+                description=str(section_data["description"]),
+                parent_section=None,
                 references=[],
                 reference_count=0,
                 order=len(sections) + 1,
             )
-            sections.append(section.dict())
+            section_dict = section.dict()
+            sections.append(section_dict)
 
             # Generate references for each section
             section_refs = await self._generate_section_references(
                 section_data, context
             )
             references.extend(section_refs)
-            section["references"] = [ref["id"] for ref in section_refs]
-            section["reference_count"] = len(section_refs)
+            section_dict["references"] = [ref["id"] for ref in section_refs]
+            section_dict["reference_count"] = len(section_refs)
 
         return {
             "framework_type": FrameworkType.SOC2,
@@ -409,6 +411,10 @@ class FFIECLoader(BaseFrameworkLoader):
             tags=["ffiec", "ai-ml", "financial-services", "guidance"],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
+            official_url=None,
+            documentation_url=None,
+            subcategory="AI/ML Guidance",
+            implementation_notes="FFIEC guidance for financial institutions on artificial intelligence and machine learning risk management",
         )
         references.append(main_ref.dict())
 
@@ -429,6 +435,9 @@ class FFIECLoader(BaseFrameworkLoader):
                 tags=["ffiec", "ai-ml", "financial-services", "requirement"],
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
+                official_url=None,
+                documentation_url=None,
+                implementation_notes=f"Implementation requirement for {requirement}",
             )
             references.append(req_ref.dict())
 
@@ -464,6 +473,7 @@ class FFIECLoader(BaseFrameworkLoader):
             section_id=section_data.get("id", "unknown"),
             title=section_data.get("title", "Unknown Section"),
             description=section_data.get("description", ""),
+            parent_section=None,
             references=section_data.get("references", []),
             reference_count=len(section_data.get("references", [])),
             order=section_data.get("order", 0),
@@ -492,6 +502,10 @@ class FFIECLoader(BaseFrameworkLoader):
             tags=["ffiec", "ai-ml", "financial-services", *req_data.get("tags", [])],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
+            official_url=None,
+            documentation_url=None,
+            subcategory=req_data.get("subcategory", "General"),
+            implementation_notes=req_data.get("implementation_notes", ""),
         )
         return reference.dict()
 

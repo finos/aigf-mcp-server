@@ -183,11 +183,12 @@ class GovernanceFramework(BaseModel):
         section = self.get_section_by_id(section_id)
         if not section:
             return []
-        return [
-            self.get_reference_by_id(ref_id)
-            for ref_id in section.references
-            if self.get_reference_by_id(ref_id)
-        ]
+        references = []
+        for ref_id in section.references:
+            ref = self.get_reference_by_id(ref_id)
+            if ref is not None:
+                references.append(ref)
+        return references
 
 
 class FrameworkQuery(BaseModel):
@@ -357,7 +358,8 @@ class ExportRequest(BaseModel):
 
     format: ExportFormat = Field(..., description="Export format")
     filters: ExportFilter = Field(
-        default_factory=ExportFilter, description="Export filters"
+        default=ExportFilter(updated_after=None, updated_before=None),
+        description="Export filters",
     )
 
     # Export options

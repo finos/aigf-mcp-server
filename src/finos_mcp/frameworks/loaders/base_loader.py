@@ -404,7 +404,7 @@ class BaseFrameworkLoader(ABC):
             Health check results
         """
         start_time = time.time()
-        health_info = {
+        health_info: dict[str, Any] = {
             "framework": self.framework_name,
             "healthy": True,
             "checks": {},

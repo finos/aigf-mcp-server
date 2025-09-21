@@ -7,6 +7,7 @@ following existing project patterns for reference navigation.
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from ..models import FrameworkType
 
@@ -223,7 +224,7 @@ class CrossFrameworkMapper:
                 frameworks.add(mapping.target_framework)
         return frameworks
 
-    def get_mapping_statistics(self) -> dict[str, int]:
+    def get_mapping_statistics(self) -> dict[str, Any]:
         """Get statistics about available mappings."""
         total_mappings = sum(len(mappings) for mappings in self._mappings.values())
         frameworks = self.get_supported_frameworks()

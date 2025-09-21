@@ -1070,7 +1070,9 @@ async def _handle_get_related_controls(arguments: dict[str, Any]) -> list[TextCo
         response_lines.append(f"Found {len(related_controls)} related controls:\n")
 
         for mapping in related_controls:
-            target_framework = _ensure_query_engine().frameworks.get(mapping.target_framework)
+            target_framework = _ensure_query_engine().frameworks.get(
+                mapping.target_framework
+            )
             framework_name = (
                 target_framework.name
                 if target_framework
@@ -1191,7 +1193,9 @@ async def _handle_find_compliance_gaps(arguments: dict[str, Any]) -> list[TextCo
         input_data.min_coverage,
     )
 
-    source_framework = _ensure_query_engine().frameworks.get(input_data.source_framework)
+    source_framework = _ensure_query_engine().frameworks.get(
+        input_data.source_framework
+    )
     source_name = (
         source_framework.name if source_framework else input_data.source_framework.value
     )
@@ -1311,7 +1315,9 @@ def _format_search_result(result: FrameworkSearchResult) -> str:
         if result.references:
             lines.append("## Matching References")
             for ref in result.references:
-                framework_name = _ensure_query_engine().frameworks[ref.framework_type].name
+                framework_name = (
+                    _ensure_query_engine().frameworks[ref.framework_type].name
+                )
                 lines.extend(
                     [
                         f"### {ref.title}",
@@ -1334,7 +1340,9 @@ def _format_search_result(result: FrameworkSearchResult) -> str:
         if result.sections:
             lines.append("## Matching Sections")
             for section in result.sections:
-                framework = _ensure_query_engine().frameworks.get(section.framework_type)
+                framework = _ensure_query_engine().frameworks.get(
+                    section.framework_type
+                )
                 framework_name = framework.name if framework else "Unknown"
                 lines.extend(
                     [
@@ -1467,7 +1475,9 @@ async def _handle_advanced_search_frameworks(
         if result.references:
             response_lines.append("## Matching References")
             for ref in result.references:
-                framework_name = _ensure_query_engine().frameworks[ref.framework_type].name
+                framework_name = (
+                    _ensure_query_engine().frameworks[ref.framework_type].name
+                )
                 response_lines.extend(
                     [
                         f"### {ref.title}",
@@ -1492,7 +1502,9 @@ async def _handle_advanced_search_frameworks(
         if result.sections:
             response_lines.append("## Matching Sections")
             for section in result.sections:
-                framework = _ensure_query_engine().frameworks.get(section.framework_type)
+                framework = _ensure_query_engine().frameworks.get(
+                    section.framework_type
+                )
                 framework_name = framework.name if framework else "Unknown"
                 response_lines.extend(
                     [

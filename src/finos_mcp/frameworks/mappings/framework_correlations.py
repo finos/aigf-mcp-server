@@ -7,6 +7,7 @@ for compliance navigation and gap analysis.
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from ..models import FrameworkType
 from .cross_reference import CrossFrameworkMapper
@@ -214,7 +215,7 @@ class FrameworkCorrelations:
 
     def get_correlation_summary(
         self, framework1: FrameworkType, framework2: FrameworkType
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Get a summary of correlations between two frameworks.
 
@@ -257,7 +258,7 @@ class FrameworkCorrelations:
         source_framework: FrameworkType,
         target_frameworks: list[FrameworkType],
         min_coverage: float = 0.7,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Identify potential compliance gaps when mapping between frameworks.
 

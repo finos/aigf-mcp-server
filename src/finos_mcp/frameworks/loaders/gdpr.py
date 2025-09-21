@@ -286,7 +286,7 @@ class GDPRLoader(BaseFrameworkLoader):
         Returns:
             Structured framework data
         """
-        sections_dict = {}
+        sections_dict: dict[str, dict[str, Any]] = {}
         references = []
 
         # Group articles by section
@@ -305,9 +305,10 @@ class GDPRLoader(BaseFrameworkLoader):
         for i, (section_name, section_info) in enumerate(sections_dict.items()):
             section = FrameworkSection(
                 framework_type=FrameworkType.GDPR,
-                section_id=section_info["section_id"],
-                title=section_info["title"],
+                section_id=str(section_info["section_id"]),
+                title=str(section_info["title"]),
                 description=f"GDPR {section_info['title']} requirements",
+                parent_section=None,
                 references=[],
                 reference_count=0,
                 order=i,
@@ -324,9 +325,13 @@ class GDPRLoader(BaseFrameworkLoader):
                     title=f"Article {article_data['article']}: {article_data['title']}",
                     description=f"GDPR Article {article_data['article']} - {article_data['title']}",
                     severity=SeverityLevel(article_data["severity"]),
+                    official_url=None,
+                    documentation_url=None,
                     control_id=f"Article {article_data['article']}",
                     category=section_name,
+                    subcategory=None,
                     compliance_status=ComplianceStatus.UNDER_REVIEW,
+                    implementation_notes=None,
                     tags=["gdpr", "data-protection", "privacy", "eu-regulation"],
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow(),
@@ -374,6 +379,7 @@ class GDPRLoader(BaseFrameworkLoader):
             section_id=article_data.get("section", "unknown").lower().replace(" ", "_"),
             title=article_data.get("section", "Unknown Section"),
             description=article_data.get("description", ""),
+            parent_section=None,
             references=[f"gdpr-article-{article_data.get('article', 'unknown')}"],
             reference_count=1,
             order=int(article_data.get("article", "0"))
@@ -400,9 +406,13 @@ class GDPRLoader(BaseFrameworkLoader):
             title=requirement_data.get("title", "Unknown Requirement"),
             description=requirement_data.get("description", ""),
             severity=SeverityLevel(requirement_data.get("severity", "medium")),
+            official_url=None,
+            documentation_url=None,
             control_id=requirement_data.get("id"),
             category=requirement_data.get("category"),
+            subcategory=requirement_data.get("subcategory"),
             compliance_status=ComplianceStatus.UNDER_REVIEW,
+            implementation_notes=requirement_data.get("implementation_notes"),
             tags=["gdpr", "data-protection", *requirement_data.get("tags", [])],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),

@@ -177,7 +177,7 @@ class FrameworkQueryEngine:
             return set()
 
         exclude_terms = exclude_terms or []
-        matching_ids = set()
+        matching_ids: set[str] = set()
 
         # Find items containing all search terms
         for term in search_terms:
@@ -807,6 +807,7 @@ class FrameworkQueryEngine:
                 search_time_ms=search_time_ms,
                 cache_hit=False,
                 has_more=False,
+                next_offset=None,
                 framework_coverage=framework_coverage,
                 compliance_summary=compliance_summary,
                 severity_distribution=severity_distribution,
@@ -902,7 +903,7 @@ class FrameworkQueryEngine:
         Returns:
             JSON content
         """
-        export_data = {
+        export_data: dict[str, Any] = {
             "metadata": {
                 "export_timestamp": datetime.utcnow().isoformat(),
                 "total_results": search_result.total_results,
@@ -937,7 +938,8 @@ class FrameworkQueryEngine:
                 }
 
         # Export references
-        export_data["references"] = []
+        references_list: list[dict[str, Any]] = []
+        export_data["references"] = references_list
         for ref in search_result.references:
             ref_data = {
                 "id": ref.id,
@@ -960,18 +962,19 @@ class FrameworkQueryEngine:
             if export_request.filters.include_metadata:
                 ref_data.update(
                     {
-                        "category": ref.category,
-                        "subcategory": ref.subcategory,
-                        "tags": ref.tags,
+                        "category": ref.category or "",
+                        "subcategory": ref.subcategory or "",
+                        "tags": ", ".join(ref.tags),
                         "created_at": ref.created_at.isoformat(),
                         "updated_at": ref.updated_at.isoformat(),
                     }
                 )
 
-            export_data["references"].append(ref_data)
+            references_list.append(ref_data)
 
         # Export sections
-        export_data["sections"] = []
+        sections_list: list[dict[str, Any]] = []
+        export_data["sections"] = sections_list
         for section in search_result.sections:
             section_data = {
                 "section_id": section.section_id,
@@ -984,7 +987,7 @@ class FrameworkQueryEngine:
             if export_request.filters.include_descriptions and section.description:
                 section_data["description"] = section.description
 
-            export_data["sections"].append(section_data)
+            sections_list.append(section_data)
 
         return json.dumps(export_data, indent=2, ensure_ascii=False)
 
