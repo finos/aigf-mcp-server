@@ -1,8 +1,46 @@
 # 🛠️ Tools Reference
 
-Quick reference for all 10 available tools.
+Quick reference for all 15 available tools.
 
-## Search Tools
+## Framework Tools
+
+### `search_frameworks`
+**Purpose**: Search across all governance frameworks
+**Usage**: `search_frameworks("risk management")`
+**Returns**: Cross-framework search results with framework context
+
+**Common searches**:
+- `"risk management"` - Risk-related guidance across frameworks
+- `"data protection"` - Data privacy requirements
+- `"compliance"` - Compliance requirements and standards
+- `"testing"` - Testing and validation approaches
+
+### `list_frameworks`
+**Purpose**: List all supported governance frameworks
+**Usage**: `list_frameworks()`
+**Returns**: Available frameworks with metadata and status
+
+**Current frameworks**:
+- **NIST AI RMF**: NIST AI Risk Management Framework (6 references)
+- **EU AI Act**: European Union AI Act (5 references)
+- **OWASP LLM Top 10**: OWASP LLM Security Top 10 (5 references)
+
+### `get_framework_details`
+**Purpose**: Get detailed information about a specific framework
+**Usage**: `get_framework_details("nist-ai-rmf")`
+**Available IDs**: nist-ai-rmf, eu-ai-act, owasp-llm-top-10
+
+### `get_compliance_analysis`
+**Purpose**: Get compliance analysis and metrics across frameworks
+**Usage**: `get_compliance_analysis()`
+**Returns**: Framework coverage analysis and compliance metrics
+
+### `search_framework_references`
+**Purpose**: Search within a specific framework
+**Usage**: `search_framework_references("injection", "owasp-llm-top-10")`
+**Returns**: Framework-specific search results
+
+## FINOS Search Tools
 
 ### `search_mitigations`
 **Purpose**: Find AI governance mitigation strategies
@@ -87,7 +125,22 @@ Quick reference for all 10 available tools.
 
 ## Usage Examples
 
-### Common Workflow: Data Protection
+### Framework Research Workflow: Risk Management
+```
+1. list_frameworks()                      # See available frameworks
+2. search_frameworks("risk management")   # Cross-framework search
+3. get_framework_details("nist-ai-rmf")   # Get NIST details
+4. get_compliance_analysis()              # Analyze coverage
+```
+
+### Framework-Specific Workflow: OWASP Security
+```
+1. search_framework_references("injection", "owasp-llm-top-10")
+2. get_framework_details("owasp-llm-top-10")
+3. search_frameworks("security testing")  # Cross-framework context
+```
+
+### FINOS Workflow: Data Protection
 ```
 1. search_mitigations("data protection")
 2. get_mitigation_details("mi-1")         # Data leakage prevention
@@ -95,7 +148,7 @@ Quick reference for all 10 available tools.
 4. get_risk_details("ri-6")               # Data leakage details
 ```
 
-### Common Workflow: Prompt Security
+### FINOS Workflow: Prompt Security
 ```
 1. search_risks("prompt injection")       # Find injection risks
 2. get_risk_details("ri-2")              # Prompt injection details

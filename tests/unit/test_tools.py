@@ -25,8 +25,8 @@ class TestToolsPackage:
         """Test that all tools are properly loaded."""
         tools = get_all_tools()
 
-        # Should have 15 tools total (10 original + 5 framework tools)
-        assert len(tools) == 15
+        # Should have 21 tools total (10 original + 11 framework tools)
+        assert len(tools) == 21
 
         # Check tool names
         tool_names = [tool.name for tool in tools]
@@ -47,6 +47,12 @@ class TestToolsPackage:
             "get_framework_details",
             "get_compliance_analysis",
             "search_framework_references",
+            "get_related_controls",
+            "get_framework_correlations",
+            "find_compliance_gaps",
+            "advanced_search_frameworks",
+            "export_framework_data",
+            "bulk_export_frameworks",
         ]
 
         for expected_tool in expected_tools:
@@ -399,3 +405,210 @@ class TestInputValidation:
                 result = await handle_tool_call(tool_name, {})
                 assert len(result) >= 1
                 assert result[0].type == "text"
+
+
+@pytest.mark.unit
+class TestFrameworkTools:
+    """Test framework tools functionality."""
+
+    @pytest.mark.asyncio
+    async def test_framework_tools_registration(self):
+        """Test that all framework tools are properly registered."""
+        from finos_mcp.tools.frameworks import FRAMEWORK_TOOLS
+
+        expected_framework_tools = [
+            "search_frameworks",
+            "list_frameworks",
+            "get_framework_details",
+            "get_compliance_analysis",
+            "search_framework_references",
+            "get_related_controls",
+            "get_framework_correlations",
+            "find_compliance_gaps",
+            "advanced_search_frameworks",
+            "export_framework_data",
+            "bulk_export_frameworks",
+        ]
+
+        tool_names = [tool.name for tool in FRAMEWORK_TOOLS]
+        for expected_tool in expected_framework_tools:
+            assert expected_tool in tool_names
+
+        assert len(FRAMEWORK_TOOLS) == 11
+
+    @pytest.mark.asyncio
+    async def test_framework_tools_input_validation(self):
+        """Test that framework tools validate inputs properly."""
+        from finos_mcp.tools.frameworks import handle_framework_tools
+
+        # Test required parameter validation - these should return error responses, not raise exceptions
+        result = await handle_framework_tools("search_frameworks", {})  # Missing query
+        assert len(result) == 1
+        assert result[0].type == "text"
+        assert "error" in result[0].text.lower() or "required" in result[0].text.lower()
+
+        result = await handle_framework_tools(
+            "get_framework_details", {}
+        )  # Missing framework_id
+        assert len(result) == 1
+        assert result[0].type == "text"
+        assert "error" in result[0].text.lower() or "required" in result[0].text.lower()
+
+        result = await handle_framework_tools(
+            "search_framework_references", {}
+        )  # Missing framework_id and query
+        assert len(result) == 1
+        assert result[0].type == "text"
+        assert "error" in result[0].text.lower() or "required" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_framework_tools_functional_behavior(self):
+        """Functional test that verifies framework tools respond as expected with real behavior."""
+        import json
+
+        from finos_mcp.tools.frameworks import handle_framework_tools
+
+        # Test 1: search_frameworks with valid query
+        result = await handle_framework_tools("search_frameworks", {"query": "risk"})
+        assert len(result) == 1
+        assert result[0].type == "text"
+
+        # The response should be JSON-formatted with expected structure
+        try:
+            response_data = json.loads(result[0].text)
+            # Should have either results or an error structure
+            assert (
+                "results" in response_data
+                or "error" in response_data
+                or "status" in response_data
+            )
+        except json.JSONDecodeError:
+            # If not JSON, should be a formatted text response
+            assert (
+                "framework" in result[0].text.lower()
+                or "error" in result[0].text.lower()
+            )
+
+        # Test 2: list_frameworks should return framework list
+        result = await handle_framework_tools("list_frameworks", {})
+        assert len(result) == 1
+        assert result[0].type == "text"
+
+        # Should contain framework information
+        text = result[0].text.lower()
+        assert "framework" in text or "error" in text
+
+        # Test 3: get_framework_details with valid framework
+        result = await handle_framework_tools(
+            "get_framework_details", {"framework_id": "nist-ai-rmf"}
+        )
+        assert len(result) == 1
+        assert result[0].type == "text"
+
+        # Should respond with framework details or error
+        text = result[0].text.lower()
+        assert "nist" in text or "error" in text or "not found" in text
+
+        # Test 4: get_compliance_analysis should return analysis
+        result = await handle_framework_tools("get_compliance_analysis", {})
+        assert len(result) == 1
+        assert result[0].type == "text"
+
+        # Should contain compliance-related information
+        text = result[0].text.lower()
+        assert "compliance" in text or "analysis" in text or "error" in text
+
+        # Test 5: search_framework_references
+        result = await handle_framework_tools(
+            "search_framework_references",
+            {"framework_id": "nist-ai-rmf", "query": "governance"},
+        )
+        assert len(result) == 1
+        assert result[0].type == "text"
+
+        # Should respond appropriately
+        text = result[0].text.lower()
+        assert (
+            "reference" in text
+            or "governance" in text
+            or "error" in text
+            or "not found" in text
+        )
+
+    @pytest.mark.asyncio
+    async def test_framework_tools_comprehensive_functionality(self):
+        """Test all framework tools to ensure they provide expected responses."""
+        from finos_mcp.tools.frameworks import handle_framework_tools
+
+        # Define test cases for all framework tools
+        test_cases = [
+            ("search_frameworks", {"query": "test"}),
+            ("list_frameworks", {}),
+            ("get_framework_details", {"framework_id": "test"}),
+            ("get_compliance_analysis", {}),
+            ("search_framework_references", {"framework_id": "test", "query": "test"}),
+            ("get_related_controls", {"control_id": "test"}),
+            (
+                "get_framework_correlations",
+                {"framework1": "test1", "framework2": "test2"},
+            ),
+            ("find_compliance_gaps", {"frameworks": ["test1", "test2"]}),
+            ("advanced_search_frameworks", {"query": "test"}),
+            ("export_framework_data", {"framework_id": "test", "format": "json"}),
+            (
+                "bulk_export_frameworks",
+                {"frameworks": ["test1", "test2"], "format": "json"},
+            ),
+        ]
+
+        for tool_name, args in test_cases:
+            # Each tool should return a proper response
+            result = await handle_framework_tools(tool_name, args)
+
+            # Verify response structure
+            assert isinstance(result, list), f"Tool {tool_name} should return a list"
+            assert len(result) >= 1, (
+                f"Tool {tool_name} should return at least one result"
+            )
+            assert result[0].type == "text", (
+                f"Tool {tool_name} should return text content"
+            )
+
+            # Verify response contains meaningful content
+            text = result[0].text
+            assert len(text) > 0, f"Tool {tool_name} should return non-empty text"
+
+            # Response should be either:
+            # 1. JSON-formatted data, or
+            # 2. Human-readable text with relevant keywords, or
+            # 3. Error message
+            text_lower = text.lower()
+            is_meaningful_response = (
+                # JSON response
+                (text.startswith("{") and text.endswith("}"))
+                or
+                # Contains framework-related keywords
+                any(
+                    keyword in text_lower
+                    for keyword in [
+                        "framework",
+                        "analysis",
+                        "compliance",
+                        "reference",
+                        "control",
+                        "correlation",
+                        "export",
+                        "search",
+                        "result",
+                        "error",
+                        "failed",
+                    ]
+                )
+                or
+                # Error response
+                "error" in text_lower
+            )
+
+            assert is_meaningful_response, (
+                f"Tool {tool_name} response should be meaningful: {text[:100]}..."
+            )

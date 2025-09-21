@@ -56,6 +56,12 @@ TOOL_HANDLERS: dict[
     "get_framework_details": handle_framework_tools,
     "get_compliance_analysis": handle_framework_tools,
     "search_framework_references": handle_framework_tools,
+    "get_related_controls": handle_framework_tools,
+    "get_framework_correlations": handle_framework_tools,
+    "find_compliance_gaps": handle_framework_tools,
+    "advanced_search_frameworks": handle_framework_tools,
+    "export_framework_data": handle_framework_tools,
+    "bulk_export_frameworks": handle_framework_tools,
 }
 
 
