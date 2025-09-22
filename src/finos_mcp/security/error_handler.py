@@ -7,7 +7,7 @@ Provides safe error responses while maintaining internal debugging capabilities.
 import re
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar
 
 from ..logging import get_logger
 
@@ -18,7 +18,7 @@ class SecureErrorHandler:
     """Handle errors securely to prevent information disclosure."""
 
     # Patterns that indicate sensitive information
-    SENSITIVE_PATTERNS = [
+    SENSITIVE_PATTERNS: ClassVar[list[str]] = [
         r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b',  # Email addresses
         r'\b(?:api_?key|password|token|secret)\s*[:=]?\s*[\'"]?[a-zA-Z0-9_-]+[\'"]?',  # API keys/passwords
         r'(?:api key|password|token)\s+[a-zA-Z0-9_-]+',  # API keys with spaces
@@ -37,7 +37,7 @@ class SecureErrorHandler:
     ]
 
     # Generic error messages for different categories
-    SAFE_ERROR_MESSAGES = {
+    SAFE_ERROR_MESSAGES: ClassVar[dict[str, str]] = {
         'validation': 'Invalid input provided. Please check your request and try again.',
         'authentication': 'Authentication failed. Please verify your credentials.',
         'authorization': 'Access denied. You do not have permission to perform this action.',
@@ -102,7 +102,7 @@ class SecureErrorHandler:
     def create_safe_error_response(
         self,
         original_error: str,
-        correlation_id: Optional[str] = None
+        correlation_id: str | None = None
     ) -> str:
         """Create a safe error response for external consumption.
 
@@ -124,7 +124,7 @@ class SecureErrorHandler:
         self,
         original_error: str,
         correlation_id: str,
-        additional_context: Optional[Dict[str, Any]] = None
+        additional_context: dict[str, Any] | None = None
     ) -> None:
         """Log error with full details internally for debugging.
 
@@ -148,8 +148,8 @@ class SecureErrorHandler:
         self,
         error: Exception,
         tool_name: str,
-        parameters: Dict[str, Any],
-        correlation_id: Optional[str] = None
+        parameters: dict[str, Any],
+        correlation_id: str | None = None
     ) -> str:
         """Handle tool execution error securely.
 
@@ -168,7 +168,7 @@ class SecureErrorHandler:
         # Log full details internally
         sanitized_params = self._sanitize_parameters(parameters)
         self.log_error_internally(
-            f"Tool '{tool_name}' failed: {str(error)}",
+            f"Tool '{tool_name}' failed: {error!s}",
             correlation_id,
             {
                 "tool_name": tool_name,
@@ -180,7 +180,7 @@ class SecureErrorHandler:
         # Return safe message externally
         return self.create_safe_error_response(str(error), correlation_id)
 
-    def _sanitize_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Sanitize parameters for logging by removing sensitive values."""
         sanitized = {}
 

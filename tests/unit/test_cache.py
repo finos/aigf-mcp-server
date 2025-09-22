@@ -24,24 +24,42 @@ from finos_mcp.content.cache import (
 @pytest_asyncio.fixture
 async def cache():
     """Create a test cache instance."""
+    import os
+    # Set secure cache key for testing
+    test_key = "test_cache_key_" + "a" * 17  # 32 character minimum key for testing
+    os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
+
     test_cache: TTLCache[str, str] = TTLCache(
         max_size=5,
         default_ttl=1.0,  # 1 second for fast testing
         cleanup_interval=0.1,  # Fast cleanup for testing
         enable_background_cleanup=False,  # Disable for controlled testing
     )
-    yield test_cache
-    await test_cache.close()
+    try:
+        yield test_cache
+    finally:
+        await test_cache.close()
+        # Clean up environment variable after test
+        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
 
 
 @pytest_asyncio.fixture
 async def cache_no_ttl():
     """Create a test cache without TTL."""
+    import os
+    # Set secure cache key for testing
+    test_key = "test_cache_no_ttl_" + "a" * 15  # 32 character minimum key for testing
+    os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
+
     test_cache: TTLCache[str, str] = TTLCache(
         max_size=3, default_ttl=None, enable_background_cleanup=False
     )
-    yield test_cache
-    await test_cache.close()
+    try:
+        yield test_cache
+    finally:
+        await test_cache.close()
+        # Clean up environment variable after test
+        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
 
 
 @pytest.mark.unit
@@ -369,12 +387,26 @@ class TestTTLCache:
     @pytest.mark.asyncio
     async def test_background_cleanup_enabled(self):
         """Test cache with background cleanup enabled."""
-        cache: TTLCache[str, str] = TTLCache(
-            max_size=5,
-            default_ttl=0.1,
-            cleanup_interval=0.05,
-            enable_background_cleanup=True,
-        )
+        import os
+        # Set secure cache key for testing
+        test_key = "test_background_cleanup_" + "a" * 10  # 32 character minimum key for testing
+        original_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
+        os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
+
+        try:
+            cache: TTLCache[str, str] = TTLCache(
+                max_size=5,
+                default_ttl=0.1,
+                cleanup_interval=0.05,
+                enable_background_cleanup=True,
+            )
+        except:
+            # Restore environment and re-raise
+            if original_key:
+                os.environ["FINOS_MCP_CACHE_SECRET"] = original_key
+            else:
+                os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
+            raise
 
         # Add expiring items
         await cache.set("key1", "value1")

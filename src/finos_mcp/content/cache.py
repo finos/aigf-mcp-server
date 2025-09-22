@@ -45,6 +45,10 @@ from .cache_models import (
 
 logger = get_logger("cache")
 
+# Memory allocation limits for security
+MAX_OBJECT_SIZE = 10_000_000  # 10MB maximum for individual objects
+MAX_COMPRESSION_RATIO = 100   # Maximum compression ratio to prevent bombs
+
 T = TypeVar("T")
 K = TypeVar("K")
 
@@ -322,6 +326,14 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             )
             serialized_bytes = serialized.encode('utf-8')
 
+            # Memory limit check - reject objects that are too large
+            if len(serialized_bytes) > MAX_OBJECT_SIZE:
+                raise ValueError(
+                    f"Object size {len(serialized_bytes)} bytes exceeds maximum "
+                    f"allowed size of {MAX_OBJECT_SIZE} bytes. This prevents "
+                    "memory exhaustion attacks."
+                )
+
             if not self.enable_compression:
                 return serialized_bytes, len(serialized_bytes)
 
@@ -353,6 +365,10 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             # Raise security errors to prevent unsafe fallbacks
             if isinstance(e, (CacheValidationError, CacheSecurityError)):
                 raise
+            # Check if this is a memory/size limit error that should be enforced
+            if isinstance(e, ValueError) and ("exceeds maximum" in str(e) or "Object size" in str(e)):
+                logger.error("Memory limit exceeded - blocking cache operation: %s", e)
+                raise e
             return self._fallback_json_serialize(value), self._estimate_uncompressed_size(value)
 
     def _decompress_value(self, stored_value: Any) -> T:
@@ -373,12 +389,24 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
                 # Check for gzip header followed by pickle magic
                 if stored_value.startswith(b'\x1f\x8b'):  # gzip magic
                     try:
-                        decompressed = gzip.decompress(stored_value)
-                        if len(decompressed) >= 2 and (
-                            decompressed[:2] in [b'\x80\x03', b'\x80\x04', b'\x80\x05'] or
-                            decompressed.startswith(b'c')
-                        ):
-                            raise CacheSecurityError("Potential compressed pickle data detected - rejected for security")
+                        # Protection against decompression bombs
+                        if len(stored_value) < MAX_OBJECT_SIZE:  # Only attempt if reasonable size
+                            decompressed = gzip.decompress(stored_value)
+                            # Check compression ratio to prevent decompression bombs
+                            compression_ratio = len(decompressed) / len(stored_value)
+                            if compression_ratio > MAX_COMPRESSION_RATIO:
+                                raise ValueError(
+                                    f"Compression ratio {compression_ratio:.1f} exceeds maximum "
+                                    f"allowed ratio of {MAX_COMPRESSION_RATIO}. This prevents "
+                                    "decompression bomb attacks."
+                                )
+                            if len(decompressed) >= 2 and (
+                                decompressed[:2] in [b'\x80\x03', b'\x80\x04', b'\x80\x05'] or
+                                decompressed.startswith(b'c')
+                            ):
+                                raise CacheSecurityError("Potential compressed pickle data detected - rejected for security")
+                        else:
+                            raise ValueError(f"Compressed data size {len(stored_value)} exceeds safety limit")
                     except gzip.BadGzipFile:
                         pass  # Not gzip, continue with normal processing
 
@@ -387,12 +415,30 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
             if self.enable_compression:
                 try:
+                    # Protection against decompression bombs
+                    if len(stored_value) > MAX_OBJECT_SIZE:
+                        raise ValueError(f"Compressed data size {len(stored_value)} exceeds safety limit")
+
                     # Try to decompress - if it fails, assume it's not compressed
                     decompressed = gzip.decompress(stored_value)
+
+                    # Check compression ratio to prevent decompression bombs
+                    compression_ratio = len(decompressed) / len(stored_value)
+                    if compression_ratio > MAX_COMPRESSION_RATIO:
+                        raise ValueError(
+                            f"Compression ratio {compression_ratio:.1f} exceeds maximum "
+                            f"allowed ratio of {MAX_COMPRESSION_RATIO}. This prevents "
+                            "decompression bomb attacks."
+                        )
+
                     json_str = decompressed.decode('utf-8')
                 except (gzip.BadGzipFile, UnicodeDecodeError):
                     # Not compressed, treat as direct JSON
                     json_str = stored_value.decode('utf-8')
+                except ValueError as e:
+                    # Memory/compression ratio limits exceeded
+                    logger.error("Decompression security limit exceeded: %s", e)
+                    raise CacheSecurityError(f"Decompression failed security checks: {e}")
             else:
                 json_str = stored_value.decode('utf-8')
 
@@ -468,14 +514,27 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         )
 
     def _get_cache_security_key(self) -> str:
-        """Get security key for HMAC operations."""
-        # Use environment variable or fallback to a default key
-        # In production, this should come from secure key management
-        security_key = os.environ.get('FINOS_MCP_CACHE_SECRET', 'finos-mcp-cache-default-key-change-in-production')
+        """Get security key for HMAC operations.
 
-        # Ensure minimum key length for security
+        Raises:
+            ValueError: If FINOS_MCP_CACHE_SECRET environment variable is not set
+                       or does not meet minimum security requirements
+        """
+        security_key = os.environ.get('FINOS_MCP_CACHE_SECRET')
+
+        if not security_key:
+            raise ValueError(
+                "FINOS_MCP_CACHE_SECRET environment variable must be set. "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+
+        # Ensure minimum key length for security (32 chars minimum)
         if len(security_key) < 32:
-            security_key = (security_key * 10)[:32]  # Repeat until at least 32 chars
+            raise ValueError(
+                f"Cache security key must be at least 32 characters. "
+                f"Current length: {len(security_key)}. "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
 
         return security_key
 
@@ -715,10 +774,12 @@ class CacheManager:
 
     _instance: Optional["CacheManager"] = None
     _cache: TTLCache[str, Any] | None = None
+    _lock = threading.Lock()
 
     def __new__(cls) -> "CacheManager":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
         return cls._instance
 
     async def get_cache(self) -> TTLCache[str, Any]:
@@ -729,19 +790,22 @@ class CacheManager:
 
         """
         if self._cache is None:
-            settings = get_settings()
+            with self._lock:
+                # Double-check pattern to prevent race conditions
+                if self._cache is None:
+                    settings = get_settings()
 
-            # Get cache configuration from settings
-            max_size = getattr(settings, "cache_max_size", 1000)
-            default_ttl = getattr(settings, "cache_ttl_seconds", 3600.0)
+                    # Get cache configuration from settings
+                    max_size = getattr(settings, "cache_max_size", 1000)
+                    default_ttl = getattr(settings, "cache_ttl_seconds", 3600.0)
 
-            self._cache = TTLCache(
-                max_size=max_size,
-                default_ttl=default_ttl,
-                cleanup_interval=60.0,  # Cleanup every minute
-                enable_background_cleanup=True,
-                enable_compression=True,  # Enable gzip compression for 60-80% memory reduction
-            )
+                    self._cache = TTLCache(
+                        max_size=max_size,
+                        default_ttl=default_ttl,
+                        cleanup_interval=60.0,  # Cleanup every minute
+                        enable_background_cleanup=True,
+                        enable_compression=True,  # Enable gzip compression for 60-80% memory reduction
+                    )
 
             logger.info(
                 "Initialized cache with max_size=%s, ttl=%ss, compression=enabled",

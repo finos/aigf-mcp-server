@@ -1,6 +1,6 @@
 {
   "checksum": "f8de9a819ae5e3893bf0548dc907eef84b2951e3a587ae291bd08e33a74cbc89",
-  "created_at": 1758463837.329226,
+  "created_at": 1758542321.403643,
   "data": {
     "expected_output": {
       "content": "# sample-mitigation.md\n\nThis is a mock mitigation document.",

@@ -36,7 +36,7 @@ class FrameworkDataLoader:
         base_url: str = "https://raw.githubusercontent.com/finos/ai-governance-framework/main/",
         enable_dynamic_loading: bool = True,
     ):
-        """Initialize enhanced framework data loader.
+        """Initialize framework data loader.
 
         Args:
             base_url: Base URL for framework data repository

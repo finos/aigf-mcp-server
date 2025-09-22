@@ -46,6 +46,7 @@ from .content.service import get_content_service
 from .health import get_health_monitor
 from .logging import get_logger, log_mcp_request, set_correlation_id
 from .security.error_handler import secure_error_handler
+from .security.request_validator import dos_protector, request_size_validator
 from .tools import get_all_tools, handle_tool_call
 from .tools.search import get_mitigation_files, get_risk_files
 
@@ -474,12 +475,7 @@ async def handle_read_resource(uri: AnyUrl) -> str:
 
         # Security: Validate content size to prevent memory exhaustion
         content = doc_data["full_text"]
-        if len(content) > 10_000_000:  # 10MB limit
-            logger.warning(
-                "Resource content too large",
-                extra={"uri": uri_str, "content_size": len(content)},
-            )
-            raise ValueError("Resource content exceeds size limit")
+        request_size_validator.validate_resource_size(content)
 
         logger.info(
             f"Successfully read resource: {validated_filename}",
@@ -510,10 +506,30 @@ async def handle_call_tool(
     # Set correlation ID for request tracing
     correlation_id = set_correlation_id()
 
+    # DoS protection: Check rate limits and start request tracking
+    client_id = (
+        f"tool_caller_{correlation_id[:8]}"  # Use correlation ID as client identifier
+    )
+
+    if not dos_protector.check_rate_limit(client_id):
+        logger.warning(
+            f"DoS protection: Rate limit exceeded for tool {name}",
+            extra={
+                "tool_name": name,
+                "client_id": client_id,
+                "correlation_id": correlation_id,
+            },
+        )
+        raise SecurityValidationError("Request rate limit exceeded. Please slow down.")
+
+    request_id = dos_protector.start_request(client_id)
+
     # Log MCP request start
     start_time = asyncio.get_event_loop().time()
 
     try:
+        # Validate request parameters size
+        request_size_validator.validate_request_params_size(arguments)
         # Rate limiting check
         if not _tool_rate_limiter.is_allowed(f"tool_{name}"):
             logger.warning(
@@ -555,16 +571,8 @@ async def handle_call_tool(
 
         # Validate result size to prevent memory exhaustion
         if isinstance(result, list):
-            total_size = sum(
-                len(str(item.text)) if hasattr(item, "text") else len(str(item))
-                for item in result
-            )
-            if total_size > 50_000_000:  # 50MB limit
-                logger.warning(
-                    f"Tool result too large: {name}",
-                    extra={"result_size": total_size, "correlation_id": correlation_id},
-                )
-                raise ValueError("Tool result exceeds size limit")
+            # Use security validator for consistent size checking
+            request_size_validator.validate_tool_result_size(result)
 
         # Log successful request
         elapsed_time = asyncio.get_event_loop().time() - start_time
@@ -598,8 +606,8 @@ async def handle_call_tool(
             {
                 "tool_name": name,
                 "error_type": type(error).__name__,
-                "execution_time": elapsed_time
-            }
+                "execution_time": elapsed_time,
+            },
         )
 
         # Create safe validation error message
@@ -629,8 +637,8 @@ async def handle_call_tool(
                 "tool_name": name,
                 "parameters": arguments,
                 "execution_time": elapsed_time,
-                "error_type": type(error).__name__
-            }
+                "error_type": type(error).__name__,
+            },
         )
 
         # Create safe error message for external response
@@ -649,6 +657,10 @@ async def handle_call_tool(
 
         # Re-raise with sanitized message
         raise type(error)(safe_error_message) from None
+
+    finally:
+        # Always complete DoS protection request tracking
+        dos_protector.complete_request(client_id, request_id)
 
 
 async def log_health_status() -> None:
