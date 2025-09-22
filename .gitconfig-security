@@ -231,14 +231,14 @@
 # These patterns can be used by git hooks to detect sensitive files
 
 [security]
-    # Critical file patterns (space-separated for easy parsing)
-    critical-patterns = "*.key *.pem *.p12 *.pfx *secret* *password* *token* *credential* .env .env.* *.env *.env.* *claude* *Claude* *CLAUDE* .claude .claude/ *.local *.local.* *-local.* *_local.* .local .local.* *personal* *private* .vscode/ .idea/ *.swp *.swo *~ .DS_Store Thumbs.db *.log logs/ temp/ tmp/ *.tmp *.temp .cache/ cache/ *.bak *.backup"
+    # Critical files (exact names only - no patterns)
+    critical-files = ".env .env.local .env.production .env.staging .env.development secrets.json api-keys.txt passwords.txt credentials.json auth-tokens.txt"
 
-    # High priority patterns (fixed specific filenames only)
-    high-priority-patterns = "dev-notes-personal.md development-notes-personal.md internal-notes-personal.md scratch-personal.md personal-notes.md todo-personal.md .personal-todo .dev-scratch test-results/ coverage-reports/ security-scan-output.json audit-results-temp.json vulnerability-report-temp.json local-config-personal.json .dev-secrets .script-secrets .util-temp"
+    # Personal configuration files (exact names only)
+    personal-files = ".dev-secrets .personal-config personal-notes.md todo-personal.md .claude/settings.json .claude/config.json"
 
-    # Directory patterns to exclude completely (fixed specific directories only)
-    exclude-directories = ".claude .vscode .idea .ssh .aws .config node_modules __pycache__ .cache .tmp .temp logs log coverage security-reports-runtime .security-scan-cache .audit-temp .dev-temp .debug-cache"
+    # Temporary sensitive files (exact names only)
+    temp-sensitive-files = "temp-api-key.txt debug-tokens.log .auth-cache security-scan-temp.json audit-temp.log"
 
 # ===============================================================================
 # CLEANUP AND MAINTENANCE

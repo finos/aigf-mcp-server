@@ -1,533 +1,54 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# ===============================================================================
+# SMART GITIGNORE - FIXED VALUES ONLY
+# ===============================================================================
+# This file uses explicit file names instead of broad patterns.
+# Only protects actual sensitive files and build artifacts.
+# ===============================================================================
 
-# Virtual environments
+# ===============================================================================
+# 1. SENSITIVE FILES (EXACT NAMES ONLY)
+# ===============================================================================
+
+# Environment files
 .env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-
-# Documentation
-docs/_build/
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Project specific
-claude-desktop-config.json
-*.log
-.mypy_cache/
-.ruff_cache/
-
-# EXCEPTION: Allow legitimate GitHub workflows
-!.github/workflows/
-
-# Temporary files
-*.tmp
-*.temp
-.cache/
-
-# Personal development documentation (private - not for publication)
-.dev/
-
-# Development runtime files (should not be committed)
-security-reports/
-*-report.json
-*.zip
-internal-development-guidelines.md
-
-# ===============================================================================
-# CRITICAL PROTECTION: .claude content must NEVER be committed
-# Multiple patterns ensure comprehensive coverage
-# ===============================================================================
-
-# Primary .claude directory protection
-.claude/
-.claude/*
-**/.claude/
-**/.claude/*
-
-# All possible .claude variations and patterns
-.claude
-.claude/**
-*/.claude/
-*/.claude/**
-**/.claude
-**/.claude/**
-
-# Nested .claude directories (any depth)
-.claude*/
-.claude*/**
-**/.claude*/
-**/.claude*/**
-
-# Claude-related files and configurations
-claude-*
-*claude*
-**/claude-*
-**/*claude*
-
-# Case variations (defensive programming)
-.Claude/
-.CLAUDE/
-.Claude/**
-.CLAUDE/**
-
-# Hidden claude files
-.claude.*
-**/.claude.*
-
-# Claude backup and temporary files
-.claude.bak
-.claude.tmp
-.claude.backup
-.claude_*
-claude_*
-
-# Claude settings and configurations that might exist
-claude-settings.*
-claude-config.*
-claude-data.*
-.claude-*
-
-# Coverage reports
-htmlcov/
-.coverage
-
-# Build artifacts
-build/
-dist/
-
-# ===============================================================================
-# IRONCLAD PROTECTION SYSTEM - INTERNAL FILE DEFENSE
-# ===============================================================================
-# This section provides multi-layered protection against committing ANY internal,
-# personal, or development files that should never be in version control.
-# Each category has multiple redundant patterns for foolproof coverage.
-# ===============================================================================
-
-# ------------------------------------------------------------------------------
-# 1. AGENT AND AI CONFIGURATIONS (CRITICAL - NEVER COMMIT)
-# ------------------------------------------------------------------------------
-# .claude directory and all variations
-.claude/
-.claude/*
-.claude/**/*
-**/.claude/
-**/.claude/*
-**/.claude/**/*
-*/.claude/
-*/.claude/*
-*/.claude/**/*
-
-# Claude variations and case sensitivity
-.Claude/
-.CLAUDE/
-claude/
-Claude/
-CLAUDE/
-.claude
-.Claude
-.CLAUDE
-
-# Claude configuration files (any location)
-claude-*
-*claude*
-**/claude-*
-**/*claude*
-claude.*
-*claude.*
-claude_*
-*claude_*
-
-# Claude backup and temporary files
-.claude.bak*
-.claude.tmp*
-.claude.backup*
-.claude.old*
-.claude.orig*
-claude.bak*
-claude.tmp*
-claude.backup*
-
-# AI agent configurations
-.ai/
-.ai/*
-.ai/**/*
-*ai-config*
-*agent-config*
-*llm-config*
-
-# ------------------------------------------------------------------------------
-# 2. IDE AND EDITOR CONFIGURATIONS (COMPREHENSIVE)
-# ------------------------------------------------------------------------------
-# Visual Studio Code
-.vscode/
-.vscode/*
-.vscode/**/*
-**/.vscode/
-**/.vscode/*
-**/.vscode/**/*
-*.code-workspace
-.vscode-*
-
-# JetBrains IDEs
-.idea/
-.idea/*
-.idea/**/*
-**/.idea/
-**/.idea/*
-**/.idea/**/*
-*.iml
-*.ipr
-*.iws
-
-# Vim and Neovim
-*.swp
-*.swo
-*.swn
-*~
-.*.swp
-.*.swo
-.*.swn
-.*~
-**/*.swp
-**/*.swo
-**/*.swn
-**/*~
-
-# Emacs
-*~
-\#*\#
-/.emacs.desktop
-/.emacs.desktop.lock
-*.elc
-auto-save-list
-tramp
-.\#*
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-.sublime-project
-.sublime-workspace
-
-# Atom
-.atom/
-
-# ------------------------------------------------------------------------------
-# 3. PERSONAL AND LOCAL CONFIGURATIONS (CRITICAL)
-# ------------------------------------------------------------------------------
-# Environment and local files
-.env
-.env.*
-.env.local*
-.env.personal*
-.env.private*
-.env.secret*
-*.env
-*.env.*
-**/.env
-**/.env.*
-
-# Local configuration files
-*.local
-*.local.*
-*-local.*
-*_local.*
-.local
-.local.*
-*local*
-**/*local*
-**/*.local
-**/*.local.*
-
-# Personal files and directories
-personal-*
-*personal*
-.personal/
-.personal/*
-private-*
-*private*
-.private/
-.private/*
-
-# User-specific configurations
-config.local*
-settings.local*
-*-config.local*
-*-settings.local*
-user-*
-*user*
-
-# ------------------------------------------------------------------------------
-# 4. SECRETS, KEYS, AND SENSITIVE DATA (ULTRA CRITICAL)
-# ------------------------------------------------------------------------------
-# Keys and certificates
-*.key
-*.pem
-*.p12
-*.pfx
-*.cer
-*.crt
-*.der
-*.csr
-*.jks
-*.keystore
-**/*.key
-**/*.pem
-**/*.p12
-**/*.pfx
+.env.local
+.env.production
+.env.staging
+.env.development
 
 # Secret files
-*secret*
-*Secret*
-*SECRET*
-*password*
-*Password*
-*PASSWORD*
-*token*
-*Token*
-*TOKEN*
-*credential*
-*Credential*
-*CREDENTIAL*
+secrets.json
+api-keys.txt
+passwords.txt
+credentials.json
+auth-tokens.txt
 
-# API keys and auth files
-.auth
-.auth.*
-auth.*
-*auth*
-*api-key*
-*apikey*
-*access-token*
-*refresh-token*
-
-# SSH and security
-.ssh/
-id_rsa*
-id_dsa*
-id_ecdsa*
-id_ed25519*
-known_hosts*
-authorized_keys*
-
-# ------------------------------------------------------------------------------
-# 5. OPERATING SYSTEM FILES (COMPREHENSIVE)
-# ------------------------------------------------------------------------------
-# macOS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-.AppleDouble
-.LSOverride
-.DocumentRevisions-V100
-.fseventsd
-.TemporaryItems
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-
-# ------------------------------------------------------------------------------
-# 6. DEVELOPMENT ARTIFACTS AND TEMPORARY FILES (COMPREHENSIVE)
-# ------------------------------------------------------------------------------
-# Logs and debugging (runtime files, not source)
-*.log
-*.log.*
-logs/
-log/
-**/*.log
-**/*.log.*
-**/logs/
-**/log/
-debug.log*
-*-debug.log*
-debug-output*
-*-debug-output*
-trace.log*
-*-trace.log*
-trace-output*
-*-trace-output*
-
-# Cache directories and runtime cache files (not source code)
-.cache/
-.cache/*
-.cache/**/*
-**/.cache/
-**/.cache/*
-**/.cache/**/*
-cache/
-node_modules/.cache/
-.webpack_cache/
-.parcel-cache/
-.next/cache/
-__pycache__/
-*.cache
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Temporary files and directories
-temp/
-tmp/
-*temp*
-*tmp*
-*.tmp
-*.temp
-.tmp/
-.temp/
-**/*.tmp
-**/*.temp
-**/temp/
-**/tmp/
-
-# Backup files
-*.bak
-*.backup
-*.old
-*.orig
-*.save
-*.swp
-*~
-**/*.bak
-**/*.backup
-**/*.old
-**/*.orig
-
-# Runtime and process files
-*.pid
-*.lock
-.lock
-lock
-*lock*
-*.lockfile
-
-# ------------------------------------------------------------------------------
-# 7. LOCAL DEVELOPMENT AND TESTING FILES
-# ------------------------------------------------------------------------------
-# Local development documentation (only specific personal files)
-dev-notes-personal.md
-development-notes-personal.md
-internal-notes-personal.md
-scratch-personal.md
+# Personal configuration
+.dev-secrets
+.personal-config
 personal-notes.md
 todo-personal.md
-.personal-todo
-.dev-scratch
 
-# Test artifacts and reports
-test-results/
-test-output/
-*test-results*
-*test-output*
-coverage-reports/
-*coverage*
-*.coverage
-htmlcov/
-.nyc_output/
-junit.xml
-test.xml
+# Claude AI agent configuration
+.claude/
 
-# Local scripts and utilities (runtime, not source)
-local-*
-*-local
-*-local.*
-*_local
-*_local.*
-dev-notes*
-*-dev-notes*
-script-output*
-*-script-output*
-util-temp*
-*-util-temp*
+# ===============================================================================
+# 2. IDE PERSONAL SETTINGS (SPECIFIC FILES ONLY)
+# ===============================================================================
 
-# ------------------------------------------------------------------------------
-# 8. PACKAGE MANAGER AND BUILD ARTIFACTS
-# ------------------------------------------------------------------------------
-# npm and Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.npm
-.yarn-integrity
-package-lock.json
-yarn.lock
+# VS Code personal settings (not workspace settings)
+.vscode/settings.personal.json
+.vscode/launch.personal.json
 
-# Python package artifacts
+# JetBrains personal files
+.idea/workspace.personal.xml
+.idea/misc.personal.xml
+
+# ===============================================================================
+# 3. STANDARD BUILD ARTIFACTS AND TEMP FILES
+# ===============================================================================
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -549,79 +70,80 @@ wheels/
 .installed.cfg
 *.egg
 
-# ------------------------------------------------------------------------------
-# 9. SECURITY AND MONITORING FILES
-# ------------------------------------------------------------------------------
-# Security runtime reports and scans (only specific temp files)
-security-reports-runtime/
-security-scan-output.json
-security-scan-temp.json
-audit-results-temp.json
-vulnerability-report-temp.json
-pentest-results-temp.json
-.security-scan-cache
-.audit-temp
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
 
-# Monitoring and analytics (runtime data, not source)
-analytics-data/
-*-analytics-data*
-analytics-reports*
-*-analytics-reports*
-metrics-output*
-*-metrics-output*
-monitoring-logs*
-*-monitoring-logs*
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
 
-# ------------------------------------------------------------------------------
-# 10. REDUNDANT CRITICAL PATTERNS (MULTIPLE COVERAGE)
-# ------------------------------------------------------------------------------
-# Ensure critical patterns are covered multiple ways
-.claude
-.claude/
-.claude/*
-.claude/**
-.claude/**/*
-**/.claude
-**/.claude/
-**/.claude/*
-**/.claude/**
-**/.claude/**/*
-
-# Local files (multiple patterns)
-*.local
-*.local.*
-*-local
-*-local.*
-*_local
-*_local.*
-.local
-.local.*
-
-# Secret files (multiple patterns for credentials, not source)
-*secret.txt
-*secret.json
-*secret.env
-*Secret.txt
-*SECRET.txt
-*password.txt
-*password.env
-*Password.txt
-*PASSWORD.txt
-
-# Personal files (multiple patterns)
-personal*
-*personal*
-private*
-*private*
-
-# Development runtime files (only specific temp artifacts)
-dev-output-temp.log
-debug-session-temp.log
-temp-data-cache.json
-tmp-cache-runtime.json
-.dev-temp
-.debug-cache
+# MyPy and Ruff cache
+.mypy_cache/
+.ruff_cache/
 
 # ===============================================================================
-# END IRONCLAD PROTECTION SYSTEM
+# 4. OPERATING SYSTEM FILES
+# ===============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===============================================================================
+# 5. TEMPORARY DEVELOPMENT FILES (SPECIFIC NAMES ONLY)
+# ===============================================================================
+
+# Temporary sensitive files
+temp-api-key.txt
+debug-tokens.log
+.auth-cache
+security-scan-temp.json
+audit-temp.log
+
+# Log files
+*.log
+debug.log
+error.log
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# ===============================================================================
+# END SMART GITIGNORE
 # ===============================================================================
