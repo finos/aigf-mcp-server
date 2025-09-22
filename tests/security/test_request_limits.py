@@ -5,9 +5,9 @@ Tests to ensure the server can handle resource-intensive requests without
 allowing denial of service attacks through oversized requests.
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-import asyncio
 
 from src.finos_mcp.security.request_validator import RequestSizeValidator
 
@@ -20,8 +20,8 @@ class TestRequestSizeLimits:
         """Create RequestSizeValidator instance for testing."""
         return RequestSizeValidator(
             max_tool_result_size=5_000_000,  # 5MB
-            max_resource_size=1_000_000,     # 1MB
-            max_request_params_size=100_000  # 100KB
+            max_resource_size=1_000_000,  # 1MB
+            max_request_params_size=100_000,  # 100KB
         )
 
     def test_validates_tool_result_size_limits(self, request_validator):
@@ -90,10 +90,11 @@ class TestDoSProtection:
     def dos_protector(self):
         """Create DoS protection instance."""
         from src.finos_mcp.security.request_validator import DoSProtector
+
         return DoSProtector(
             max_requests_per_minute=60,
             max_concurrent_requests=10,
-            request_timeout_seconds=30
+            request_timeout_seconds=30,
         )
 
     def test_prevents_request_flooding(self, dos_protector):
@@ -114,7 +115,7 @@ class TestDoSProtection:
         client_id = "test_client"
 
         # Start 10 concurrent requests (at the limit)
-        for i in range(10):
+        for _i in range(10):
             dos_protector.start_request(client_id)
 
         # 11th concurrent request should be blocked
@@ -126,7 +127,7 @@ class TestDoSProtection:
         client_id = "test_client"
 
         # Start and complete requests
-        for i in range(5):
+        for _i in range(5):
             request_id = dos_protector.start_request(client_id)
             dos_protector.complete_request(client_id, request_id)
 
@@ -143,7 +144,7 @@ class TestDoSProtection:
         start_time = dos_protector._get_current_time()
 
         # Mock timeout scenario
-        with patch.object(dos_protector, '_get_current_time') as mock_time:
+        with patch.object(dos_protector, "_get_current_time") as mock_time:
             # Simulate 31 seconds have passed (exceeds 30s timeout)
             mock_time.return_value = start_time + 31
 
@@ -156,7 +157,7 @@ class TestDoSProtection:
         client2 = "client_2"
 
         # Each client should be able to make their full quota
-        for i in range(60):
+        for _i in range(60):
             assert dos_protector.check_rate_limit(client1) is True
             assert dos_protector.check_rate_limit(client2) is True
 
@@ -168,8 +169,8 @@ class TestResourceExhaustion:
         """Test that extremely large requests don't exhaust server memory."""
         validator = RequestSizeValidator(
             max_tool_result_size=1_000_000,  # 1MB limit
-            max_resource_size=500_000,       # 500KB limit
-            max_request_params_size=50_000   # 50KB limit
+            max_resource_size=500_000,  # 500KB limit
+            max_request_params_size=50_000,  # 50KB limit
         )
 
         # Simulate an attack with extremely large data
@@ -192,7 +193,7 @@ class TestResourceExhaustion:
         # Create deeply nested structure
         nested = {}
         current = nested
-        for i in range(1000):  # 1000 levels deep
+        for _i in range(1000):  # 1000 levels deep
             current["next"] = {}
             current = current["next"]
         current["data"] = "deep_data"
@@ -203,10 +204,14 @@ class TestResourceExhaustion:
 
     def test_concurrent_request_memory_limits(self):
         """Test that concurrent requests don't exceed memory limits."""
-        validator = RequestSizeValidator(max_concurrent_memory_mb=50)  # 50MB total limit
+        validator = RequestSizeValidator(
+            max_concurrent_memory_mb=50
+        )  # 50MB total limit
 
         # Simulate multiple concurrent requests each using memory
         request_sizes = [10_000_000] * 6  # 6 requests of 10MB each (60MB total)
 
-        with pytest.raises(ValueError, match="Total concurrent memory usage exceeds limit"):
+        with pytest.raises(
+            ValueError, match="Total concurrent memory usage exceeds limit"
+        ):
             validator.validate_concurrent_memory_usage(request_sizes)

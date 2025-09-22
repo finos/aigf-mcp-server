@@ -47,7 +47,7 @@ logger = get_logger("cache")
 
 # Memory allocation limits for security
 MAX_OBJECT_SIZE = 10_000_000  # 10MB maximum for individual objects
-MAX_COMPRESSION_RATIO = 100   # Maximum compression ratio to prevent bombs
+MAX_COMPRESSION_RATIO = 100  # Maximum compression ratio to prevent bombs
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -272,7 +272,9 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
         This method must be called in an async context to start background tasks.
         """
-        if self._enable_background_cleanup and (self._cleanup_task is None or self._cleanup_task.done()):
+        if self._enable_background_cleanup and (
+            self._cleanup_task is None or self._cleanup_task.done()
+        ):
             self._start_cleanup_task()
             logger.debug("Cache background cleanup started in async context")
 
@@ -322,9 +324,9 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
                 data=value,
                 key=key,
                 ttl=int(self.default_ttl or 0),
-                secret_key=secret_key
+                secret_key=secret_key,
             )
-            serialized_bytes = serialized.encode('utf-8')
+            serialized_bytes = serialized.encode("utf-8")
 
             # Memory limit check - reject objects that are too large
             if len(serialized_bytes) > MAX_OBJECT_SIZE:
@@ -366,10 +368,14 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             if isinstance(e, (CacheValidationError, CacheSecurityError)):
                 raise
             # Check if this is a memory/size limit error that should be enforced
-            if isinstance(e, ValueError) and ("exceeds maximum" in str(e) or "Object size" in str(e)):
+            if isinstance(e, ValueError) and (
+                "exceeds maximum" in str(e) or "Object size" in str(e)
+            ):
                 logger.error("Memory limit exceeded - blocking cache operation: %s", e)
                 raise e
-            return self._fallback_json_serialize(value), self._estimate_uncompressed_size(value)
+            return self._fallback_json_serialize(
+                value
+            ), self._estimate_uncompressed_size(value)
 
     def _decompress_value(self, stored_value: Any) -> T:
         """Securely deserialize value from JSON with optional decompression."""
@@ -383,14 +389,22 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             # Security check: detect potential pickle data
             if len(stored_value) >= 2:
                 # Check for pickle magic bytes (0x80 0x03 for protocol 3, etc.)
-                if stored_value[:2] in [b'\x80\x03', b'\x80\x04', b'\x80\x05'] or stored_value.startswith(b'c'):
-                    raise CacheSecurityError("Potential pickle data detected - rejected for security")
+                if stored_value[:2] in [
+                    b"\x80\x03",
+                    b"\x80\x04",
+                    b"\x80\x05",
+                ] or stored_value.startswith(b"c"):
+                    raise CacheSecurityError(
+                        "Potential pickle data detected - rejected for security"
+                    )
 
                 # Check for gzip header followed by pickle magic
-                if stored_value.startswith(b'\x1f\x8b'):  # gzip magic
+                if stored_value.startswith(b"\x1f\x8b"):  # gzip magic
                     try:
                         # Protection against decompression bombs
-                        if len(stored_value) < MAX_OBJECT_SIZE:  # Only attempt if reasonable size
+                        if (
+                            len(stored_value) < MAX_OBJECT_SIZE
+                        ):  # Only attempt if reasonable size
                             decompressed = gzip.decompress(stored_value)
                             # Check compression ratio to prevent decompression bombs
                             compression_ratio = len(decompressed) / len(stored_value)
@@ -401,12 +415,17 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
                                     "decompression bomb attacks."
                                 )
                             if len(decompressed) >= 2 and (
-                                decompressed[:2] in [b'\x80\x03', b'\x80\x04', b'\x80\x05'] or
-                                decompressed.startswith(b'c')
+                                decompressed[:2]
+                                in [b"\x80\x03", b"\x80\x04", b"\x80\x05"]
+                                or decompressed.startswith(b"c")
                             ):
-                                raise CacheSecurityError("Potential compressed pickle data detected - rejected for security")
+                                raise CacheSecurityError(
+                                    "Potential compressed pickle data detected - rejected for security"
+                                )
                         else:
-                            raise ValueError(f"Compressed data size {len(stored_value)} exceeds safety limit")
+                            raise ValueError(
+                                f"Compressed data size {len(stored_value)} exceeds safety limit"
+                            )
                     except gzip.BadGzipFile:
                         pass  # Not gzip, continue with normal processing
 
@@ -417,7 +436,9 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
                 try:
                     # Protection against decompression bombs
                     if len(stored_value) > MAX_OBJECT_SIZE:
-                        raise ValueError(f"Compressed data size {len(stored_value)} exceeds safety limit")
+                        raise ValueError(
+                            f"Compressed data size {len(stored_value)} exceeds safety limit"
+                        )
 
                     # Try to decompress - if it fails, assume it's not compressed
                     decompressed = gzip.decompress(stored_value)
@@ -431,20 +452,26 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
                             "decompression bomb attacks."
                         )
 
-                    json_str = decompressed.decode('utf-8')
+                    json_str = decompressed.decode("utf-8")
                 except (gzip.BadGzipFile, UnicodeDecodeError):
                     # Not compressed, treat as direct JSON
-                    json_str = stored_value.decode('utf-8')
+                    json_str = stored_value.decode("utf-8")
                 except ValueError as e:
                     # Memory/compression ratio limits exceeded
                     logger.error("Decompression security limit exceeded: %s", e)
-                    raise CacheSecurityError(f"Decompression failed security checks: {e}")
+                    raise CacheSecurityError(
+                        f"Decompression failed security checks: {e}"
+                    ) from e
             else:
-                json_str = stored_value.decode('utf-8')
+                json_str = stored_value.decode("utf-8")
 
             # Additional security check: ensure it looks like JSON
             json_str = json_str.strip()
-            if not (json_str.startswith(('{', '[', '"')) or json_str in ('true', 'false', 'null') or json_str.replace('-', '').replace('.', '').isdigit()):
+            if not (
+                json_str.startswith(("{", "[", '"'))
+                or json_str in ("true", "false", "null")
+                or json_str.replace("-", "").replace(".", "").isdigit()
+            ):
                 raise CacheSecurityError("Data does not appear to be valid JSON")
 
             # Securely deserialize using JSON + Pydantic validation
@@ -520,7 +547,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             ValueError: If FINOS_MCP_CACHE_SECRET environment variable is not set
                        or does not meet minimum security requirements
         """
-        security_key = os.environ.get('FINOS_MCP_CACHE_SECRET')
+        security_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
 
         if not security_key:
             raise ValueError(
@@ -542,19 +569,19 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         """Fallback JSON serialization without Pydantic validation."""
         try:
             # Basic JSON serialization for simple data types
-            json_str = json.dumps(value, default=str, separators=(',', ':'))
-            return json_str.encode('utf-8')
+            json_str = json.dumps(value, default=str, separators=(",", ":"))
+            return json_str.encode("utf-8")
         except (TypeError, ValueError) as e:
             logger.error("Fallback JSON serialization failed: %s", e)
             # Return a safe representation
             safe_repr = {"error": "serialization_failed", "type": str(type(value))}
-            return json.dumps(safe_repr).encode('utf-8')
+            return json.dumps(safe_repr).encode("utf-8")
 
     def _fallback_json_deserialize(self, stored_value: Any) -> Any:
         """Fallback JSON deserialization for non-Pydantic data."""
         try:
             if isinstance(stored_value, bytes):
-                json_str = stored_value.decode('utf-8')
+                json_str = stored_value.decode("utf-8")
             else:
                 json_str = str(stored_value)
 

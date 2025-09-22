@@ -6,8 +6,6 @@ ensuring proper functionality while preventing security vulnerabilities.
 """
 
 import json
-import tempfile
-from typing import Any, Dict, List, Union
 from unittest.mock import patch
 
 import pytest
@@ -126,7 +124,7 @@ class TestJSONSerializationValidation:
         # These should be rejected or handled safely (non-JSON-serializable)
         invalid_data = [
             lambda x: x,  # Function
-            set([1, 2, 3]),  # Set
+            {1, 2, 3},  # Set
             complex(1, 2),  # Complex number
             object(),  # Generic object
         ]
@@ -138,8 +136,9 @@ class TestJSONSerializationValidation:
                 retrieved = await cache.get(f"invalid_{i}")
                 # If it didn't raise an error, it should have been converted safely
                 assert json.dumps(retrieved) is not None  # Should be JSON-serializable
-            except (TypeError, ValueError, Exception):
+            except (TypeError, ValueError, Exception):  # noqa: S110
                 # This is expected for non-serializable data - cache correctly rejects it
+                # Logging the exception would be noisy in this test context
                 pass
 
     @pytest.mark.asyncio

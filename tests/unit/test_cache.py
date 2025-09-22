@@ -25,6 +25,7 @@ from finos_mcp.content.cache import (
 async def cache():
     """Create a test cache instance."""
     import os
+
     # Set secure cache key for testing
     test_key = "test_cache_key_" + "a" * 17  # 32 character minimum key for testing
     os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
@@ -47,6 +48,7 @@ async def cache():
 async def cache_no_ttl():
     """Create a test cache without TTL."""
     import os
+
     # Set secure cache key for testing
     test_key = "test_cache_no_ttl_" + "a" * 15  # 32 character minimum key for testing
     os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
@@ -388,8 +390,11 @@ class TestTTLCache:
     async def test_background_cleanup_enabled(self):
         """Test cache with background cleanup enabled."""
         import os
+
         # Set secure cache key for testing
-        test_key = "test_background_cleanup_" + "a" * 10  # 32 character minimum key for testing
+        test_key = (
+            "test_background_cleanup_" + "a" * 10
+        )  # 32 character minimum key for testing
         original_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
         os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
 
@@ -501,16 +506,28 @@ class TestCachePerformance:
     @pytest.mark.asyncio
     async def test_large_values(self, cache):
         """Test cache with large values."""
-        # Create large string (1MB)
-        large_value = "x" * (1024 * 1024)
+        # Create large but realistic data (not repetitive to avoid compression bomb detection)
+        import random
+        import string
+
+        # Generate random data that won't compress as much (realistic data)
+        # Using random for test data is acceptable in this security testing context
+        large_value = "".join(
+            random.choices(  # noqa: S311
+                string.ascii_letters + string.digits + " \n.,!?",
+                k=500_000,
+            )  # 500KB of varied data
+        )
 
         await cache.set("large", large_value)
         result = await cache.get("large")
 
         assert result == large_value
 
-        # Check memory usage is tracked (compression will reduce size significantly)
+        # Check memory usage is tracked (compression will reduce size)
         stats = await cache.get_stats()
         assert stats.memory_usage_bytes > 0  # Just verify memory usage is tracked
-        # With gzip compression, 1MB of repeated 'x' compresses to ~1KB
-        assert stats.memory_usage_bytes < 10000  # Verify compression is working
+        # Random data compresses less than repetitive data, but should still be compressed
+        assert stats.memory_usage_bytes < len(
+            large_value
+        )  # Verify compression is working

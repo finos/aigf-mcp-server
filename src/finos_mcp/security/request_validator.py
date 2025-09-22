@@ -22,10 +22,10 @@ class RequestSizeValidator:
 
     def __init__(
         self,
-        max_tool_result_size: int = 5_000_000,      # 5MB
-        max_resource_size: int = 1_000_000,         # 1MB
-        max_request_params_size: int = 100_000,     # 100KB
-        max_concurrent_memory_mb: int = 50          # 50MB total concurrent
+        max_tool_result_size: int = 5_000_000,  # 5MB
+        max_resource_size: int = 1_000_000,  # 1MB
+        max_request_params_size: int = 100_000,  # 100KB
+        max_concurrent_memory_mb: int = 50,  # 50MB total concurrent
     ):
         """Initialize request size validator.
 
@@ -73,7 +73,7 @@ class RequestSizeValidator:
         if content is None:
             return
 
-        size = len(content.encode('utf-8'))
+        size = len(content.encode("utf-8"))
 
         if size > self.max_resource_size:
             logger.warning(
@@ -113,7 +113,9 @@ class RequestSizeValidator:
             logger.warning(
                 f"Concurrent memory usage exceeded limit: {total_concurrent} bytes > {self.max_concurrent_memory} bytes"
             )
-            raise ValueError(f"Total concurrent memory usage exceeds limit ({total_concurrent} bytes)")
+            raise ValueError(
+                f"Total concurrent memory usage exceeds limit ({total_concurrent} bytes)"
+            )
 
     def start_request_tracking(self, request_id: str, size: int) -> None:
         """Start tracking memory usage for a request.
@@ -153,7 +155,9 @@ class RequestSizeValidator:
                 return 0
 
             if isinstance(content, (str, bytes)):
-                return len(content.encode('utf-8') if isinstance(content, str) else content)
+                return len(
+                    content.encode("utf-8") if isinstance(content, str) else content
+                )
 
             if isinstance(content, (list, tuple)):
                 return sum(self._calculate_content_size(item) for item in content)
@@ -166,12 +170,12 @@ class RequestSizeValidator:
                 return total
 
             # For other types, serialize to JSON to get approximate size
-            return len(json.dumps(content, default=str).encode('utf-8'))
+            return len(json.dumps(content, default=str).encode("utf-8"))
 
         except Exception as e:
             logger.warning(f"Failed to calculate content size: {e}")
             # Return a conservative estimate
-            return len(str(content).encode('utf-8'))
+            return len(str(content).encode("utf-8"))
 
 
 class DoSProtector:
@@ -182,7 +186,7 @@ class DoSProtector:
         max_requests_per_minute: int = 60,
         max_concurrent_requests: int = 10,
         request_timeout_seconds: int = 30,
-        cleanup_interval_seconds: int = 60
+        cleanup_interval_seconds: int = 60,
     ):
         """Initialize DoS protector.
 
@@ -257,7 +261,9 @@ class DoSProtector:
                 logger.warning(
                     f"Concurrent request limit exceeded for client {client_id}: {concurrent_count} requests"
                 )
-                raise ValueError(f"Too many concurrent requests ({concurrent_count}/{self.max_concurrent_requests})")
+                raise ValueError(
+                    f"Too many concurrent requests ({concurrent_count}/{self.max_concurrent_requests})"
+                )
 
             # Track the new request
             self._concurrent_requests[client_id][request_id] = current_time
@@ -296,7 +302,7 @@ class DoSProtector:
                 "requests_last_minute": len(self._request_history[client_id]),
                 "concurrent_requests": len(self._concurrent_requests[client_id]),
                 "rate_limit": self.max_requests_per_minute,
-                "concurrent_limit": self.max_concurrent_requests
+                "concurrent_limit": self.max_concurrent_requests,
             }
 
     def _cleanup_old_requests(self, client_id: str, current_time: float) -> None:
@@ -350,7 +356,10 @@ class DoSProtector:
                 self._cleanup_timed_out_requests(client_id, current_time)
 
                 # Remove empty client entries
-                if not self._request_history[client_id] and not self._concurrent_requests[client_id]:
+                if (
+                    not self._request_history[client_id]
+                    and not self._concurrent_requests[client_id]
+                ):
                     del self._request_history[client_id]
                     del self._concurrent_requests[client_id]
 

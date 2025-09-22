@@ -5,9 +5,9 @@ Tests to ensure proper content validation and security headers prevent
 content injection and other security vulnerabilities.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import patch, MagicMock
-import httpx
 
 from src.finos_mcp.security.content_filter import ContentSecurityValidator
 
@@ -28,7 +28,7 @@ class TestContentTypeValidation:
             "application/json",
             "text/yaml",
             "text/markdown",
-            "application/xml"
+            "application/xml",
         ]
 
         for content_type in safe_types:
@@ -43,7 +43,7 @@ class TestContentTypeValidation:
             "application/octet-stream",
             "application/x-msdownload",
             "application/x-sh",
-            "text/x-shellscript"
+            "text/x-shellscript",
         ]
 
         for content_type in dangerous_types:
@@ -71,14 +71,14 @@ class TestContentTypeValidation:
         safe_urls = [
             "https://example.com/doc.html",
             "http://trusted-site.org/content",
-            "mailto:contact@example.com"
+            "mailto:contact@example.com",
         ]
 
         dangerous_urls = [
             "javascript:alert('xss')",
             "data:text/html,<script>alert(1)</script>",
             "file:///etc/passwd",
-            "ftp://malicious-site.com/backdoor"
+            "ftp://malicious-site.com/backdoor",
         ]
 
         for url in safe_urls:
@@ -105,6 +105,7 @@ class TestSecurityHeaders:
     def security_headers(self):
         """Create security headers configuration."""
         from src.finos_mcp.security.content_filter import SecurityHeaders
+
         return SecurityHeaders()
 
     def test_generates_required_security_headers(self, security_headers):
@@ -137,7 +138,7 @@ class TestSecurityHeaders:
         csp = headers["Content-Security-Policy"]
 
         # Should block inline scripts and eval (but style-src may allow unsafe-inline)
-        script_src = [part.strip() for part in csp.split(';') if 'script-src' in part]
+        script_src = [part.strip() for part in csp.split(";") if "script-src" in part]
         if script_src:
             assert "'unsafe-inline'" not in script_src[0]
         assert "'unsafe-eval'" not in csp
@@ -152,12 +153,13 @@ class TestSecurityHeaders:
         """Test that security headers can be customized for specific needs."""
         custom_csp = "default-src 'self'; script-src 'self' 'unsafe-inline'"
         custom_headers = security_headers.get_security_headers(
-            custom_csp=custom_csp,
-            allow_framing=True
+            custom_csp=custom_csp, allow_framing=True
         )
 
         assert custom_headers["Content-Security-Policy"] == custom_csp
-        assert custom_headers["X-Frame-Options"] == "SAMEORIGIN"  # Less restrictive when allowing framing
+        assert (
+            custom_headers["X-Frame-Options"] == "SAMEORIGIN"
+        )  # Less restrictive when allowing framing
 
 
 class TestHTTPClientSecurity:
@@ -200,7 +202,7 @@ class TestHTTPClientSecurity:
             "<script>window.location='http://evil.com'</script>",
             "<iframe src='javascript:void(0)'></iframe>",
             "<object data='malicious.swf'></object>",
-            "<embed src='evil.swf'></embed>"
+            "<embed src='evil.swf'></embed>",
         ]
 
         for content in malicious_responses:
@@ -243,15 +245,12 @@ class TestContentFilteringIntegration:
             "name": "Test Framework",
             "description": "Framework with <script>alert('xss')</script> embedded",
             "sections": [
-                {
-                    "title": "Section 1",
-                    "content": "Normal content"
-                },
+                {"title": "Section 1", "content": "Normal content"},
                 {
                     "title": "Section 2",
-                    "content": "<iframe src='javascript:void(0)'></iframe>"
-                }
-            ]
+                    "content": "<iframe src='javascript:void(0)'></iframe>",
+                },
+            ],
         }
 
         # Should detect and flag unsafe content
@@ -264,9 +263,9 @@ class TestContentFilteringIntegration:
             "sections": [
                 {
                     "title": "Introduction",
-                    "content": "This section contains normal text"
+                    "content": "This section contains normal text",
                 }
-            ]
+            ],
         }
 
         assert validator.validate_framework_content(safe_content) is True

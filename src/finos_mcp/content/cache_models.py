@@ -10,7 +10,7 @@ import hmac
 import json
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from pydantic import BaseModel, Field, validator
 
@@ -56,7 +56,7 @@ class SecureCacheEntry(BaseModel):
     """Secure cache entry with Pydantic validation."""
 
     key: str = Field(..., description="Cache key")
-    data: Union[str, int, float, bool, List[Any], Dict[str, Any], None] = Field(
+    data: str | int | float | bool | list[Any] | dict[str, Any] | None = Field(
         ..., description="Cached data (JSON-serializable only)"
     )
     metadata: CacheEntryMetadata = Field(..., description="Entry metadata")
@@ -85,10 +85,10 @@ class SecureCacheEntry(BaseModel):
         try:
             json.dumps(v)
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Data must be JSON-serializable: {e}")
+            raise ValueError(f"Data must be JSON-serializable: {e}") from e
 
         # Prevent dangerous data types
-        if hasattr(v, "__call__"):  # Functions
+        if callable(v):  # Functions
             raise ValueError("Functions are not allowed in cache data")
 
         if hasattr(v, "__reduce__"):  # Objects with pickle methods
@@ -99,7 +99,7 @@ class SecureCacheEntry(BaseModel):
 
         # Validate data size recursively
         data_str = json.dumps(v)
-        if len(data_str.encode('utf-8')) > 1024 * 1024:  # 1MB limit
+        if len(data_str.encode("utf-8")) > 1024 * 1024:  # 1MB limit
             raise ValueError("Data size exceeds 1MB limit")
 
         return v
@@ -114,12 +114,10 @@ class SecureCacheEntry(BaseModel):
 
     def calculate_integrity_hash(self, secret_key: str) -> str:
         """Calculate HMAC-SHA256 integrity hash for the data."""
-        data_json = json.dumps(self.data, sort_keys=True, separators=(',', ':'))
+        data_json = json.dumps(self.data, sort_keys=True, separators=(",", ":"))
         message = f"{self.key}:{data_json}:{self.ttl}:{self.created_timestamp}"
         return hmac.new(
-            secret_key.encode('utf-8'),
-            message.encode('utf-8'),
-            hashlib.sha256
+            secret_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
         ).hexdigest()
 
     def verify_integrity(self, secret_key: str) -> bool:
@@ -133,11 +131,13 @@ class SecureCacheEntry(BaseModel):
 
 class CacheValidationError(Exception):
     """Raised when cache data validation fails."""
+
     pass
 
 
 class CacheSecurityError(Exception):
     """Raised when cache security validation fails."""
+
     pass
 
 
@@ -178,8 +178,8 @@ def secure_cache_serializer(data: Any, key: str, ttl: int, secret_key: str) -> s
     data_type = determine_data_type(data)
 
     # Calculate data size
-    data_json = json.dumps(data, separators=(',', ':'))
-    data_size = len(data_json.encode('utf-8'))
+    data_json = json.dumps(data, separators=(",", ":"))
+    data_size = len(data_json.encode("utf-8"))
 
     # Create timestamp
     timestamp = time.time()
@@ -192,10 +192,10 @@ def secure_cache_serializer(data: Any, key: str, ttl: int, secret_key: str) -> s
             entry_type=data_type,
             data_size=data_size,
             compression_used=False,
-            integrity_hash=None  # Will be set below
+            integrity_hash=None,  # Will be set below
         ),
         ttl=ttl,
-        created_timestamp=timestamp
+        created_timestamp=timestamp,
     )
 
     # Calculate and set integrity hash
@@ -223,9 +223,9 @@ def secure_cache_deserializer(serialized_data: str, secret_key: str) -> Any:
         return entry.data
 
     except json.JSONDecodeError as e:
-        raise CacheValidationError(f"Invalid JSON in cache data: {e}")
+        raise CacheValidationError(f"Invalid JSON in cache data: {e}") from e
     except Exception as e:
-        raise CacheValidationError(f"Cache data validation failed: {e}")
+        raise CacheValidationError(f"Cache data validation failed: {e}") from e
 
 
 # Security configuration
@@ -233,9 +233,13 @@ class CacheSecurityConfig(BaseModel):
     """Configuration for cache security settings."""
 
     secret_key: str = Field(..., description="Secret key for HMAC integrity")
-    max_entry_size: int = Field(default=1024*1024, description="Max entry size in bytes")
-    max_ttl: int = Field(default=86400*30, description="Max TTL in seconds")
-    enable_integrity_check: bool = Field(default=True, description="Enable integrity checking")
+    max_entry_size: int = Field(
+        default=1024 * 1024, description="Max entry size in bytes"
+    )
+    max_ttl: int = Field(default=86400 * 30, description="Max TTL in seconds")
+    enable_integrity_check: bool = Field(
+        default=True, description="Enable integrity checking"
+    )
 
     @validator("secret_key")
     def validate_secret_key(cls, v):

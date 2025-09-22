@@ -1,0 +1,10 @@
+# Test security workflow
+name: Security Test
+on:
+  push:
+    branches: [ main ]
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3

@@ -27,7 +27,7 @@ class ContentSecurityValidator:
         "application/json",
         "application/xml",
         "application/yaml",
-        "text/xml"
+        "text/xml",
     }
 
     # Dangerous MIME types that should be blocked
@@ -43,23 +43,23 @@ class ContentSecurityValidator:
         "application/x-python-code",
         "text/x-python",
         "application/x-php",
-        "text/x-php"
+        "text/x-php",
     }
 
     # Patterns that indicate potentially dangerous content
     DANGEROUS_CONTENT_PATTERNS: ClassVar[list[str]] = [
-        r'<script[^>]*>.*?</script>',  # Script tags
-        r'<iframe[^>]*>.*?</iframe>',  # Iframe tags
-        r'<object[^>]*>.*?</object>',  # Object tags
-        r'<embed[^>]*>.*?</embed>',    # Embed tags
-        r'javascript:[^"\'\s]*',       # JavaScript URLs
-        r'vbscript:[^"\'\s]*',        # VBScript URLs
+        r"<script[^>]*>.*?</script>",  # Script tags
+        r"<iframe[^>]*>.*?</iframe>",  # Iframe tags
+        r"<object[^>]*>.*?</object>",  # Object tags
+        r"<embed[^>]*>.*?</embed>",  # Embed tags
+        r'javascript:[^"\'\s]*',  # JavaScript URLs
+        r'vbscript:[^"\'\s]*',  # VBScript URLs
         r'data:[^,]*base64[^"\'\s]*',  # Data URLs with base64
         r'on\w+\s*=\s*["\'][^"\']*["\']',  # Event handlers (onclick, onload, etc.)
     ]
 
     # Safe URL schemes
-    SAFE_URL_SCHEMES: ClassVar[set[str]] = {'https', 'http', 'mailto'}
+    SAFE_URL_SCHEMES: ClassVar[set[str]] = {"https", "http", "mailto"}
 
     def __init__(self, max_content_size: int = 10_000_000):  # 10MB default
         """Initialize content security validator.
@@ -86,7 +86,7 @@ class ContentSecurityValidator:
             return False
 
         # Extract the main type (ignore charset and other parameters)
-        main_type = content_type.split(';')[0].strip().lower()
+        main_type = content_type.split(";")[0].strip().lower()
 
         # Block explicitly dangerous types
         if main_type in self.DANGEROUS_CONTENT_TYPES:
@@ -133,7 +133,7 @@ class ContentSecurityValidator:
         if not content:
             return True
 
-        size = len(content.encode('utf-8'))
+        size = len(content.encode("utf-8"))
         if size > self.max_content_size:
             logger.warning(f"Content size {size} exceeds limit {self.max_content_size}")
             return False
@@ -164,12 +164,14 @@ class ContentSecurityValidator:
             hostname = parsed.hostname
             if hostname:
                 # Block localhost variations
-                if hostname in ('localhost', '127.0.0.1'):
+                if hostname in ("localhost", "127.0.0.1"):
                     logger.warning(f"Blocked localhost URL: {hostname}")
                     return False
 
                 # Block private IP ranges
-                if re.match(r'^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)', hostname):
+                if re.match(
+                    r"^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)", hostname
+                ):
                     logger.warning(f"Blocked private IP: {hostname}")
                     return False
 
@@ -189,12 +191,12 @@ class ContentSecurityValidator:
             True if response is safe, False otherwise
         """
         # Check content type
-        content_type = response.headers.get('content-type', '')
+        content_type = response.headers.get("content-type", "")
         if not self.is_safe_content_type(content_type):
             return False
 
         # Check content size
-        if hasattr(response, 'text'):
+        if hasattr(response, "text"):
             if not self.validate_content_size(response.text):
                 return False
 
@@ -204,7 +206,9 @@ class ContentSecurityValidator:
 
         return True
 
-    def validate_framework_content(self, content: dict[str, Any] | list[Any] | str) -> bool:
+    def validate_framework_content(
+        self, content: dict[str, Any] | list[Any] | str
+    ) -> bool:
         """Validate framework content recursively.
 
         Args:
@@ -251,9 +255,7 @@ class SecurityHeaders:
     )
 
     def get_security_headers(
-        self,
-        custom_csp: str | None = None,
-        allow_framing: bool = False
+        self, custom_csp: str | None = None, allow_framing: bool = False
     ) -> dict[str, str]:
         """Get security headers for HTTP responses.
 
@@ -267,13 +269,10 @@ class SecurityHeaders:
         headers = {
             # Prevent MIME type sniffing
             "X-Content-Type-Options": "nosniff",
-
             # XSS protection
             "X-XSS-Protection": "1; mode=block",
-
             # Referrer policy
             "Referrer-Policy": "strict-origin-when-cross-origin",
-
             # Content Security Policy
             "Content-Security-Policy": custom_csp or self.DEFAULT_CSP,
         }
@@ -298,13 +297,10 @@ class SecurityHeaders:
         return {
             # Safe User-Agent without sensitive information
             "User-Agent": f"finos-mcp/{server_version}",
-
             # Don't send referrer information
             "Referrer-Policy": "no-referrer",
-
             # Request only safe content types
             "Accept": "text/plain, text/html, application/json, text/yaml, text/markdown",
-
             # Don't accept dangerous encodings
             "Accept-Encoding": "gzip, deflate",
         }

@@ -9,10 +9,10 @@ from .request_validator import (
 )
 
 __all__ = [
-    'DoSProtector',
-    'RequestSizeValidator',
-    'SecureErrorHandler',
-    'dos_protector',
-    'request_size_validator',
-    'secure_error_handler'
+    "DoSProtector",
+    "RequestSizeValidator",
+    "SecureErrorHandler",
+    "dos_protector",
+    "request_size_validator",
+    "secure_error_handler",
 ]
