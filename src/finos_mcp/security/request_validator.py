@@ -5,7 +5,6 @@ Provides comprehensive protection against denial of service attacks through
 oversized requests, request flooding, and resource exhaustion.
 """
 
-import json
 import time
 import uuid
 from collections import defaultdict, deque
@@ -142,7 +141,7 @@ class RequestSizeValidator:
             return sum(self._concurrent_requests.values())
 
     def _calculate_content_size(self, content: Any) -> int:
-        """Calculate the size of content in bytes.
+        """Calculate the size of content in bytes with protection against infinite recursion.
 
         Args:
             content: Content to measure
@@ -151,31 +150,76 @@ class RequestSizeValidator:
             Size in bytes
         """
         try:
-            if content is None:
-                return 0
+            # Use iterative approach to prevent recursion errors
+            total_size = 0
+            stack = [content]
+            visited = set()  # Track visited objects to prevent circular references
+            max_items = 10000  # Limit to prevent DoS through massive structures
+            items_processed = 0
 
-            if isinstance(content, (str, bytes)):
-                return len(
-                    content.encode("utf-8") if isinstance(content, str) else content
+            while stack and items_processed < max_items:
+                current = stack.pop()
+                items_processed += 1
+
+                # Skip None values
+                if current is None:
+                    continue
+
+                # Get object ID for circular reference detection
+                obj_id = id(current)
+                if obj_id in visited:
+                    continue  # Skip already processed objects
+                visited.add(obj_id)
+
+                # Handle different types
+                if isinstance(current, (str, bytes)):
+                    total_size += len(
+                        current.encode("utf-8") if isinstance(current, str) else current
+                    )
+                elif isinstance(current, (list, tuple)):
+                    # Add items to stack for processing (limit depth)
+                    if len(stack) < 1000:  # Prevent stack overflow
+                        stack.extend(current)
+                    else:
+                        # Fallback: estimate size without deep traversal
+                        total_size += len(str(current)[:1000].encode("utf-8"))
+                elif isinstance(current, dict):
+                    # Add keys and values to stack for processing (limit depth)
+                    if len(stack) < 1000:  # Prevent stack overflow
+                        for key, value in current.items():
+                            stack.append(key)
+                            stack.append(value)
+                    else:
+                        # Fallback: estimate size without deep traversal
+                        total_size += len(str(current)[:1000].encode("utf-8"))
+                else:
+                    # For other types, get string representation size (limited)
+                    str_repr = str(current)[:1000]  # Limit string length
+                    total_size += len(str_repr.encode("utf-8"))
+
+            # If we hit the item limit, add a conservative estimate for remaining
+            if items_processed >= max_items and stack:
+                logger.warning(
+                    "Content structure too large, using conservative estimate"
                 )
+                total_size += (
+                    len(stack) * 100
+                )  # Conservative estimate per remaining item
 
-            if isinstance(content, (list, tuple)):
-                return sum(self._calculate_content_size(item) for item in content)
+            return total_size
 
-            if isinstance(content, dict):
-                total = 0
-                for key, value in content.items():
-                    total += self._calculate_content_size(key)
-                    total += self._calculate_content_size(value)
-                return total
-
-            # For other types, serialize to JSON to get approximate size
-            return len(json.dumps(content, default=str).encode("utf-8"))
+        except (RecursionError, MemoryError) as e:
+            logger.warning(f"Recursion or memory error calculating content size: {e}")
+            # Very conservative fallback
+            return 1000000  # 1MB conservative estimate
 
         except Exception as e:
             logger.warning(f"Failed to calculate content size: {e}")
             # Return a conservative estimate
-            return len(str(content).encode("utf-8"))
+            try:
+                return len(str(content)[:1000].encode("utf-8"))
+            except Exception:
+                return 1000  # Minimal fallback
 
 
 class DoSProtector:

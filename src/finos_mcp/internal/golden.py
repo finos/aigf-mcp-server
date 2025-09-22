@@ -147,7 +147,9 @@ class GoldenFileManager:
         if self.config.hash_algorithm == "sha256":
             return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
         elif self.config.hash_algorithm == "md5":
-            return hashlib.md5(json_str.encode("utf-8")).hexdigest()
+            return hashlib.md5(
+                json_str.encode("utf-8"), usedforsecurity=False
+            ).hexdigest()
         else:
             return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
 

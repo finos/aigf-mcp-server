@@ -234,11 +234,11 @@
     # Critical file patterns (space-separated for easy parsing)
     critical-patterns = "*.key *.pem *.p12 *.pfx *secret* *password* *token* *credential* .env .env.* *.env *.env.* *claude* *Claude* *CLAUDE* .claude .claude/ *.local *.local.* *-local.* *_local.* .local .local.* *personal* *private* .vscode/ .idea/ *.swp *.swo *~ .DS_Store Thumbs.db *.log logs/ temp/ tmp/ *.tmp *.temp .cache/ cache/ *.bak *.backup"
 
-    # High priority patterns
-    high-priority-patterns = "dev-notes* development-* internal-* scratch* notes* todo* test-results/ coverage-reports/ security-* audit-* vulnerability-* local-* dev-* script-* util-*"
+    # High priority patterns (fixed specific filenames only)
+    high-priority-patterns = "dev-notes-personal.md development-notes-personal.md internal-notes-personal.md scratch-personal.md personal-notes.md todo-personal.md .personal-todo .dev-scratch test-results/ coverage-reports/ security-scan-output.json audit-results-temp.json vulnerability-report-temp.json local-config-personal.json .dev-secrets .script-secrets .util-temp"
 
-    # Directory patterns to exclude completely
-    exclude-directories = ".claude .vscode .idea .ssh .aws .config node_modules __pycache__ .cache .tmp .temp temp tmp logs log coverage test-results security-reports"
+    # Directory patterns to exclude completely (fixed specific directories only)
+    exclude-directories = ".claude .vscode .idea .ssh .aws .config node_modules __pycache__ .cache .tmp .temp logs log coverage security-reports-runtime .security-scan-cache .audit-temp .dev-temp .debug-cache"
 
 # ===============================================================================
 # CLEANUP AND MAINTENANCE

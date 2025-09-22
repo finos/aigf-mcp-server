@@ -404,7 +404,7 @@ $RECYCLE.BIN/
 # ------------------------------------------------------------------------------
 # 6. DEVELOPMENT ARTIFACTS AND TEMPORARY FILES (COMPREHENSIVE)
 # ------------------------------------------------------------------------------
-# Logs and debugging
+# Logs and debugging (runtime files, not source)
 *.log
 *.log.*
 logs/
@@ -413,12 +413,16 @@ log/
 **/*.log.*
 **/logs/
 **/log/
-debug*
-*debug*
-trace*
-*trace*
+debug.log*
+*-debug.log*
+debug-output*
+*-debug-output*
+trace.log*
+*-trace.log*
+trace-output*
+*-trace-output*
 
-# Cache directories
+# Cache directories and runtime cache files (not source code)
 .cache/
 .cache/*
 .cache/**/*
@@ -426,9 +430,15 @@ trace*
 **/.cache/*
 **/.cache/**/*
 cache/
-*cache*
-*Cache*
-*CACHE*
+node_modules/.cache/
+.webpack_cache/
+.parcel-cache/
+.next/cache/
+__pycache__/
+*.cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Temporary files and directories
 temp/
@@ -468,19 +478,15 @@ lock
 # ------------------------------------------------------------------------------
 # 7. LOCAL DEVELOPMENT AND TESTING FILES
 # ------------------------------------------------------------------------------
-# Local development documentation
-dev-notes*
-*dev-notes*
-development-*
-*development*
-internal-*
-*internal*
-scratch*
-*scratch*
-notes*
-*notes*
-todo*
-*todo*
+# Local development documentation (only specific personal files)
+dev-notes-personal.md
+development-notes-personal.md
+internal-notes-personal.md
+scratch-personal.md
+personal-notes.md
+todo-personal.md
+.personal-todo
+.dev-scratch
 
 # Test artifacts and reports
 test-results/
@@ -495,15 +501,18 @@ htmlcov/
 junit.xml
 test.xml
 
-# Local scripts and utilities
+# Local scripts and utilities (runtime, not source)
 local-*
-*local*
-dev-*
-*dev*
-script-*
-*script*
-util-*
-*util*
+*-local
+*-local.*
+*_local
+*_local.*
+dev-notes*
+*-dev-notes*
+script-output*
+*-script-output*
+util-temp*
+*-util-temp*
 
 # ------------------------------------------------------------------------------
 # 8. PACKAGE MANAGER AND BUILD ARTIFACTS
@@ -543,25 +552,25 @@ wheels/
 # ------------------------------------------------------------------------------
 # 9. SECURITY AND MONITORING FILES
 # ------------------------------------------------------------------------------
-# Security reports and scans
-security-*
-*security*
-scan-*
-*scan*
-audit-*
-*audit*
-vulnerability-*
-*vulnerability*
-pentest-*
-*pentest*
+# Security runtime reports and scans (only specific temp files)
+security-reports-runtime/
+security-scan-output.json
+security-scan-temp.json
+audit-results-temp.json
+vulnerability-report-temp.json
+pentest-results-temp.json
+.security-scan-cache
+.audit-temp
 
-# Monitoring and analytics
-analytics*
-*analytics*
-metrics*
-*metrics*
-monitoring*
-*monitoring*
+# Monitoring and analytics (runtime data, not source)
+analytics-data/
+*-analytics-data*
+analytics-reports*
+*-analytics-reports*
+metrics-output*
+*-metrics-output*
+monitoring-logs*
+*-monitoring-logs*
 
 # ------------------------------------------------------------------------------
 # 10. REDUNDANT CRITICAL PATTERNS (MULTIPLE COVERAGE)
@@ -588,13 +597,16 @@ monitoring*
 .local
 .local.*
 
-# Secret files (multiple patterns)
-*secret*
-*Secret*
-*SECRET*
-*password*
-*Password*
-*PASSWORD*
+# Secret files (multiple patterns for credentials, not source)
+*secret.txt
+*secret.json
+*secret.env
+*Secret.txt
+*SECRET.txt
+*password.txt
+*password.env
+*Password.txt
+*PASSWORD.txt
 
 # Personal files (multiple patterns)
 personal*
@@ -602,15 +614,13 @@ personal*
 private*
 *private*
 
-# Development files (multiple patterns)
-dev*
-*dev*
-debug*
-*debug*
-temp*
-*temp*
-tmp*
-*tmp*
+# Development runtime files (only specific temp artifacts)
+dev-output-temp.log
+debug-session-temp.log
+temp-data-cache.json
+tmp-cache-runtime.json
+.dev-temp
+.debug-cache
 
 # ===============================================================================
 # END IRONCLAD PROTECTION SYSTEM
