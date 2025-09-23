@@ -33,7 +33,7 @@ class FrameworkDataLoader:
 
     def __init__(
         self,
-        base_url: str = "https://raw.githubusercontent.com/finos/ai-governance-framework/main/",
+        base_url: str = "https://raw.githubusercontent.com/finos/ai-governance-framework/main/docs/_data/",
         enable_dynamic_loading: bool = True,
     ):
         """Initialize framework data loader.
@@ -65,8 +65,25 @@ class FrameworkDataLoader:
             FrameworkType.CCPA: "ccpa",  # Using dedicated CCPA loader
         }
 
-        self.cache_dir = Path(".framework_cache")
-        self.cache_dir.mkdir(exist_ok=True)
+        # Try to create cache directory, fall back to temp or disable caching if read-only
+        try:
+            self.cache_dir = Path(".framework_cache")
+            self.cache_dir.mkdir(exist_ok=True)
+            self.cache_enabled = True
+        except (OSError, PermissionError):
+            # Read-only file system - try temp directory
+            try:
+                import tempfile
+
+                self.cache_dir = Path(tempfile.gettempdir()) / "framework_cache"
+                self.cache_dir.mkdir(exist_ok=True)
+                self.cache_enabled = True
+                logger.warning("Using temporary directory for framework cache")
+            except (OSError, PermissionError):
+                # No cache available - disable caching
+                self.cache_dir = None  # type: ignore[assignment]
+                self.cache_enabled = False
+                logger.warning("Cache disabled due to read-only file system")
 
         # Lazy initialization of loader registry
         self._loader_registry = None
@@ -226,17 +243,17 @@ class FrameworkDataLoader:
         Returns:
             Raw framework data
         """
-        cache_file = self.cache_dir / filename
-
-        # Try to load from cache first
-        if cache_file.exists():
-            try:
-                with open(cache_file, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                logger.debug(f"Loaded framework data from cache: {filename}")
-                return data
-            except Exception as e:
-                logger.warning(f"Failed to load cached data for {filename}: {e}")
+        # Try to load from cache first (if caching is enabled)
+        if self.cache_enabled and self.cache_dir:
+            cache_file = self.cache_dir / filename
+            if cache_file.exists():
+                try:
+                    with open(cache_file, encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                    logger.debug(f"Loaded framework data from cache: {filename}")
+                    return data
+                except Exception as e:
+                    logger.warning(f"Failed to load cached data for {filename}: {e}")
 
         # Fetch from remote source
         try:
@@ -250,13 +267,15 @@ class FrameworkDataLoader:
                     content = response.text
                     data = yaml.safe_load(content)
 
-                    # Cache the data
-                    try:
-                        with open(cache_file, "w", encoding="utf-8") as f:
-                            yaml.dump(data, f, default_flow_style=False)
-                        logger.debug(f"Cached framework data: {filename}")
-                    except Exception as e:
-                        logger.warning(f"Failed to cache data for {filename}: {e}")
+                    # Cache the data (if caching is enabled)
+                    if self.cache_enabled and self.cache_dir:
+                        try:
+                            cache_file = self.cache_dir / filename
+                            with open(cache_file, "w", encoding="utf-8") as f:
+                                yaml.dump(data, f, default_flow_style=False)
+                            logger.debug(f"Cached framework data: {filename}")
+                        except Exception as e:
+                            logger.warning(f"Failed to cache data for {filename}: {e}")
 
                     return data
                 else:
@@ -272,13 +291,15 @@ class FrameworkDataLoader:
                 response.raise_for_status()
                 data = yaml.safe_load(response.content)
 
-            # Cache the data
-            try:
-                with open(cache_file, "w", encoding="utf-8") as f:
-                    yaml.dump(data, f, default_flow_style=False)
-                logger.debug(f"Cached framework data: {filename}")
-            except Exception as e:
-                logger.warning(f"Failed to cache data for {filename}: {e}")
+            # Cache the data (if caching is enabled)
+            if self.cache_enabled and self.cache_dir:
+                try:
+                    cache_file = self.cache_dir / filename
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        yaml.dump(data, f, default_flow_style=False)
+                    logger.debug(f"Cached framework data: {filename}")
+                except Exception as e:
+                    logger.warning(f"Failed to cache data for {filename}: {e}")
 
             return data
         except Exception as e:
@@ -298,6 +319,9 @@ class FrameworkDataLoader:
             Parsed framework
         """
         try:
+            # Special handling for OWASP LLM format
+            if framework_type == FrameworkType.OWASP_LLM:
+                return self._parse_owasp_llm_data(raw_data)
             # Extract framework metadata
             metadata = raw_data.get("framework", {})
 
@@ -550,13 +574,16 @@ class FrameworkDataLoader:
                 # Invalidate specific framework
                 self.loaded_frameworks.pop(framework_type, None)
 
-                # Clear corresponding cache files
-                filename = self.framework_files.get(framework_type)
-                if filename:
-                    cache_file = self.cache_dir / filename
-                    if cache_file.exists():
-                        cache_file.unlink()
-                        logger.info(f"Cleared cache for framework: {framework_type}")
+                # Clear corresponding cache files (if caching is enabled)
+                if self.cache_enabled and self.cache_dir:
+                    filename = self.framework_files.get(framework_type)
+                    if filename:
+                        cache_file = self.cache_dir / filename
+                        if cache_file.exists():
+                            cache_file.unlink()
+                            logger.info(
+                                f"Cleared cache for framework: {framework_type}"
+                            )
 
                 # Invalidate dynamic loader cache if applicable
                 if self.enable_dynamic_loading:
@@ -584,6 +611,10 @@ class FrameworkDataLoader:
 
     def _clear_all_cache_files(self) -> None:
         """Clear all framework cache files."""
+        if not self.cache_enabled or not self.cache_dir:
+            logger.info("Cache disabled - no cache to clear")
+            return
+
         try:
             import shutil
 
@@ -644,8 +675,83 @@ class FrameworkDataLoader:
 
         logger.info("Framework data loader shutdown complete")
 
+    def _parse_owasp_llm_data(self, raw_data: dict[str, Any]) -> GovernanceFramework:
+        """Parse OWASP LLM data format into structured framework.
+
+        Args:
+            raw_data: Raw OWASP LLM data in {risk_id: {title, url}} format
+
+        Returns:
+            Parsed OWASP LLM framework
+        """
+        # Create framework metadata
+        framework = GovernanceFramework(
+            framework_type=FrameworkType.OWASP_LLM,
+            name="OWASP LLM Top 10",
+            version="2025",
+            description="OWASP Top 10 risks for Large Language Model applications",
+            publisher="OWASP Foundation",
+            publication_date=datetime(2025, 1, 1),
+            effective_date=datetime(2025, 1, 1),
+            official_url=HttpUrl("https://genai.owasp.org/"),
+            documentation_url=HttpUrl("https://genai.owasp.org/llmrisk/"),
+        )
+
+        # Create a single section for all OWASP LLM risks
+        framework.sections = [
+            FrameworkSection(
+                framework_type=FrameworkType.OWASP_LLM,
+                section_id="llm-risks",
+                title="LLM Security Risks",
+                description="Top 10 security risks for Large Language Model applications",
+                parent_section=None,
+                order=1,
+            )
+        ]
+
+        # Convert each risk to a framework reference
+        references = []
+        for _order, (risk_id, risk_data) in enumerate(raw_data.items(), 1):
+            if (
+                isinstance(risk_data, dict)
+                and "title" in risk_data
+                and "url" in risk_data
+            ):
+                reference = FrameworkReference(
+                    id=f"owasp-llm-{risk_id}",
+                    framework_type=FrameworkType.OWASP_LLM,
+                    title=risk_data["title"],
+                    description=f"Security risk: {risk_data['title']}",
+                    section="llm-risks",
+                    severity=SeverityLevel.HIGH,  # All OWASP Top 10 are high severity
+                    compliance_status=ComplianceStatus.COMPLIANT,
+                    implementation_notes=f"OWASP LLM risk: {risk_data['title']}",
+                    official_url=HttpUrl(risk_data["url"]),
+                    documentation_url=HttpUrl(risk_data["url"]),
+                    control_id=risk_id,
+                    category="Security Risk",
+                    subcategory="LLM Security",
+                    tags=["owasp", "llm", "security", "top10"],
+                )
+                references.append(reference)
+
+        framework.references = references
+
+        # Update statistics
+        framework.total_references = len(references)
+        framework.active_references = len(references)
+
+        # Link references to sections
+        self._link_references_to_sections(framework)
+
+        return framework
+
     def clear_cache(self) -> None:
         """Clear the framework data cache."""
+        if not self.cache_enabled or not self.cache_dir:
+            logger.info("Cache disabled - no cache to clear")
+            return
+
         try:
             import shutil
 
