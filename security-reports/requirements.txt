@@ -29,7 +29,7 @@ dparse==0.6.4
 exceptiongroup==1.2.2
 face==24.0.0
 filelock==3.12.4
--e git+https://github.com/hugo-calderon/finos-mcp-server.git@6f567cf2bf3abc20938d329f2ec4f1f4a6944882#egg=finos_ai_governance_mcp_server
+-e git+https://github.com/hugo-calderon/finos-mcp-server.git@3eba43723154a70ac9cd38b3e3351e1c23a629b9#egg=finos_ai_governance_mcp_server
 git-filter-repo==2.47.0
 glom==22.1.0
 googleapis-common-protos==1.70.0

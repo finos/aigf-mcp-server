@@ -17,7 +17,7 @@ Script: index
 | finos_mcp.content.parse                              |   6.35% imprecise |   425 LOC |
 | finos_mcp.content.service                            |   6.43% imprecise |  1104 LOC |
 | finos_mcp.frameworks                                 |   0.00% imprecise |    30 LOC |
-| finos_mcp.frameworks.data_loader                     |   8.52% imprecise |   657 LOC |
+| finos_mcp.frameworks.data_loader                     |   7.86% imprecise |   763 LOC |
 | finos_mcp.frameworks.loaders                         |   0.00% imprecise |    29 LOC |
 | finos_mcp.frameworks.loaders.base_loader             |   9.48% imprecise |   464 LOC |
 | finos_mcp.frameworks.loaders.ccpa                    |  17.50% imprecise |   520 LOC |
@@ -45,5 +45,5 @@ Script: index
 | finos_mcp.tools.search                               |   8.58% imprecise |   408 LOC |
 | finos_mcp.tools.system                               |  17.90% imprecise |   162 LOC |
 +------------------------------------------------------+-------------------+-----------+
-| Total                                                |   9.05% imprecise | 15785 LOC |
+| Total                                                |   9.02% imprecise | 15891 LOC |
 +------------------------------------------------------+-------------------+-----------+
