@@ -80,6 +80,7 @@ body {
     color: white;
     position: relative;
     overflow: hidden;
+    margin-top: 71px;
 }
 
 .hero::before {
@@ -157,54 +158,236 @@ body {
     font-weight: 500;
 }
 
-/* Architecture Preview */
-.architecture-preview {
+/* FINOS Ecosystem Visualization */
+.finos-ecosystem {
     position: relative;
-    height: 400px;
+    height: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* AI Clients Layer */
+.clients-layer {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 20px;
+    z-index: 3;
+}
+
+.client-node {
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(30, 64, 175, 0.3);
+    animation: float 3s ease-in-out infinite;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.client-node:nth-child(1) { animation-delay: 0s; }
+.client-node:nth-child(2) { animation-delay: 0.6s; }
+.client-node:nth-child(3) { animation-delay: 1.2s; }
+.client-node:nth-child(4) { animation-delay: 1.8s; }
+.client-node:nth-child(5) { animation-delay: 2.4s; }
+
+/* FINOS Central Hub */
+.finos-hub {
+    position: relative;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
+.finos-core {
+    background: linear-gradient(135deg, #0c4a6e, #0369a1, #0284c7);
+    border-radius: 25px;
+    padding: 25px 35px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(12, 74, 110, 0.4);
+    position: relative;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(15px);
+}
+
+.finos-logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.mcp-server {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #bae6fd;
+    margin-bottom: 6px;
+}
+
+.content-badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #e0f2fe;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.hub-pulse {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    border: 2px solid #0ea5e9;
+    border-radius: 25px;
+    animation: hubPulse 2s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+/* Framework Ring */
+.frameworks-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
 .framework-node {
     position: absolute;
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
-    padding: 8px 12px;
-    font-size: 0.875rem;
-    font-weight: 500;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 15px;
+    padding: 12px 16px;
+    font-size: 0.8rem;
     backdrop-filter: blur(10px);
-    animation: pulse 2s ease-in-out infinite;
+    animation: frameworkPulse 3s ease-in-out infinite;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-width: 120px;
 }
 
-.framework-node.nist { top: 10%; left: 20%; animation-delay: 0s; }
-.framework-node.eu { top: 20%; right: 10%; animation-delay: 0.3s; }
-.framework-node.owasp { top: 40%; left: 5%; animation-delay: 0.6s; }
-.framework-node.iso { top: 60%; right: 15%; animation-delay: 0.9s; }
-.framework-node.gdpr { bottom: 30%; left: 15%; animation-delay: 1.2s; }
-.framework-node.ccpa { bottom: 20%; right: 25%; animation-delay: 1.5s; }
-.framework-node.soc2 { bottom: 10%; left: 35%; animation-delay: 1.8s; }
-
-.central-hub {
-    background: linear-gradient(45deg, #06b6d4, #0891b2);
-    border-radius: 20px;
-    padding: 20px 30px;
-    font-size: 1.25rem;
+.framework-name {
     font-weight: 600;
     color: #ffffff;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    animation: glow 2s ease-in-out infinite alternate;
+    margin-bottom: 4px;
+    display: block;
 }
 
-@keyframes pulse {
+.via-finos {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #0ea5e9;
+    background: rgba(14, 165, 233, 0.1);
+    padding: 2px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(14, 165, 233, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Framework Positioning */
+.framework-node.nist { top: 25%; left: 15%; animation-delay: 0s; }
+.framework-node.eu { top: 30%; right: 8%; animation-delay: 0.4s; }
+.framework-node.owasp { top: 50%; left: 2%; animation-delay: 0.8s; }
+.framework-node.iso { top: 70%; right: 10%; animation-delay: 1.2s; }
+.framework-node.gdpr { bottom: 10%; left: 10%; animation-delay: 1.6s; }
+.framework-node.ccpa { bottom: 5%; right: 20%; animation-delay: 2s; }
+.framework-node.soc2 { bottom: 15%; left: 30%; animation-delay: 2.4s; }
+
+/* Connection Lines */
+.connection-lines {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.connection-line {
+    position: absolute;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #0ea5e9, transparent);
+    animation: dataFlow 2s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+.line-1 { top: 25%; left: 25%; width: 50%; transform: rotate(-15deg); animation-delay: 0s; }
+.line-2 { top: 30%; right: 20%; width: 45%; transform: rotate(15deg); animation-delay: 0.4s; }
+.line-3 { top: 45%; left: 15%; width: 35%; transform: rotate(-45deg); animation-delay: 0.8s; }
+.line-4 { top: 60%; right: 25%; width: 40%; transform: rotate(30deg); animation-delay: 1.2s; }
+.line-5 { bottom: 35%; left: 30%; width: 45%; transform: rotate(-10deg); animation-delay: 1.6s; }
+
+/* Data Flow Particles */
+.data-flows {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.flow-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #0ea5e9;
+    border-radius: 50%;
+    animation: particleFlow 3s ease-in-out infinite;
+    box-shadow: 0 0 10px #0ea5e9;
+}
+
+.particle-1 { top: 25%; left: 25%; animation-delay: 0s; }
+.particle-2 { top: 30%; right: 20%; animation-delay: 0.6s; }
+.particle-3 { top: 45%; left: 15%; animation-delay: 1.2s; }
+.particle-4 { top: 60%; right: 25%; animation-delay: 1.8s; }
+.particle-5 { bottom: 35%; left: 30%; animation-delay: 2.4s; }
+
+/* Animations */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes hubPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+    50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.3; }
+}
+
+@keyframes frameworkPulse {
     0%, 100% { transform: scale(1); opacity: 0.8; }
     50% { transform: scale(1.05); opacity: 1; }
 }
 
-@keyframes glow {
-    0% { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
-    100% { box-shadow: 0 15px 40px rgba(6, 182, 212, 0.4); }
+@keyframes dataFlow {
+    0% { opacity: 0; transform: scaleX(0); }
+    50% { opacity: 0.8; transform: scaleX(1); }
+    100% { opacity: 0; transform: scaleX(0); }
+}
+
+@keyframes particleFlow {
+    0% { opacity: 0; transform: scale(0); }
+    50% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0); }
 }
 
 /* Sections */
