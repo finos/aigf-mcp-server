@@ -1,55 +1,103 @@
 version: 2
+
+# Security-first Dependabot configuration for FINOS MCP Server
+# Prioritizes security updates over version updates for financial services compliance
+# Integrates with existing comprehensive security pipeline (bandit, semgrep, pip-audit, ruff, mypy)
+
 updates:
-  # Python package dependencies
+  # SECURITY-PRIORITY PYTHON DEPENDENCIES
+  # This configuration prioritizes security updates and maintains compatibility
+  # with the existing robust security pipeline
   - package-ecosystem: "pip"
     directory: "/"
+
+    # Security updates run more frequently than feature updates
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
+      interval: "daily"  # Daily for security patches
+      time: "06:00"      # Early morning UTC for security reviews
       timezone: "UTC"
-    target-branch: "develop"
+
+    # Target feature branch for security isolation
+    target-branch: "feature/security-updates"
+
+    # FINOS compliance - require maintainer review for all security updates
     reviewers:
       - "@finos/ai-governance-mcp-maintainers"
     assignees:
       - "@finos/ai-governance-mcp-maintainers"
+
+    # Security-focused commit message format
     commit-message:
-      prefix: "deps"
-      prefix-development: "deps-dev"
+      prefix: "security"
+      prefix-development: "security-dev"
       include: "scope"
+
+    # Security-specific labeling for audit trails
     labels:
+      - "security-update"
       - "dependencies"
       - "automated-pr"
-    open-pull-requests-limit: 5
+      - "requires-security-review"
+
+    # Limit concurrent security PRs for manageable review process
+    open-pull-requests-limit: 8
     rebase-strategy: "auto"
 
-    # Separate direct and development dependencies
+    # SECURITY-FIRST DEPENDENCY GROUPING
+    # Groups prioritize security patches while maintaining system stability
     groups:
-      production-dependencies:
+      # CRITICAL SECURITY DEPENDENCIES
+      security-libraries:
         patterns:
-          - "mcp*"
-          - "httpx*"
-          - "pydantic*"
-          - "pyyaml*"
+          - "bleach*"            # XSS prevention
+          - "pathvalidate*"      # Path traversal prevention
+          - "python-slugify*"    # Input sanitization
+          - "bandit*"            # Security scanning
+          - "semgrep*"           # Static analysis
+          - "safety*"            # Vulnerability scanning
         update-types:
-          - "minor"
-          - "patch"
+          - "security-update"    # Security patches ONLY
+          - "patch"              # Bug fixes
 
-      development-dependencies:
+      # CORE MCP PROTOCOL DEPENDENCIES
+      mcp-core:
         patterns:
-          - "pytest*"
-          - "ruff*"
-          - "mypy*"
-          - "black*"
-          - "bandit*"
-          - "coverage*"
-          - "pre-commit*"
+          - "mcp*"              # MCP protocol implementation
+          - "httpx*"            # HTTP client with security features
+          - "pydantic*"         # Data validation framework
         update-types:
-          - "minor"
-          - "patch"
+          - "security-update"    # Security patches ONLY
+          - "patch"              # Bug fixes
 
-    # Ignore major version updates for core dependencies (require manual review)
+      # DATA PROCESSING DEPENDENCIES
+      data-processing:
+        patterns:
+          - "PyYAML*"           # YAML processing
+          - "tenacity*"         # Retry logic
+        update-types:
+          - "security-update"    # Security patches ONLY
+          - "patch"              # Bug fixes
+          - "minor"              # Compatible updates only
+
+      # DEVELOPMENT SECURITY TOOLS
+      dev-security-tools:
+        patterns:
+          - "pytest*"           # Testing framework
+          - "pytest-asyncio*"   # Async testing
+          - "pytest-cov*"       # Coverage analysis
+          - "ruff*"             # Security-aware linting
+          - "mypy*"             # Type safety
+          - "types-*"           # Type stubs for security
+          - "pre-commit*"       # Git hooks
+          - "pip-tools*"        # Dependency management
+        update-types:
+          - "security-update"    # Security patches ONLY
+          - "patch"              # Bug fixes
+
+    # FINANCIAL SERVICES COMPLIANCE RESTRICTIONS
+    # Major version updates require manual security review and compliance validation
     ignore:
+      # Core protocol dependencies - major updates require extensive testing
       - dependency-name: "mcp"
         update-types: ["version-update:semver-major"]
       - dependency-name: "httpx"
@@ -57,47 +105,142 @@ updates:
       - dependency-name: "pydantic"
         update-types: ["version-update:semver-major"]
 
+      # Security libraries - major updates require security team review
+      - dependency-name: "bleach"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pathvalidate"
+        update-types: ["version-update:semver-major"]
 
-  # GitHub Actions
+      # Data processing - major updates may break validation
+      - dependency-name: "PyYAML"
+        update-types: ["version-update:semver-major"]
+
+  # WEEKLY FEATURE UPDATES (Non-security)
+  # Separate schedule for non-security updates to maintain stability
+  - package-ecosystem: "pip"
+    directory: "/"
+
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+
+    target-branch: "feature/dependency-updates"
+
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+
+    labels:
+      - "dependencies"
+      - "automated-pr"
+      - "feature-update"
+
+    open-pull-requests-limit: 3
+    rebase-strategy: "auto"
+
+    # Only feature updates (non-security)
+    groups:
+      feature-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"              # Compatible feature updates
+
+    # Skip security updates (handled by daily security schedule)
+    ignore:
+      - dependency-name: "*"
+        update-types: ["security-update"]
+
+  # CI/CD SECURITY UPDATES
+  # GitHub Actions updates with security focus
   - package-ecosystem: "github-actions"
     directory: "/"
+
     schedule:
       interval: "weekly"
       day: "tuesday"
-      time: "09:00"
+      time: "06:00"      # Early morning for security review
       timezone: "UTC"
-    target-branch: "develop"
+
+    target-branch: "feature/ci-security-updates"
+
     reviewers:
       - "@finos/ai-governance-mcp-maintainers"
+
     commit-message:
-      prefix: "ci"
+      prefix: "ci-security"
       include: "scope"
+
     labels:
       - "github-actions"
       - "automated-pr"
-    open-pull-requests-limit: 3
+      - "ci-security"
+      - "requires-security-review"
 
-    # Group related GitHub Actions updates
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+
+    # Group CI/CD security updates
     groups:
-      github-actions:
+      ci-security-actions:
+        patterns:
+          - "actions/checkout*"      # Code checkout security
+          - "actions/setup-python*"  # Python environment security
+          - "actions/upload-artifact*" # Artifact security
+          - "github/codeql-action*"  # Security scanning
+        update-types:
+          - "security-update"
+          - "patch"
+          - "minor"
+
+      ci-tools:
         patterns:
           - "actions/*"
           - "github/*"
         update-types:
-          - "minor"
           - "patch"
+          - "minor"
 
-  # Docker dependencies (if we add Dockerfile later)
+    # Prevent major CI changes without review
+    ignore:
+      - dependency-name: "actions/checkout"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "actions/setup-python"
+        update-types: ["version-update:semver-major"]
+
+  # DOCKER SECURITY UPDATES (Future-proofing)
+  # Ready for containerization with security-first approach
   - package-ecosystem: "docker"
     directory: "/"
+
     schedule:
       interval: "weekly"
       day: "wednesday"
-      time: "09:00"
+      time: "06:00"
       timezone: "UTC"
-    target-branch: "develop"
+
+    target-branch: "feature/docker-security-updates"
+
     commit-message:
-      prefix: "docker"
+      prefix: "docker-security"
+      include: "scope"
+
     labels:
       - "docker"
       - "automated-pr"
+      - "container-security"
+      - "requires-security-review"
+
+    open-pull-requests-limit: 2
+
+    # Group Docker security updates
+    groups:
+      docker-security:
+        patterns:
+          - "*"
+        update-types:
+          - "security-update"
+          - "patch"

@@ -112,16 +112,18 @@ jobs:
       id: pylint
       run: |
         echo "Running Pylint code quality analysis..."
+        set +e  # Temporarily disable exit on error to capture Pylint exit code
         python -m pylint src/ \
           --output-format=json \
           --reports=yes \
           --score=yes > security-reports/pylint-report.json
-
-        # Pylint will exit with non-zero code if score < fail-under (8.5)
         PYLINT_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
 
         if [ $PYLINT_EXIT_CODE -ne 0 ]; then
           echo "❌ CRITICAL: Pylint score below 8.5 threshold (exit code: $PYLINT_EXIT_CODE)"
+          echo "📋 Detailed Pylint report:"
+          cat security-reports/pylint-report.json | jq '.[] | select(.type == "fatal" or .type == "error") | {type, message, path, line}'
           exit 1
         fi
 
@@ -132,11 +134,22 @@ jobs:
       id: ruff
       run: |
         echo "Running Ruff linter..."
+        set +e  # Temporarily disable exit on error to capture Ruff exit code
         ruff check src/ tests/ scripts/ --output-format=json > security-reports/ruff-report.json
+        RUFF_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
 
         # Count the number of issues found
         RUFF_ISSUES=$(jq 'length' security-reports/ruff-report.json)
         echo "Ruff found $RUFF_ISSUES linting issues"
+
+        # CRITICAL: Fail if Ruff found any issues (explicit exit code check)
+        if [ $RUFF_EXIT_CODE -ne 0 ]; then
+          echo "❌ CRITICAL: Ruff found $RUFF_ISSUES linting issues"
+          echo "📋 Detailed Ruff issues:"
+          jq '.' security-reports/ruff-report.json
+          exit 1
+        fi
 
         # Check formatting
         echo "Checking code formatting with Ruff..."

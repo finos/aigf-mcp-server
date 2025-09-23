@@ -72,7 +72,7 @@ def mcp_initialization_request() -> dict[str, Any]:
         "id": 1,
         "method": "initialize",
         "params": {
-            "protocolVersion": "2024-11-05",
+            "protocolVersion": "2025-06-18",
             "capabilities": {},
             "clientInfo": {"name": "pytest-test", "version": "1.0.0"},
         },
@@ -207,7 +207,7 @@ def sample_mcp_requests() -> dict[str, dict[str, Any]]:
             "id": 1,
             "method": "initialize",
             "params": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-06-18",
                 "capabilities": {},
                 "clientInfo": {"name": "test", "version": "1.0.0"},
             },
@@ -292,6 +292,14 @@ def setup_test_environment():
 
     # Set test validation mode for all tests
     os.environ["FINOS_MCP_VALIDATION_MODE"] = "disabled"
+    # Set default cache secret for tests if not already set
+    cache_secret_set = "FINOS_MCP_CACHE_SECRET" not in os.environ
+    if cache_secret_set:
+        os.environ["FINOS_MCP_CACHE_SECRET"] = "test_default_cache_secret_32chars"
+
     yield
+
     # Cleanup
     os.environ.pop("FINOS_MCP_VALIDATION_MODE", None)
+    if cache_secret_set:
+        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)

@@ -74,7 +74,7 @@ class TestMCPProtocolCompliance:
             "id": 1,
             "method": "initialize",
             "params": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-06-18",
                 "capabilities": {},
                 "clientInfo": {"name": "test", "version": "1.0"},
             },
@@ -150,7 +150,7 @@ class TestMCPProtocolCompliance:
             "id": 1,
             "method": "initialize",
             "params": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-06-18",
                 "capabilities": {},
                 "clientInfo": {"name": "test", "version": "1.0"},
             },
@@ -222,7 +222,7 @@ class TestMCPProtocolCompliance:
             "id": 1,
             "method": "initialize",
             "params": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-06-18",
                 "capabilities": {},
                 "clientInfo": {"name": "test", "version": "1.0"},
             },
@@ -343,7 +343,7 @@ class TestMCPProtocolCompliance:
         test_request = mcp_request_factory(
             "initialize",
             {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-06-18",
                 "capabilities": {},
                 "clientInfo": {"name": "test", "version": "1.0"},
             },
@@ -380,7 +380,7 @@ class TestMCPProtocolEdgeCases:
             mcp_request_factory(
                 "initialize",
                 {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": "2025-06-18",
                     "capabilities": {},
                     "clientInfo": {"name": "test", "version": "1.0"},
                 },
@@ -408,7 +408,7 @@ class TestMCPProtocolEdgeCases:
         init_request = mcp_request_factory(
             "initialize",
             {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-06-18",
                 "capabilities": {},
                 "clientInfo": {"name": "test", "version": "1.0"},
             },

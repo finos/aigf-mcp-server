@@ -294,11 +294,20 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             "ri-3_training-data-poisoning.md",
         ]
 
-        # Start cache warming if enabled
-        if self._warming_enabled:
-            self._start_cache_warming()
-
         self.logger.info("Content service initialized")
+
+    async def start(self) -> None:
+        """Start async components of the service.
+
+        This method must be called after service creation to start background tasks.
+        It ensures proper async context management and lifecycle.
+        """
+        # Start cache warming if enabled and not already started
+        if self._warming_enabled and (
+            self._warming_task is None or self._warming_task.done()
+        ):
+            self._start_cache_warming()
+            self.logger.info("Cache warming started in async context")
 
     async def _get_http_client(self) -> HTTPClient:
         """Get HTTP client with lazy initialization."""
@@ -314,9 +323,20 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
 
     def _start_cache_warming(self) -> None:
         """Start background cache warming task."""
-        if self._warming_task is None or self._warming_task.done():
-            self._warming_task = asyncio.create_task(self._cache_warming_loop())
-            self.logger.info("Cache warming started")
+        try:
+            # Check if we have a running event loop
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                self.logger.debug("Cannot start cache warming: no event loop running")
+                return
+
+            if self._warming_task is None or self._warming_task.done():
+                self._warming_task = asyncio.create_task(self._cache_warming_loop())
+                self.logger.info("Cache warming started")
+        except Exception as e:
+            self.logger.warning(f"Failed to start cache warming: {e}")
+            # Don't raise - cache warming is optional
 
     async def _cache_warming_loop(self) -> None:
         """Background loop for cache warming."""
@@ -996,16 +1016,26 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             try:
                 await self._warming_task
             except asyncio.CancelledError:
-                pass
-            self.logger.info("Cache warming task cancelled")
+                self.logger.debug("Cache warming task cancelled successfully")
+            except Exception as e:
+                self.logger.warning("Error during cache warming task cleanup: %s", e)
+            self.logger.info("Cache warming task cleanup completed")
 
         # Close cache if initialized
         if self._cache:
-            await close_cache()
+            try:
+                await close_cache()
+                self.logger.debug("Cache closed successfully")
+            except Exception as e:
+                self.logger.warning("Error closing cache: %s", e)
 
         # Close HTTP client if initialized
         if self._http_client:
-            await self._http_client.close()
+            try:
+                await self._http_client.close()
+                self.logger.debug("HTTP client closed successfully")
+            except Exception as e:
+                self.logger.warning("Error closing HTTP client: %s", e)
 
         self.logger.info("Content service shutdown complete")
 
@@ -1030,16 +1060,29 @@ class ContentServiceManager:
         """
         if self._content_service is None:
             self._content_service = ContentService()
-            logger.info("Global content service initialized")
+            await self._content_service.start()
+            logger.info("Global content service initialized and started")
 
         return self._content_service
 
     async def close_content_service(self) -> None:
         """Close and cleanup global content service."""
         if self._content_service is not None:
-            await self._content_service.close()
-            self._content_service = None
-            logger.info("Global content service closed")
+            try:
+                await self._content_service.close()
+            except Exception as e:
+                logger.warning("Error during content service shutdown: %s", e)
+            finally:
+                self._content_service = None
+                logger.info("Global content service closed")
+
+    async def __aenter__(self) -> ContentService:
+        """Async context manager entry."""
+        return await self.get_content_service()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit with cleanup."""
+        await self.close_content_service()
 
 
 # Global content service manager instance

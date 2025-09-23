@@ -45,6 +45,8 @@ from .config import validate_settings_on_startup
 from .content.service import get_content_service
 from .health import get_health_monitor
 from .logging import get_logger, log_mcp_request, set_correlation_id
+from .security.error_handler import secure_error_handler
+from .security.request_validator import dos_protector, request_size_validator
 from .tools import get_all_tools, handle_tool_call
 from .tools.search import get_mitigation_files, get_risk_files
 
@@ -473,12 +475,7 @@ async def handle_read_resource(uri: AnyUrl) -> str:
 
         # Security: Validate content size to prevent memory exhaustion
         content = doc_data["full_text"]
-        if len(content) > 10_000_000:  # 10MB limit
-            logger.warning(
-                "Resource content too large",
-                extra={"uri": uri_str, "content_size": len(content)},
-            )
-            raise ValueError("Resource content exceeds size limit")
+        request_size_validator.validate_resource_size(content)
 
         logger.info(
             f"Successfully read resource: {validated_filename}",
@@ -509,10 +506,30 @@ async def handle_call_tool(
     # Set correlation ID for request tracing
     correlation_id = set_correlation_id()
 
+    # DoS protection: Check rate limits and start request tracking
+    client_id = (
+        f"tool_caller_{correlation_id[:8]}"  # Use correlation ID as client identifier
+    )
+
+    if not dos_protector.check_rate_limit(client_id):
+        logger.warning(
+            f"DoS protection: Rate limit exceeded for tool {name}",
+            extra={
+                "tool_name": name,
+                "client_id": client_id,
+                "correlation_id": correlation_id,
+            },
+        )
+        raise SecurityValidationError("Request rate limit exceeded. Please slow down.")
+
+    request_id = dos_protector.start_request(client_id)
+
     # Log MCP request start
     start_time = asyncio.get_event_loop().time()
 
     try:
+        # Validate request parameters size
+        request_size_validator.validate_request_params_size(arguments)
         # Rate limiting check
         if not _tool_rate_limiter.is_allowed(f"tool_{name}"):
             logger.warning(
@@ -554,16 +571,8 @@ async def handle_call_tool(
 
         # Validate result size to prevent memory exhaustion
         if isinstance(result, list):
-            total_size = sum(
-                len(str(item.text)) if hasattr(item, "text") else len(str(item))
-                for item in result
-            )
-            if total_size > 50_000_000:  # 50MB limit
-                logger.warning(
-                    f"Tool result too large: {name}",
-                    extra={"result_size": total_size, "correlation_id": correlation_id},
-                )
-                raise ValueError("Tool result exceeds size limit")
+            # Use security validator for consistent size checking
+            request_size_validator.validate_tool_result_size(result)
 
         # Log successful request
         elapsed_time = asyncio.get_event_loop().time() - start_time
@@ -587,46 +596,71 @@ async def handle_call_tool(
         return result
 
     except (SecurityValidationError, ValueError) as error:
-        # Log security/validation errors
+        # Handle validation errors securely
         elapsed_time = asyncio.get_event_loop().time() - start_time
-        logger.warning(
-            f"Tool call validation failed: {name} - {error}",
-            extra={
-                "correlation_id": correlation_id,
+
+        # Log validation errors internally with full details
+        secure_error_handler.log_error_internally(
+            f"Tool validation failed: {name} - {error!s}",
+            correlation_id,
+            {
+                "tool_name": name,
+                "error_type": type(error).__name__,
+                "execution_time": elapsed_time,
+            },
+        )
+
+        # Create safe validation error message
+        safe_error_message = secure_error_handler.sanitize_error_message(str(error))
+
+        log_mcp_request(
+            logger=logger,
+            method=name,
+            request_id=correlation_id,
+            params=arguments,
+            error=safe_error_message,  # Use sanitized error message
+            response_time=elapsed_time,
+        )
+
+        # Re-raise with sanitized message
+        raise type(error)(safe_error_message) from None
+
+    except Exception as error:
+        # Handle error securely to prevent information disclosure
+        elapsed_time = asyncio.get_event_loop().time() - start_time
+
+        # Log full error details internally for debugging
+        secure_error_handler.log_error_internally(
+            f"Tool execution failed: {name} - {error!s}",
+            correlation_id,
+            {
+                "tool_name": name,
+                "parameters": arguments,
+                "execution_time": elapsed_time,
                 "error_type": type(error).__name__,
             },
         )
+
+        # Create safe error message for external response
+        safe_error_message = secure_error_handler.handle_tool_error(
+            error, name, arguments, correlation_id
+        )
+
         log_mcp_request(
             logger=logger,
             method=name,
             request_id=correlation_id,
             params=arguments,
-            error=str(error),
+            error=safe_error_message,  # Use sanitized error message
             response_time=elapsed_time,
         )
 
-        # Re-raise the error for MCP error handling
-        raise
+        # Re-raise with sanitized message
+        raise type(error)(safe_error_message) from None
 
-    except Exception as error:
-        # Log unexpected errors
-        elapsed_time = asyncio.get_event_loop().time() - start_time
-        logger.error(
-            f"Tool execution failed: {name} - {error}",
-            extra={"correlation_id": correlation_id},
-            exc_info=True,
-        )
-        log_mcp_request(
-            logger=logger,
-            method=name,
-            request_id=correlation_id,
-            params=arguments,
-            error=str(error),
-            response_time=elapsed_time,
-        )
-
-        # Re-raise the error for MCP error handling
-        raise
+    finally:
+        # Always complete DoS protection request tracking
+        dos_protector.complete_request(client_id, request_id)
 
 
 async def log_health_status() -> None:

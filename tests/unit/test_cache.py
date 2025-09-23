@@ -24,24 +24,44 @@ from finos_mcp.content.cache import (
 @pytest_asyncio.fixture
 async def cache():
     """Create a test cache instance."""
+    import os
+
+    # Set secure cache key for testing
+    test_key = "test_cache_key_" + "a" * 17  # 32 character minimum key for testing
+    os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
+
     test_cache: TTLCache[str, str] = TTLCache(
         max_size=5,
         default_ttl=1.0,  # 1 second for fast testing
         cleanup_interval=0.1,  # Fast cleanup for testing
         enable_background_cleanup=False,  # Disable for controlled testing
     )
-    yield test_cache
-    await test_cache.close()
+    try:
+        yield test_cache
+    finally:
+        await test_cache.close()
+        # Clean up environment variable after test
+        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
 
 
 @pytest_asyncio.fixture
 async def cache_no_ttl():
     """Create a test cache without TTL."""
+    import os
+
+    # Set secure cache key for testing
+    test_key = "test_cache_no_ttl_" + "a" * 15  # 32 character minimum key for testing
+    os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
+
     test_cache: TTLCache[str, str] = TTLCache(
         max_size=3, default_ttl=None, enable_background_cleanup=False
     )
-    yield test_cache
-    await test_cache.close()
+    try:
+        yield test_cache
+    finally:
+        await test_cache.close()
+        # Clean up environment variable after test
+        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
 
 
 @pytest.mark.unit
@@ -369,12 +389,29 @@ class TestTTLCache:
     @pytest.mark.asyncio
     async def test_background_cleanup_enabled(self):
         """Test cache with background cleanup enabled."""
-        cache: TTLCache[str, str] = TTLCache(
-            max_size=5,
-            default_ttl=0.1,
-            cleanup_interval=0.05,
-            enable_background_cleanup=True,
-        )
+        import os
+
+        # Set secure cache key for testing
+        test_key = (
+            "test_background_cleanup_" + "a" * 10
+        )  # 32 character minimum key for testing
+        original_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
+        os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
+
+        try:
+            cache: TTLCache[str, str] = TTLCache(
+                max_size=5,
+                default_ttl=0.1,
+                cleanup_interval=0.05,
+                enable_background_cleanup=True,
+            )
+        except:
+            # Restore environment and re-raise
+            if original_key:
+                os.environ["FINOS_MCP_CACHE_SECRET"] = original_key
+            else:
+                os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
+            raise
 
         # Add expiring items
         await cache.set("key1", "value1")
@@ -469,16 +506,28 @@ class TestCachePerformance:
     @pytest.mark.asyncio
     async def test_large_values(self, cache):
         """Test cache with large values."""
-        # Create large string (1MB)
-        large_value = "x" * (1024 * 1024)
+        # Create large but realistic data (not repetitive to avoid compression bomb detection)
+        import random
+        import string
+
+        # Generate random data that won't compress as much (realistic data)
+        # Using random for test data is acceptable in this security testing context
+        large_value = "".join(
+            random.choices(  # noqa: S311
+                string.ascii_letters + string.digits + " \n.,!?",
+                k=500_000,
+            )  # 500KB of varied data
+        )
 
         await cache.set("large", large_value)
         result = await cache.get("large")
 
         assert result == large_value
 
-        # Check memory usage is tracked (compression will reduce size significantly)
+        # Check memory usage is tracked (compression will reduce size)
         stats = await cache.get_stats()
         assert stats.memory_usage_bytes > 0  # Just verify memory usage is tracked
-        # With gzip compression, 1MB of repeated 'x' compresses to ~1KB
-        assert stats.memory_usage_bytes < 10000  # Verify compression is working
+        # Random data compresses less than repetitive data, but should still be compressed
+        assert stats.memory_usage_bytes < len(
+            large_value
+        )  # Verify compression is working

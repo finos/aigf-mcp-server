@@ -24,7 +24,8 @@ This module provides a comprehensive caching system with:
 
 import asyncio
 import gzip
-import pickle  # nosec B403 - Used safely for internal cache serialization only
+import json
+import os
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -35,8 +36,18 @@ from typing import Any, Generic, Optional, TypeVar
 
 from ..config import get_settings
 from ..logging import get_logger
+from .cache_models import (
+    CacheSecurityError,
+    CacheValidationError,
+    secure_cache_deserializer,
+    secure_cache_serializer,
+)
 
 logger = get_logger("cache")
+
+# Memory allocation limits for security
+MAX_OBJECT_SIZE = 10_000_000  # 10MB maximum for individual objects
+MAX_COMPRESSION_RATIO = 100  # Maximum compression ratio to prevent bombs
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -240,13 +251,32 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
         # Background cleanup task
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._enable_background_cleanup = enable_background_cleanup
         if enable_background_cleanup:
             self._start_cleanup_task()
 
     def _start_cleanup_task(self) -> None:
         """Start background cleanup task."""
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._background_cleanup())
+        try:
+            if self._cleanup_task is None or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(self._background_cleanup())
+        except RuntimeError as e:
+            if "no running event loop" in str(e):
+                logger.debug("Cannot start cache cleanup: no event loop running")
+                # Cleanup will be started when cache is accessed in async context
+            else:
+                raise
+
+    async def start(self) -> None:
+        """Start async components of the cache.
+
+        This method must be called in an async context to start background tasks.
+        """
+        if self._enable_background_cleanup and (
+            self._cleanup_task is None or self._cleanup_task.done()
+        ):
+            self._start_cleanup_task()
+            logger.debug("Cache background cleanup started in async context")
 
     async def _background_cleanup(self) -> None:
         """Background task to clean up expired entries."""
@@ -278,58 +308,187 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         except (asyncio.TimeoutError, RuntimeError, ValueError, TypeError) as e:
             logger.error("Unexpected error in background cache cleanup: %s", e)
 
-    def _compress_value(self, value: T) -> tuple[Any, int]:
-        """Compress value using gzip if compression is enabled.
+    def _compress_value(self, value: T, key: str) -> tuple[Any, int]:
+        """Secure serialize value using JSON with optional compression.
 
         Returns:
-            Tuple of (compressed_or_original_value, actual_size_bytes)
+            Tuple of (serialized_value, actual_size_bytes)
 
         """
-        if not self.enable_compression:
-            return value, self._estimate_uncompressed_size(value)
-
         try:
-            # Serialize the value using pickle
-            serialized = pickle.dumps(value)
+            # Get security key for HMAC
+            secret_key = self._get_cache_security_key()
+
+            # Secure serialize using JSON + Pydantic validation
+            serialized = secure_cache_serializer(
+                data=value,
+                key=key,
+                ttl=int(self.default_ttl or 0),
+                secret_key=secret_key,
+            )
+            serialized_bytes = serialized.encode("utf-8")
+
+            # Memory limit check - reject objects that are too large
+            if len(serialized_bytes) > MAX_OBJECT_SIZE:
+                raise ValueError(
+                    f"Object size {len(serialized_bytes)} bytes exceeds maximum "
+                    f"allowed size of {MAX_OBJECT_SIZE} bytes. This prevents "
+                    "memory exhaustion attacks."
+                )
+
+            if not self.enable_compression:
+                return serialized_bytes, len(serialized_bytes)
 
             # Only compress if serialized data is reasonably large (> 100 bytes)
-            if len(serialized) > 100:
-                compressed = gzip.compress(serialized, compresslevel=6)
+            if len(serialized_bytes) > 100:
+                compressed = gzip.compress(serialized_bytes, compresslevel=6)
                 # Only use compression if it actually saves space
-                if len(compressed) < len(serialized):
+                if len(compressed) < len(serialized_bytes):
                     logger.debug(
                         "Compressed value: %s -> %s bytes (%.1f%% reduction)",
-                        len(serialized),
+                        len(serialized_bytes),
                         len(compressed),
-                        (1 - len(compressed) / len(serialized)) * 100,
+                        (1 - len(compressed) / len(serialized_bytes)) * 100,
                     )
                     return compressed, len(compressed)
 
-            # Return original value if compression not beneficial
-            return value, len(serialized)
+            # Return original serialized value if compression not beneficial
+            return serialized_bytes, len(serialized_bytes)
 
         except (
-            pickle.PickleError,
+            CacheValidationError,
+            CacheSecurityError,
             gzip.BadGzipFile,
             TypeError,
             ValueError,
             MemoryError,
         ) as e:
-            logger.warning("Compression failed, using original value: %s", e)
-            return value, self._estimate_uncompressed_size(value)
+            logger.warning("Secure serialization failed: %s", e)
+            # Raise security errors to prevent unsafe fallbacks
+            if isinstance(e, (CacheValidationError, CacheSecurityError)):
+                raise
+            # Check if this is a memory/size limit error that should be enforced
+            if isinstance(e, ValueError) and (
+                "exceeds maximum" in str(e) or "Object size" in str(e)
+            ):
+                logger.error("Memory limit exceeded - blocking cache operation: %s", e)
+                raise e
+            return self._fallback_json_serialize(
+                value
+            ), self._estimate_uncompressed_size(value)
 
     def _decompress_value(self, stored_value: Any) -> T:
-        """Decompress value if it was compressed."""
-        if not self.enable_compression or not isinstance(stored_value, bytes):
+        """Securely deserialize value from JSON with optional decompression."""
+        if not isinstance(stored_value, bytes):
+            # Handle legacy or direct JSON strings
+            if isinstance(stored_value, str):
+                return self._secure_deserialize_json(stored_value)
             return stored_value
 
         try:
-            # Try to decompress - if it fails, assume it's not compressed
-            decompressed = gzip.decompress(stored_value)
-            return pickle.loads(decompressed)  # nosec B301  # type: ignore[no-any-return]
-        except (gzip.BadGzipFile, pickle.PickleError, TypeError, ValueError):
-            # If decompression fails, return as-is (likely not compressed)
-            return stored_value  # type: ignore[return-value]
+            # Security check: detect potential pickle data
+            if len(stored_value) >= 2:
+                # Check for pickle magic bytes (0x80 0x03 for protocol 3, etc.)
+                if stored_value[:2] in [
+                    b"\x80\x03",
+                    b"\x80\x04",
+                    b"\x80\x05",
+                ] or stored_value.startswith(b"c"):
+                    raise CacheSecurityError(
+                        "Potential pickle data detected - rejected for security"
+                    )
+
+                # Check for gzip header followed by pickle magic
+                if stored_value.startswith(b"\x1f\x8b"):  # gzip magic
+                    try:
+                        # Protection against decompression bombs
+                        if (
+                            len(stored_value) < MAX_OBJECT_SIZE
+                        ):  # Only attempt if reasonable size
+                            decompressed = gzip.decompress(stored_value)
+                            # Check compression ratio to prevent decompression bombs
+                            compression_ratio = len(decompressed) / len(stored_value)
+                            if compression_ratio > MAX_COMPRESSION_RATIO:
+                                raise ValueError(
+                                    f"Compression ratio {compression_ratio:.1f} exceeds maximum "
+                                    f"allowed ratio of {MAX_COMPRESSION_RATIO}. This prevents "
+                                    "decompression bomb attacks."
+                                )
+                            if len(decompressed) >= 2 and (
+                                decompressed[:2]
+                                in [b"\x80\x03", b"\x80\x04", b"\x80\x05"]
+                                or decompressed.startswith(b"c")
+                            ):
+                                raise CacheSecurityError(
+                                    "Potential compressed pickle data detected - rejected for security"
+                                )
+                        else:
+                            raise ValueError(
+                                f"Compressed data size {len(stored_value)} exceeds safety limit"
+                            )
+                    except gzip.BadGzipFile:
+                        pass  # Not gzip, continue with normal processing
+
+            # Get security key for HMAC verification
+            secret_key = self._get_cache_security_key()
+
+            if self.enable_compression:
+                try:
+                    # Protection against decompression bombs
+                    if len(stored_value) > MAX_OBJECT_SIZE:
+                        raise ValueError(
+                            f"Compressed data size {len(stored_value)} exceeds safety limit"
+                        )
+
+                    # Try to decompress - if it fails, assume it's not compressed
+                    decompressed = gzip.decompress(stored_value)
+
+                    # Check compression ratio to prevent decompression bombs
+                    compression_ratio = len(decompressed) / len(stored_value)
+                    if compression_ratio > MAX_COMPRESSION_RATIO:
+                        raise ValueError(
+                            f"Compression ratio {compression_ratio:.1f} exceeds maximum "
+                            f"allowed ratio of {MAX_COMPRESSION_RATIO}. This prevents "
+                            "decompression bomb attacks."
+                        )
+
+                    json_str = decompressed.decode("utf-8")
+                except (gzip.BadGzipFile, UnicodeDecodeError):
+                    # Not compressed, treat as direct JSON
+                    json_str = stored_value.decode("utf-8")
+                except ValueError as e:
+                    # Memory/compression ratio limits exceeded
+                    logger.error("Decompression security limit exceeded: %s", e)
+                    raise CacheSecurityError(
+                        f"Decompression failed security checks: {e}"
+                    ) from e
+            else:
+                json_str = stored_value.decode("utf-8")
+
+            # Additional security check: ensure it looks like JSON
+            json_str = json_str.strip()
+            if not (
+                json_str.startswith(("{", "[", '"'))
+                or json_str in ("true", "false", "null")
+                or json_str.replace("-", "").replace(".", "").isdigit()
+            ):
+                raise CacheSecurityError("Data does not appear to be valid JSON")
+
+            # Securely deserialize using JSON + Pydantic validation
+            return secure_cache_deserializer(json_str, secret_key)
+
+        except (
+            CacheValidationError,
+            CacheSecurityError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+        ) as e:
+            logger.error("Secure deserialization failed: %s", e)
+            # For security errors, do not return potentially unsafe data
+            if isinstance(e, (CacheValidationError, CacheSecurityError)):
+                raise
+            # For other errors, do not attempt fallback - safer to fail
+            raise CacheValidationError(f"Cache data validation failed: {e}") from e
 
     def _estimate_uncompressed_size(self, value: T) -> int:
         """Estimate size of uncompressed value in bytes."""
@@ -380,6 +539,66 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         self._stats.memory_usage_bytes = sum(
             entry.size_bytes for entry in self._cache.values()
         )
+
+    def _get_cache_security_key(self) -> str:
+        """Get security key for HMAC operations.
+
+        Raises:
+            ValueError: If FINOS_MCP_CACHE_SECRET environment variable is not set
+                       or does not meet minimum security requirements
+        """
+        security_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
+
+        if not security_key:
+            raise ValueError(
+                "FINOS_MCP_CACHE_SECRET environment variable must be set. "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+
+        # Ensure minimum key length for security (32 chars minimum)
+        if len(security_key) < 32:
+            raise ValueError(
+                f"Cache security key must be at least 32 characters. "
+                f"Current length: {len(security_key)}. "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+
+        return security_key
+
+    def _fallback_json_serialize(self, value: Any) -> bytes:
+        """Fallback JSON serialization without Pydantic validation."""
+        try:
+            # Basic JSON serialization for simple data types
+            json_str = json.dumps(value, default=str, separators=(",", ":"))
+            return json_str.encode("utf-8")
+        except (TypeError, ValueError) as e:
+            logger.error("Fallback JSON serialization failed: %s", e)
+            # Return a safe representation
+            safe_repr = {"error": "serialization_failed", "type": str(type(value))}
+            return json.dumps(safe_repr).encode("utf-8")
+
+    def _fallback_json_deserialize(self, stored_value: Any) -> Any:
+        """Fallback JSON deserialization for non-Pydantic data."""
+        try:
+            if isinstance(stored_value, bytes):
+                json_str = stored_value.decode("utf-8")
+            else:
+                json_str = str(stored_value)
+
+            return json.loads(json_str)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.error("Fallback JSON deserialization failed: %s", e)
+            return None
+
+    def _secure_deserialize_json(self, json_str: str) -> Any:
+        """Secure deserialize JSON string with validation."""
+        try:
+            secret_key = self._get_cache_security_key()
+            return secure_cache_deserializer(json_str, secret_key)
+        except (CacheValidationError, CacheSecurityError) as e:
+            logger.error("Secure JSON deserialization failed: %s", e)
+            # For security errors, return None rather than potentially unsafe data
+            return None
 
     def _evict_lru(self) -> None:
         """Evict least recently used entry."""
@@ -435,8 +654,8 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         if ttl is not None and ttl > 0:
             expires_at = current_time + ttl
 
-        # Compress value and get actual size
-        stored_value, size_bytes = self._compress_value(value)
+        # Secure serialize value and get actual size
+        stored_value, size_bytes = self._compress_value(value, str(key))
 
         with self._lock:
             # Create new entry with potentially compressed value
@@ -582,10 +801,12 @@ class CacheManager:
 
     _instance: Optional["CacheManager"] = None
     _cache: TTLCache[str, Any] | None = None
+    _lock = threading.Lock()
 
     def __new__(cls) -> "CacheManager":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
         return cls._instance
 
     async def get_cache(self) -> TTLCache[str, Any]:
@@ -596,25 +817,35 @@ class CacheManager:
 
         """
         if self._cache is None:
-            settings = get_settings()
+            with self._lock:
+                # Double-check pattern to prevent race conditions
+                if self._cache is None:
+                    settings = get_settings()
 
-            # Get cache configuration from settings
-            max_size = getattr(settings, "cache_max_size", 1000)
-            default_ttl = getattr(settings, "cache_ttl_seconds", 3600.0)
+                    # Get cache configuration from settings
+                    max_size = getattr(settings, "cache_max_size", 1000)
+                    default_ttl = getattr(settings, "cache_ttl_seconds", 3600.0)
 
-            self._cache = TTLCache(
-                max_size=max_size,
-                default_ttl=default_ttl,
-                cleanup_interval=60.0,  # Cleanup every minute
-                enable_background_cleanup=True,
-                enable_compression=True,  # Enable gzip compression for 60-80% memory reduction
-            )
+                    self._cache = TTLCache(
+                        max_size=max_size,
+                        default_ttl=default_ttl,
+                        cleanup_interval=60.0,  # Cleanup every minute
+                        enable_background_cleanup=True,
+                        enable_compression=True,  # Enable gzip compression for 60-80% memory reduction
+                    )
 
             logger.info(
                 "Initialized cache with max_size=%s, ttl=%ss, compression=enabled",
                 max_size,
                 default_ttl,
             )
+
+            # Start async components if we're in an async context
+            try:
+                await self._cache.start()
+            except RuntimeError:
+                # Not in async context, that's okay
+                pass
 
         return self._cache
 

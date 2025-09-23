@@ -18,6 +18,7 @@ from typing import Any
 from mcp.types import TextContent, Tool
 
 from .details import DETAILS_TOOLS, handle_details_tools
+from .frameworks import FRAMEWORK_TOOLS, handle_framework_tools
 from .listing import LISTING_TOOLS, handle_listing_tools
 from .search import SEARCH_TOOLS, handle_search_tools
 from .system import SYSTEM_TOOLS, handle_system_tools
@@ -28,6 +29,7 @@ ALL_TOOLS: list[Tool] = [
     *DETAILS_TOOLS,
     *LISTING_TOOLS,
     *SYSTEM_TOOLS,
+    *FRAMEWORK_TOOLS,
 ]
 
 # Tool name to handler mapping
@@ -48,6 +50,18 @@ TOOL_HANDLERS: dict[
     "get_service_health": handle_system_tools,
     "get_service_metrics": handle_system_tools,
     "reset_service_health": handle_system_tools,
+    # Framework tools
+    "search_frameworks": handle_framework_tools,
+    "list_frameworks": handle_framework_tools,
+    "get_framework_details": handle_framework_tools,
+    "get_compliance_analysis": handle_framework_tools,
+    "search_framework_references": handle_framework_tools,
+    "get_related_controls": handle_framework_tools,
+    "get_framework_correlations": handle_framework_tools,
+    "find_compliance_gaps": handle_framework_tools,
+    "advanced_search_frameworks": handle_framework_tools,
+    "export_framework_data": handle_framework_tools,
+    "bulk_export_frameworks": handle_framework_tools,
 }
 
 

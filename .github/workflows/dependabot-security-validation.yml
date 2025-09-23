@@ -1,0 +1,347 @@
+name: Dependabot Security Validation
+
+# This workflow validates Dependabot PRs through the same security pipeline
+# as manual PRs, ensuring financial services compliance for automated updates
+
+on:
+  pull_request:
+    branches: [ main, develop, 'feature/security-*', 'feature/dependency-*', 'feature/ci-security-*', 'feature/docker-security-*' ]
+    types: [opened, synchronize, reopened]
+  # Only run on Dependabot PRs and security-related branches
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to validate (for manual testing)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  # Check if this is a Dependabot PR or security-related PR
+  detect-dependabot:
+    name: Detect Dependabot PR
+    runs-on: ubuntu-latest
+    outputs:
+      is-dependabot: ${{ steps.check.outputs.is-dependabot }}
+      is-security-branch: ${{ steps.check.outputs.is-security-branch }}
+      should-validate: ${{ steps.check.outputs.should-validate }}
+    steps:
+    - name: Check PR source
+      id: check
+      run: |
+        # Check if PR is from Dependabot
+        IS_DEPENDABOT="false"
+        IS_SECURITY_BRANCH="false"
+        SHOULD_VALIDATE="false"
+
+        if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
+          IS_DEPENDABOT="true"
+          SHOULD_VALIDATE="true"
+          echo "🤖 Dependabot PR detected"
+        fi
+
+        # Check if branch is security-related
+        if [[ "${{ github.head_ref }}" == feature/security-* ]] || \
+           [[ "${{ github.head_ref }}" == feature/dependency-* ]] || \
+           [[ "${{ github.head_ref }}" == feature/ci-security-* ]] || \
+           [[ "${{ github.head_ref }}" == feature/docker-security-* ]]; then
+          IS_SECURITY_BRANCH="true"
+          SHOULD_VALIDATE="true"
+          echo "🔒 Security-related branch detected"
+        fi
+
+        echo "is-dependabot=$IS_DEPENDABOT" >> $GITHUB_OUTPUT
+        echo "is-security-branch=$IS_SECURITY_BRANCH" >> $GITHUB_OUTPUT
+        echo "should-validate=$SHOULD_VALIDATE" >> $GITHUB_OUTPUT
+
+        echo "Validation required: $SHOULD_VALIDATE"
+
+  # Enhanced security validation for Dependabot PRs
+  dependabot-security-scan:
+    name: Dependabot Security Validation
+    runs-on: ubuntu-latest
+    needs: detect-dependabot
+    if: needs.detect-dependabot.outputs.should-validate == 'true'
+    timeout-minutes: 45
+
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+      fail-fast: false
+
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        # Checkout the PR branch for validation
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Create security reports directory
+      run: |
+        mkdir -p dependabot-security-reports
+        mkdir -p dependabot-coverage-reports
+
+    - name: Install dependencies with updated versions
+      run: |
+        python -m pip install --upgrade pip
+        # Install the project with updated dependencies from the PR
+        pip install -e .[security,dev]
+        pip install lxml  # Required for MyPy report generation
+
+    # CRITICAL: Dependency vulnerability scan on updated dependencies
+    - name: Enhanced pip-audit Dependency Scan
+      id: pip-audit-enhanced
+      run: |
+        echo "🔐 Running enhanced dependency vulnerability scan for Dependabot PR..."
+        pip freeze > dependabot-security-reports/updated-requirements.txt
+
+        # Install pip-audit (Python Packaging Authority's official tool)
+        python -m pip install pip-audit
+
+        # Run comprehensive pip-audit scan with strict settings
+        pip-audit --format json --output dependabot-security-reports/pip-audit-report.json \
+          --require-hashes --ignore-vuln PYSEC-2022-42969 --local || true
+
+        # Check for vulnerabilities with zero tolerance
+        VULNS=$(jq '.dependencies | map(select(.vulns | length > 0)) | length' dependabot-security-reports/pip-audit-report.json)
+        HIGH_SEVERITY_VULNS=$(jq '[.dependencies[] | .vulns[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' dependabot-security-reports/pip-audit-report.json)
+
+        echo "Total vulnerable dependencies: $VULNS"
+        echo "High/Critical severity vulnerabilities: $HIGH_SEVERITY_VULNS"
+
+        if [ "$HIGH_SEVERITY_VULNS" -gt 0 ]; then
+          echo "❌ CRITICAL: Found $HIGH_SEVERITY_VULNS high/critical severity vulnerabilities"
+          echo "Vulnerable dependencies with high/critical issues:"
+          jq '.dependencies | map(select(.vulns | map(select(.severity == "HIGH" or .severity == "CRITICAL")) | length > 0))' dependabot-security-reports/pip-audit-report.json
+          exit 1
+        fi
+
+        if [ "$VULNS" -gt 0 ]; then
+          echo "⚠️ WARNING: Found $VULNS vulnerable dependencies (medium/low severity)"
+          echo "All vulnerable dependencies:"
+          jq '.dependencies | map(select(.vulns | length > 0))' dependabot-security-reports/pip-audit-report.json
+          # Don't fail on medium/low severity, but report them
+        fi
+
+        echo "✅ Enhanced dependency vulnerability scan passed"
+
+    # STRICT: Run Bandit security scanner on updated code
+    - name: Bandit Security Scanner (Strict Mode)
+      id: bandit-strict
+      run: |
+        echo "🔒 Running Bandit security scanner in strict mode..."
+        python -m bandit -c config/security/bandit.yml -r src/ \
+          --format json \
+          --output dependabot-security-reports/bandit-report.json \
+          --severity-level low \
+          --confidence-level low
+
+        # Zero tolerance for HIGH severity issues
+        HIGH_ISSUES=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' dependabot-security-reports/bandit-report.json)
+        MEDIUM_ISSUES=$(jq '[.results[] | select(.issue_severity == "MEDIUM")] | length' dependabot-security-reports/bandit-report.json)
+
+        echo "Bandit found $HIGH_ISSUES high severity and $MEDIUM_ISSUES medium severity issues"
+
+        if [ "$HIGH_ISSUES" -gt 0 ]; then
+          echo "❌ CRITICAL: Bandit found $HIGH_ISSUES high severity security issues"
+          jq '.results[] | select(.issue_severity == "HIGH")' dependabot-security-reports/bandit-report.json
+          exit 1
+        fi
+
+        # Stricter threshold for Dependabot PRs
+        if [ "$MEDIUM_ISSUES" -gt 2 ]; then
+          echo "❌ FAILURE: Bandit found $MEDIUM_ISSUES medium severity issues (Dependabot threshold: 2)"
+          exit 1
+        fi
+
+        echo "✅ Bandit security scan passed (strict mode)"
+
+    # STRICT: Run Semgrep static analysis
+    - name: Semgrep Static Analysis (Strict Mode)
+      id: semgrep-strict
+      run: |
+        echo "🔍 Running Semgrep static analysis in strict mode..."
+        semgrep --config config/security/semgrep.yml src/ \
+          --json \
+          --output dependabot-security-reports/semgrep-report.json \
+          --metrics=off
+
+        # Zero tolerance for ERROR level findings
+        ERROR_ISSUES=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' dependabot-security-reports/semgrep-report.json)
+        WARNING_ISSUES=$(jq '[.results[] | select(.extra.severity == "WARNING")] | length' dependabot-security-reports/semgrep-report.json)
+
+        echo "Semgrep found $ERROR_ISSUES errors and $WARNING_ISSUES warnings"
+
+        if [ "$ERROR_ISSUES" -gt 0 ]; then
+          echo "❌ CRITICAL: Semgrep found $ERROR_ISSUES critical security issues"
+          jq '.results[] | select(.extra.severity == "ERROR")' dependabot-security-reports/semgrep-report.json
+          exit 1
+        fi
+
+        echo "✅ Semgrep static analysis passed (strict mode)"
+
+    # STRICT: Run Ruff linter with security focus
+    - name: Ruff Security Linting
+      id: ruff-security
+      run: |
+        echo "⚡ Running Ruff security linting..."
+        ruff check src/ tests/ scripts/ \
+          --select S,B,E,F \
+          --output-format=json > dependabot-security-reports/ruff-security-report.json
+
+        # Count security-related issues
+        SECURITY_ISSUES=$(jq '[.[] | select(.code | startswith("S") or startswith("B"))] | length' dependabot-security-reports/ruff-security-report.json)
+        TOTAL_ISSUES=$(jq 'length' dependabot-security-reports/ruff-security-report.json)
+
+        echo "Ruff found $SECURITY_ISSUES security issues out of $TOTAL_ISSUES total issues"
+
+        # Check formatting
+        echo "Checking code formatting with Ruff..."
+        ruff format --check src/ tests/ scripts/
+
+        echo "✅ Ruff security linting passed"
+
+    # STRICT: Run MyPy type checking
+    - name: MyPy Type Checking (Enhanced)
+      id: mypy-enhanced
+      run: |
+        echo "🎯 Running enhanced MyPy type checking..."
+        python -m mypy src/finos_mcp \
+          --show-error-codes \
+          --show-error-context \
+          --txt-report dependabot-security-reports/mypy-report \
+          --strict-optional \
+          --warn-redundant-casts \
+          --warn-unused-ignores \
+          --disallow-any-generics \
+          --disallow-untyped-calls
+
+        echo "✅ Enhanced MyPy type checking passed"
+
+    # CRITICAL: Run comprehensive test suite
+    - name: Comprehensive Test Suite
+      id: comprehensive-tests
+      run: |
+        echo "🧪 Running comprehensive test suite..."
+        python -m pytest tests/ \
+          --cov=src/finos_mcp \
+          --cov-report=json:dependabot-coverage-reports/coverage.json \
+          --cov-report=xml:dependabot-coverage-reports/coverage.xml \
+          --cov-report=html:dependabot-coverage-reports/html \
+          --junit-xml=dependabot-coverage-reports/pytest.xml \
+          --cov-fail-under=75 \
+          --tb=short \
+          --strict-markers \
+          --strict-config
+
+        # Extract and validate coverage
+        if [ -f "dependabot-coverage-reports/coverage.json" ]; then
+          COVERAGE=$(python -c "import json; data=json.load(open('dependabot-coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}%')" 2>/dev/null || echo "unknown")
+          COVERAGE_NUM=$(python -c "import json; data=json.load(open('dependabot-coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}')" 2>/dev/null || echo "0")
+
+          echo "📊 Test Coverage: $COVERAGE"
+
+          # Ensure coverage meets higher threshold for Dependabot PRs
+          if (( $(echo "$COVERAGE_NUM < 75.0" | bc -l) )); then
+            echo "❌ CRITICAL: Test coverage $COVERAGE below required 75% for Dependabot PRs"
+            exit 1
+          fi
+        fi
+
+        echo "✅ Comprehensive test suite passed"
+
+    # Upload detailed security reports
+    - name: Upload Dependabot Security Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: dependabot-security-reports-py${{ matrix.python-version }}
+        path: dependabot-security-reports/
+        retention-days: 90  # Longer retention for audit purposes
+
+    - name: Upload Dependabot Coverage Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: dependabot-coverage-reports-py${{ matrix.python-version }}
+        path: dependabot-coverage-reports/
+        retention-days: 90
+
+  # Dependabot PR auto-approval for security updates (with strict validation)
+  dependabot-auto-approve:
+    name: Dependabot Auto-Approval
+    runs-on: ubuntu-latest
+    needs: [detect-dependabot, dependabot-security-scan]
+    if: |
+      needs.detect-dependabot.outputs.is-dependabot == 'true' &&
+      needs.dependabot-security-scan.result == 'success'
+
+    steps:
+    - name: Approve Dependabot PR
+      run: |
+        echo "✅ All security validations passed for Dependabot PR"
+        echo "🤖 Auto-approving security update from Dependabot"
+        echo "📋 Security validation summary:"
+        echo "  - Enhanced dependency vulnerability scan: PASSED"
+        echo "  - Bandit security scanner (strict): PASSED"
+        echo "  - Semgrep static analysis (strict): PASSED"
+        echo "  - Ruff security linting: PASSED"
+        echo "  - MyPy type checking (enhanced): PASSED"
+        echo "  - Comprehensive test suite (75%+ coverage): PASSED"
+
+        # Add approval comment
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews" \
+          -d '{
+            "body": "🤖 **Automated Security Validation Complete**\n\n✅ All security checks passed for this Dependabot update:\n\n- **Enhanced Dependency Scan**: No high/critical vulnerabilities\n- **Security Static Analysis**: Bandit + Semgrep strict mode passed\n- **Code Quality**: Ruff + MyPy enhanced checks passed\n- **Test Coverage**: 75%+ coverage maintained\n\nThis security update has been automatically approved for financial services compliance.",
+            "event": "APPROVE"
+          }'
+
+  # Final security summary
+  dependabot-security-summary:
+    name: Dependabot Security Summary
+    runs-on: ubuntu-latest
+    needs: [detect-dependabot, dependabot-security-scan, dependabot-auto-approve]
+    if: always() && needs.detect-dependabot.outputs.should-validate == 'true'
+
+    steps:
+    - name: Generate Security Summary
+      run: |
+        echo "## 🔒 Dependabot Security Validation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [[ "${{ needs.dependabot-security-scan.result }}" == "success" ]]; then
+          echo "✅ **All security validations passed successfully!**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Security Validation Results:" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔐 **Enhanced Dependency Scan**: No critical vulnerabilities detected" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔒 **Bandit Security Scanner**: Strict mode passed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 **Semgrep Static Analysis**: Strict mode passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ **Ruff Security Linting**: Security-focused checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **MyPy Type Checking**: Enhanced type safety validated" >> $GITHUB_STEP_SUMMARY
+          echo "- 🧪 **Comprehensive Tests**: 75%+ coverage maintained" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🏦 **FINOS Compliance**: Ready for financial services deployment" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Security validation failed**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ This Dependabot PR requires manual security review before approval." >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 Detailed security reports available in workflow artifacts (90-day retention)" >> $GITHUB_STEP_SUMMARY

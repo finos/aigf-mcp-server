@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "python",
+      "args": ["/Users/hugocalderon/SRC/IA-FINOS/finos-ai-governance-mcp-server.py"],
+      "env": {
+        "PYTHONPATH": "/Users/hugocalderon/SRC/IA-FINOS/.venv/lib/python3.11/site-packages"
+      }
+    }
+  }
+}
