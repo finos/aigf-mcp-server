@@ -17,8 +17,8 @@
             <div class="nav-menu">
                 <a href="#overview" class="nav-link">Overview</a>
                 <a href="#architecture" class="nav-link">Architecture</a>
+                <a href="#technical" class="nav-link">Technical</a>
                 <a href="#security" class="nav-link">Security</a>
-                <a href="#efficiency" class="nav-link">Operations</a>
                 <a href="#usecases" class="nav-link">Use Cases</a>
             </div>
         </div>
@@ -218,70 +218,93 @@
         </div>
     </section>
 
-    <!-- Security Section -->
+    <!-- Technical Implementation Section -->
+    <section id="technical" class="technical-implementation">
+        <div class="container">
+            <div class="tech-header">
+                <h2>Technical Implementation</h2>
+                <p>Enterprise-grade architecture with advanced security and performance optimization</p>
+            </div>
+
+            <div class="system-diagram">
+                <!-- Core Server -->
+                <div class="core-server">
+                    <div class="core-icon"></div>
+                    <div class="core-title">FINOS MCP</div>
+                    <div class="core-subtitle">Server Core</div>
+                </div>
+
+                <!-- Component Nodes -->
+                <div class="component-node cache">
+                    <div class="node-icon"></div>
+                    <div class="node-label">TTL Cache System</div>
+                    <div class="node-description">Intelligent caching with TTL-based expiration, memory optimization, and high-performance data retrieval for framework content</div>
+                </div>
+
+                <div class="component-node security">
+                    <div class="node-icon"></div>
+                    <div class="node-label">Security Layer</div>
+                    <div class="node-description">Rate limiting, SSRF protection, input sanitization, token-based authentication, and comprehensive security validation</div>
+                </div>
+
+                <div class="component-node content">
+                    <div class="node-icon"></div>
+                    <div class="node-label">Content Repository</div>
+                    <div class="node-description">Centralized framework data storage with version control, dynamic loading, and structured content management</div>
+                </div>
+
+                <div class="component-node frameworks">
+                    <div class="node-icon"></div>
+                    <div class="node-label">Framework Loaders</div>
+                    <div class="node-description">Modular framework integration supporting NIST AI RMF, EU AI Act, OWASP LLM, ISO 27001, GDPR, CCPA, and SOC2</div>
+                </div>
+
+                <div class="component-node tools">
+                    <div class="node-icon"></div>
+                    <div class="node-label">Tool Registry</div>
+                    <div class="node-description">21 specialized tools across 7 categories for monitoring, analysis, risk management, and compliance operations</div>
+                </div>
+
+                <div class="component-node health">
+                    <div class="node-icon"></div>
+                    <div class="node-label">Health Monitor</div>
+                    <div class="node-description">Real-time system monitoring, circuit breaker patterns, performance metrics, and operational status tracking</div>
+                </div>
+
+                <!-- Connection Lines -->
+                <div class="connection-line line-1"></div>
+                <div class="connection-line line-2"></div>
+                <div class="connection-line line-3"></div>
+                <div class="connection-line line-4"></div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Security & Compliance Section -->
     <section id="security" class="section dark-section">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title">Enterprise Security</h2>
-                <p class="section-subtitle">Built with security-first principles</p>
+                <h2 class="section-title">Security & Compliance</h2>
+                <p class="section-subtitle">Comprehensive regulatory framework coverage</p>
             </div>
             <div class="security-features">
                 <div class="security-grid">
                     <div class="security-card">
-                        <div class="security-visual communication"></div>
-                        <h3>Secure Communication</h3>
-                        <p>STDIO transport with planned HTTP streamable protocol support and token-based authentication ensures secure server communication</p>
-                    </div>
-                    <div class="security-card">
                         <div class="security-visual coverage"></div>
-                        <h3>Framework Coverage</h3>
-                        <p>Comprehensive support for OWASP LLM Top 10, GDPR, CCPA, and enterprise security standards</p>
+                        <h3>Regulatory Coverage</h3>
+                        <p>Complete compliance support for OWASP LLM Top 10, GDPR, CCPA, SOC2, ISO 27001, NIST AI RMF, and EU AI Act</p>
                     </div>
                     <div class="security-card">
                         <div class="security-visual audit"></div>
-                        <h3>Audit Trail</h3>
-                        <p>Complete logging and monitoring of all compliance activities and risk assessments</p>
-                    </div>
-                    <div class="security-card">
-                        <div class="security-visual reliability"></div>
-                        <h3>Circuit Breaker</h3>
-                        <p>Fault tolerance with automatic failover mechanisms to ensure system reliability</p>
+                        <h3>Audit & Documentation</h3>
+                        <p>Comprehensive audit trails, compliance documentation, and regulatory reporting capabilities</p>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Operations Section -->
-    <section id="efficiency" class="section">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">Operational Excellence</h2>
-                <p class="section-subtitle">21 specialized tools ensuring comprehensive AI governance</p>
-            </div>
-            <div class="operations-highlights">
-                <div class="highlight-stat">
-                    <div class="stat-number">21</div>
-                    <div class="stat-label">Specialized Tools</div>
-                    <div class="stat-desc">Covering all aspects of AI governance</div>
-                </div>
-                <div class="highlight-stat">
-                    <div class="stat-number">7</div>
-                    <div class="stat-label">Tool Categories</div>
-                    <div class="stat-desc">Organized for comprehensive coverage</div>
-                </div>
-                <div class="highlight-stat">
-                    <div class="stat-number">7</div>
-                    <div class="stat-label">AI Frameworks</div>
-                    <div class="stat-desc">Major regulatory standards supported</div>
-                </div>
-            </div>
-
-            <div class="operations-summary">
-                <p>Comprehensive AI governance platform enabling systematic assessment across multiple regulatory frameworks. From real-time monitoring to compliance documentation, our integrated approach transforms complex governance requirements into manageable, structured processes.</p>
-            </div>
-        </div>
-    </section>
 
     <!-- Use Cases Section -->
     <section id="usecases" class="section dark-section">
@@ -346,33 +369,6 @@
         </div>
     </section>
 
-    <!-- Technical Achievements Section -->
-    <section class="section">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">Technical Excellence</h2>
-                <p class="section-subtitle">Measurable achievements and capabilities</p>
-            </div>
-            <div class="achievements-grid">
-                <div class="achievement-card">
-                    <h3>Comprehensive Framework Support</h3>
-                    <p>Complete integration with NIST AI RMF, EU AI Act, OWASP LLM Top 10, ISO 27001, GDPR, CCPA, and SOC2</p>
-                </div>
-                <div class="achievement-card">
-                    <h3>Real-time Monitoring</h3>
-                    <p>Live service health metrics, cache performance tracking, and circuit breaker status monitoring</p>
-                </div>
-                <div class="achievement-card">
-                    <h3>Cross-Framework Intelligence</h3>
-                    <p>Advanced mapping and correlation analysis across multiple compliance frameworks</p>
-                </div>
-                <div class="achievement-card">
-                    <h3>Enterprise Integration</h3>
-                    <p>MCP protocol compatibility ensures seamless integration with existing enterprise systems</p>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- Footer -->
     <footer class="footer">
@@ -383,19 +379,19 @@
                     <p>Enterprise AI Governance Platform</p>
                 </div>
                 <div class="footer-section">
-                    <h4>Architecture</h4>
+                    <h4>Technical Implementation</h4>
                     <ul>
-                        <li>21 Specialized Tools</li>
-                        <li>7 Framework Categories</li>
+                        <li>TTL Cache System</li>
+                        <li>Security Layer</li>
                         <li>MCP Protocol</li>
                     </ul>
                 </div>
                 <div class="footer-section">
-                    <h4>Security</h4>
+                    <h4>Compliance</h4>
                     <ul>
-                        <li>Enterprise Grade</li>
-                        <li>Audit Trail</li>
-                        <li>Compliance Ready</li>
+                        <li>7 AI Frameworks</li>
+                        <li>Regulatory Coverage</li>
+                        <li>Audit Documentation</li>
                     </ul>
                 </div>
             </div>
