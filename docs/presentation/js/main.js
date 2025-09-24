@@ -101,8 +101,8 @@ document.addEventListener('DOMContentLoaded', function() {
         metricsObserver.observe(metricsSection);
     }
 
-    // Add ripple effect to cards
-    document.querySelectorAll('.arch-card, .security-card, .usecase-card, .achievement-card').forEach(card => {
+    // Add ripple effect to cards (excluding arch-cards which have flip functionality)
+    document.querySelectorAll('.security-card, .usecase-card, .achievement-card').forEach(card => {
         card.addEventListener('click', function(e) {
             const ripple = document.createElement('span');
             const rect = this.getBoundingClientRect();
@@ -126,7 +126,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add CSS for ripple effect
     const style = document.createElement('style');
     style.textContent = `
-        .arch-card, .security-card, .usecase-card, .achievement-card {
+        .security-card, .usecase-card, .achievement-card {
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .arch-card {
             position: relative;
             overflow: hidden;
             cursor: pointer;
@@ -166,4 +172,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update metrics every 30 seconds for demo purposes
     setInterval(updatePerformanceMetrics, 30000);
+
+    // Add click listeners to architecture cards for flip functionality
+    console.log('Setting up flip cards');
+    const archCards = document.querySelectorAll('.arch-card');
+    console.log('Found arch cards:', archCards.length);
+
+    archCards.forEach((card, index) => {
+        card.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.toggle('show-tools');
+        });
+    });
 });

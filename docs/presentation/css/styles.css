@@ -438,7 +438,8 @@ body {
 /* Architecture Grid */
 .architecture-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: 1fr 1fr 2fr;
+    grid-template-rows: auto auto;
     gap: 2rem;
     margin-top: 3rem;
 }
@@ -450,11 +451,174 @@ body {
     box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     border: 1px solid #e2e8f0;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 450px;
+}
+
+.arch-card h3 {
+    margin-bottom: 1rem;
+}
+
+.arch-card p {
+    flex: 1;
+    margin-bottom: 1.5rem;
+}
+
+.tool-count {
+    margin-top: auto;
 }
 
 .arch-card:hover {
     transform: translateY(-8px);
     box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+}
+
+.framework-card {
+    grid-column: 3;
+    grid-row: 1 / -1;
+    min-height: 900px;
+}
+
+.framework-card .tools-panel {
+    height: 100%;
+}
+
+.framework-card .tools-list {
+    max-height: none;
+    overflow: visible;
+}
+
+/* Tools Panel - Initially Hidden */
+.tools-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(248, 250, 252, 0.98);
+    padding: 1.2rem;
+    border-radius: 20px;
+    transform: translateY(100%);
+    transition: transform 0.4s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.arch-card.show-tools .tools-panel {
+    transform: translateY(0);
+}
+
+.arch-card.show-tools .arch-visual,
+.arch-card.show-tools > h3,
+.arch-card.show-tools > p,
+.arch-card.show-tools .tool-count,
+.arch-card.show-tools .flip-hint {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* Flip Hint */
+.flip-hint {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    color: #64748b;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.arch-card-container:hover .flip-hint {
+    opacity: 1;
+}
+
+/* Tools List */
+.tools-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    text-align: left;
+    flex: 1;
+    overflow: visible;
+}
+
+.tool-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.tool-item:hover {
+    background: rgba(59, 130, 246, 0.05);
+    border-color: rgba(59, 130, 246, 0.2);
+    transform: translateX(2px);
+}
+
+.tool-name {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #1e40af;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    align-self: flex-start;
+}
+
+.tool-desc {
+    font-size: 0.7rem;
+    color: #64748b;
+    line-height: 1.3;
+}
+
+.tools-panel h3 {
+    font-size: 1.1rem;
+    margin: 0 0 0.75rem 0;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+/* Responsive Design for Flip Cards */
+@media (max-width: 768px) {
+    .arch-card-container {
+        height: 320px;
+    }
+
+    .tools-list {
+        max-height: 150px;
+    }
+
+    .tool-item {
+        padding: 0.5rem;
+    }
+
+    .tool-name {
+        font-size: 0.75rem;
+    }
+
+    .tool-desc {
+        font-size: 0.7rem;
+    }
+
+    .flip-hint {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.6rem;
+    }
 }
 
 /* Architecture Visual Elements */
@@ -1322,6 +1486,12 @@ body {
         grid-template-columns: 1fr;
     }
 
+    .framework-card {
+        min-width: auto;
+        max-width: none;
+        min-height: auto;
+    }
+
     .usecase-overview {
         flex-direction: column;
         text-align: center;
@@ -1399,10 +1569,13 @@ body {
 
 /* Main Architecture Visualization */
 .system-diagram {
-    position: relative;
-    height: 900px;
-    max-width: 1400px;
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-rows: auto 1fr auto;
+    gap: 2.5rem;
+    max-width: 1200px;
     margin: 0 auto 8rem;
+    padding: 3rem;
     background: rgba(248, 250, 252, 0.03);
     border-radius: 32px;
     border: 1px solid rgba(248, 250, 252, 0.08);
@@ -1411,7 +1584,8 @@ body {
         0 32px 64px rgba(0, 0, 0, 0.12),
         0 0 0 1px rgba(255, 255, 255, 0.03),
         inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    overflow: hidden;
+    position: relative;
+    min-height: 800px;
 }
 
 .system-diagram::before {
@@ -1431,70 +1605,63 @@ body {
 
 /* Central Core */
 .core-server {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 200px;
-    height: 200px;
-    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%);
+    grid-column: 2;
+    grid-row: 2;
+    width: 280px;
+    height: 280px;
+    background: linear-gradient(135deg, #0c4a6e, #0369a1, #0284c7);
     border-radius: 32px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    box-shadow:
-        0 24px 48px rgba(59, 130, 246, 0.25),
-        0 0 0 1px rgba(255, 255, 255, 0.15),
-        inset 0 2px 0 rgba(255, 255, 255, 0.25);
+    box-shadow: 0 20px 60px rgba(12, 74, 110, 0.4);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(15px);
     animation: coreGlow 4s ease-in-out infinite;
     z-index: 10;
+    justify-self: center;
+    align-self: center;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
 }
 
 @keyframes coreGlow {
     0%, 100% {
-        box-shadow:
-            0 20px 40px rgba(59, 130, 246, 0.3),
-            0 0 0 1px rgba(255, 255, 255, 0.1),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        box-shadow: 0 20px 60px rgba(12, 74, 110, 0.4);
     }
     50% {
-        box-shadow:
-            0 25px 50px rgba(59, 130, 246, 0.4),
-            0 0 20px rgba(59, 130, 246, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.15),
-            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        box-shadow: 0 25px 70px rgba(12, 74, 110, 0.6);
     }
 }
 
-.core-icon {
-    width: 12px;
-    height: 12px;
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 50%;
-    margin-bottom: 0.75rem;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+.finos-logo {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-.core-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: white;
-    text-align: center;
-    margin-bottom: 0.25rem;
+.mcp-server {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #bae6fd;
+    margin-bottom: 6px;
 }
 
-.core-subtitle {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.8);
-    text-align: center;
+.content-badge {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #e0f2fe;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 6px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* Component Nodes */
 .component-node {
-    position: absolute;
-    width: 240px;
-    height: 180px;
     background: rgba(248, 250, 252, 0.06);
     border: 1px solid rgba(248, 250, 252, 0.12);
     border-radius: 20px;
@@ -1503,10 +1670,12 @@ body {
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    padding: 1.5rem;
+    padding: 2rem;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
     z-index: 5;
+    position: relative;
+    min-height: 200px;
     box-shadow:
         0 16px 32px rgba(0, 0, 0, 0.08),
         0 0 0 1px rgba(255, 255, 255, 0.02),
@@ -1516,7 +1685,7 @@ body {
 .component-node:hover {
     background: rgba(248, 250, 252, 0.10);
     border-color: rgba(59, 130, 246, 0.4);
-    transform: translateY(-6px);
+    transform: translateY(-8px);
     box-shadow:
         0 24px 48px rgba(0, 0, 0, 0.12),
         0 0 24px rgba(59, 130, 246, 0.1),
@@ -1524,43 +1693,99 @@ body {
         inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
+.core-server:hover {
+    transform: scale(1.05);
+    box-shadow: 0 25px 70px rgba(12, 74, 110, 0.6);
+}
+
 .node-icon {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
     align-self: flex-start;
     box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+    position: relative;
+}
+
+.node-icon::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
 }
 
 .node-label {
-    font-size: 1.1rem;
-    font-weight: 700;
+    font-size: 1.125rem;
+    font-weight: 600;
     color: #f1f5f9;
     text-align: left;
     line-height: 1.3;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
     width: 100%;
     letter-spacing: -0.01em;
 }
 
 .node-description {
-    font-size: 0.8rem;
-    color: #cbd5e1;
+    font-size: 0.9rem;
+    color: #94a3b8;
     text-align: left;
-    line-height: 1.5;
+    line-height: 1.6;
     width: 100%;
     flex: 1;
-    opacity: 0.9;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
-/* Positioning */
-.component-node.cache { top: 8%; left: 3%; }
-.component-node.security { top: 8%; right: 3%; }
-.component-node.content { top: 38%; left: 1%; }
-.component-node.frameworks { top: 38%; right: 1%; }
-.component-node.tools { bottom: 8%; left: 3%; }
-.component-node.health { bottom: 8%; right: 3%; }
+/* Grid Positioning */
+.component-node.cache {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+    align-self: end;
+}
+
+.component-node.security {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: start;
+    align-self: end;
+}
+
+.component-node.content {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: end;
+    align-self: start;
+}
+
+.component-node.frameworks {
+    grid-column: 3;
+    grid-row: 3;
+    justify-self: start;
+    align-self: start;
+}
+
+.component-node.tools {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+    align-self: center;
+}
+
+.component-node.health {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: start;
+    align-self: center;
+}
 
 /* Color coding */
 .cache .node-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
@@ -1689,18 +1914,41 @@ body {
 /* Responsive Design */
 @media (max-width: 768px) {
     .system-diagram {
-        height: 600px;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto auto auto auto;
+        gap: 1.5rem;
+        padding: 2rem;
         margin-bottom: 4rem;
+        min-height: auto;
     }
 
     .core-server {
-        width: 120px;
-        height: 120px;
+        grid-column: 1;
+        grid-row: 4;
+        width: 200px;
+        height: 200px;
+        justify-self: center;
     }
 
     .component-node {
-        width: 100px;
-        height: 80px;
+        min-height: 150px;
+        padding: 1.5rem;
+    }
+
+    .component-node.cache { grid-column: 1; grid-row: 1; justify-self: stretch; align-self: stretch; }
+    .component-node.security { grid-column: 1; grid-row: 2; justify-self: stretch; align-self: stretch; }
+    .component-node.tools { grid-column: 1; grid-row: 3; justify-self: stretch; align-self: stretch; }
+    .component-node.content { grid-column: 1; grid-row: 5; justify-self: stretch; align-self: stretch; }
+    .component-node.frameworks { grid-column: 1; grid-row: 6; justify-self: stretch; align-self: stretch; }
+    .component-node.health { grid-column: 1; grid-row: 7; justify-self: stretch; align-self: stretch; }
+
+    .node-label {
+        font-size: 1rem;
+    }
+
+    .node-description {
+        font-size: 0.85rem;
+        -webkit-line-clamp: 3;
     }
 
     .tech-features {

@@ -169,50 +169,152 @@
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">Unified Architecture</h2>
-                <p class="section-subtitle">7 categories of tools working seamlessly together</p>
+                <p class="section-subtitle">5 categories of tools working seamlessly together</p>
             </div>
             <div class="architecture-grid">
                 <div class="arch-card">
                     <div class="arch-visual monitoring"></div>
-                    <h3>System Monitoring</h3>
+                    <h3>System Tools</h3>
                     <p>Real-time health tracking with service metrics, cache performance, and circuit breaker monitoring</p>
                     <div class="tool-count">4 Tools</div>
-                </div>
-                <div class="arch-card">
-                    <div class="arch-visual framework"></div>
-                    <h3>Framework Management</h3>
-                    <p>Complete framework lifecycle with listing, search, version control, and update management</p>
-                    <div class="tool-count">4 Tools</div>
+
+                    <div class="tools-panel">
+                        <h3>System Tools</h3>
+                        <div class="tools-list">
+                            <div class="tool-item">
+                                <span class="tool-name">get_cache_stats</span>
+                                <span class="tool-desc">Get TTL cache performance statistics for framework content retrieval and caching efficiency</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">get_service_health</span>
+                                <span class="tool-desc">Retrieve MCP server health status including uptime and service availability diagnostics</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">get_service_metrics</span>
+                                <span class="tool-desc">Access detailed MCP server performance metrics and request handling statistics</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">reset_service_health</span>
+                                <span class="tool-desc">Reset MCP server health counters and error tracking for system maintenance</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="arch-card">
                     <div class="arch-visual analysis"></div>
-                    <h3>Cross-Framework Analysis</h3>
-                    <p>Comprehensive mapping, gap analysis, and control correlation across multiple frameworks</p>
-                    <div class="tool-count">3 Tools</div>
-                </div>
-                <div class="arch-card">
-                    <div class="arch-visual risk"></div>
-                    <h3>Risk Management</h3>
-                    <p>Complete threat assessment with risk evaluation and impact analysis capabilities</p>
-                    <div class="tool-count">3 Tools</div>
-                </div>
-                <div class="arch-card">
-                    <div class="arch-visual mitigation"></div>
-                    <h3>Mitigation Controls</h3>
-                    <p>Security measures implementation with control search and effectiveness tracking</p>
-                    <div class="tool-count">3 Tools</div>
-                </div>
-                <div class="arch-card">
-                    <div class="arch-visual compliance"></div>
-                    <h3>Compliance Analysis</h3>
-                    <p>Regulatory alignment with comprehensive checking and complete audit trail</p>
+                    <h3>Search Tools</h3>
+                    <p>Advanced search capabilities for risks and mitigations discovery</p>
                     <div class="tool-count">2 Tools</div>
+
+                    <div class="tools-panel">
+                        <h3>Search Tools</h3>
+                        <div class="tools-list">
+                            <div class="tool-item">
+                                <span class="tool-name">search_mitigations</span>
+                                <span class="tool-desc">Search FINOS AI governance mitigation strategies like data leakage prevention, AI firewalls, and observability controls</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">search_risks</span>
+                                <span class="tool-desc">Find specific AI risks including hallucination, bias, data poisoning, and regulatory compliance risks</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="arch-card framework-card">
+                    <div class="arch-visual framework"></div>
+                    <h3>Framework Tools</h3>
+                    <p>Complete framework lifecycle with listing, search, version control, and update management</p>
+                    <div class="tool-count">11 Tools</div>
+
+                    <div class="tools-panel">
+                        <h3>Framework Tools</h3>
+                        <div class="tools-list">
+                            <div class="tool-item">
+                                <span class="tool-name">search_frameworks</span>
+                                <span class="tool-desc">Search governance frameworks by name, type, or topic using the framework query engine</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">list_frameworks</span>
+                                <span class="tool-desc">List all available governance frameworks loaded by the FrameworkDataLoader system</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">get_framework_details</span>
+                                <span class="tool-desc">Get detailed framework information including structure, controls, and implementation data</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">get_compliance_analysis</span>
+                                <span class="tool-desc">Analyze compliance status and gaps for specific frameworks and organizational requirements</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">search_framework_references</span>
+                                <span class="tool-desc">Find cross-references and citations within framework documentation and content</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">get_related_controls</span>
+                                <span class="tool-desc">Discover related controls across frameworks using the CrossFrameworkMapper system</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">get_framework_correlations</span>
+                                <span class="tool-desc">Get correlation analysis between frameworks showing direct, thematic, and procedural relationships</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">find_compliance_gaps</span>
+                                <span class="tool-desc">Identify compliance gaps and missing controls using cross-framework mapping analysis</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">advanced_search_frameworks</span>
+                                <span class="tool-desc">Execute complex framework queries with advanced filtering and search capabilities</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">export_framework_data</span>
+                                <span class="tool-desc">Export individual framework data using ExportFilter and ExportFormat options</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">bulk_export_frameworks</span>
+                                <span class="tool-desc">Batch export multiple frameworks with consolidated data using bulk export capabilities</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="arch-card">
                     <div class="arch-visual export"></div>
-                    <h3>Data Export</h3>
-                    <p>Professional reporting with generation and visualization capabilities</p>
+                    <h3>Details Tools</h3>
+                    <p>Detailed information retrieval for risks and mitigations with comprehensive analysis</p>
                     <div class="tool-count">2 Tools</div>
+
+                    <div class="tools-panel">
+                        <h3>Details Tools</h3>
+                        <div class="tools-list">
+                            <div class="tool-item">
+                                <span class="tool-name">get_mitigation_details</span>
+                                <span class="tool-desc">Get detailed information about specific AI governance mitigation controls and implementation guidance</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">get_risk_details</span>
+                                <span class="tool-desc">Retrieve comprehensive details about specific AI risks including impact and mitigation recommendations</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-visual compliance"></div>
+                    <h3>Listing Tools</h3>
+                    <p>Comprehensive listing capabilities for all available mitigations and risks</p>
+                    <div class="tool-count">2 Tools</div>
+
+                    <div class="tools-panel">
+                        <h3>Listing Tools</h3>
+                        <div class="tools-list">
+                            <div class="tool-item">
+                                <span class="tool-name">list_all_mitigations</span>
+                                <span class="tool-desc">List all AI governance mitigation controls from the FINOS framework content repository</span>
+                            </div>
+                            <div class="tool-item">
+                                <span class="tool-name">list_all_risks</span>
+                                <span class="tool-desc">List all AI risks documented in the FINOS governance framework catalog</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
