@@ -1,161 +1,171 @@
 # 🛠️ Tools Reference
 
-Quick reference for all 15 available tools.
+Quick reference for all 11 available MCP tools organized in 3 categories.
 
-## Framework Tools
-
-### `search_frameworks`
-**Purpose**: Search across all governance frameworks
-**Usage**: `search_frameworks("risk management")`
-**Returns**: Cross-framework search results with framework context
-
-**Common searches**:
-- `"risk management"` - Risk-related guidance across frameworks
-- `"data protection"` - Data privacy requirements
-- `"compliance"` - Compliance requirements and standards
-- `"testing"` - Testing and validation approaches
+## Framework Access Tools (5)
 
 ### `list_frameworks`
-**Purpose**: List all supported governance frameworks
+**Purpose**: List all supported AI governance frameworks
 **Usage**: `list_frameworks()`
-**Returns**: Available frameworks with metadata and status
+**Returns**: Structured list of 7 frameworks with descriptions
 
-**Current frameworks**:
-- **NIST AI RMF**: NIST AI Risk Management Framework (6 references)
-- **EU AI Act**: European Union AI Act (5 references)
-- **OWASP LLM Top 10**: OWASP LLM Security Top 10 (5 references)
+**Supported Frameworks**:
+- NIST AI 600-1 (Artificial Intelligence Risk Management Framework)
+- EU AI Act (European Union Artificial Intelligence Act)
+- ISO 42001 (AI Management Systems Standard)
+- FFIEC IT Booklets (Federal Financial Institutions Examination Council IT guidance)
+- NIST SP 800-53 (Security and Privacy Controls for Information Systems)
+- OWASP LLM Top 10 (Top 10 security vulnerabilities for LLM applications)
+- OWASP ML Top 10 (Top 10 risks for machine learning systems)
 
-### `get_framework_details`
-**Purpose**: Get detailed information about a specific framework
-**Usage**: `get_framework_details("nist-ai-rmf")`
-**Available IDs**: nist-ai-rmf, eu-ai-act, owasp-llm-top-10
+### `get_framework_content`
+**Purpose**: Get complete content of a specific framework
+**Usage**: `get_framework_content("nist-ai-600-1")`
+**Parameters**: framework (string) - Framework ID from list_frameworks
+**Returns**: Framework content with metadata and section count
 
-### `get_compliance_analysis`
-**Purpose**: Get compliance analysis and metrics across frameworks
-**Usage**: `get_compliance_analysis()`
-**Returns**: Framework coverage analysis and compliance metrics
+**Example Usage**:
+```
+get_framework_content("eu-ai-act")
+get_framework_content("iso-42001")
+get_framework_content("owasp-llm-top10")
+```
 
-### `search_framework_references`
-**Purpose**: Search within a specific framework
-**Usage**: `search_framework_references("injection", "owasp-llm-top-10")`
-**Returns**: Framework-specific search results
+### `search_frameworks`
+**Purpose**: Search for text within framework documents
+**Usage**: `search_frameworks("bias", 5)`
+**Parameters**:
+- query (string) - Search term to find in framework content
+- limit (int, optional) - Maximum number of results (default: 5)
+**Returns**: Search results with matching content snippets
 
-## FINOS Search Tools
+### `list_risks`
+**Purpose**: List available risk documents
+**Usage**: `list_risks()`
+**Returns**: Structured list of 17 risk documents from GitHub repository
 
-### `search_mitigations`
-**Purpose**: Find AI governance mitigation strategies
-**Usage**: `search_mitigations("data privacy")`
-**Returns**: List of matching mitigations with summaries
+### `get_risk`
+**Purpose**: Get complete content of a specific risk document
+**Usage**: `get_risk("01_model-inversion")`
+**Parameters**: risk_id (string) - Risk ID from list_risks
+**Returns**: Full risk document content with metadata and sections
 
-**Common searches**:
-- `"data privacy"` - Data protection strategies
-- `"security"` - Security-focused mitigations
-- `"compliance"` - Regulatory compliance approaches
-- `"testing"` - Testing and validation strategies
+## Risk & Mitigation Tools (4)
 
 ### `search_risks`
-**Purpose**: Find AI risk assessments
-**Usage**: `search_risks("prompt injection")`
-**Returns**: List of matching risks with summaries
+**Purpose**: Search within risk documentation
+**Usage**: `search_risks("privacy", 3)`
+**Parameters**:
+- query (string) - Search term to find in risk content
+- limit (int, optional) - Maximum number of results (default: 5)
+**Returns**: Search results with matching risk content snippets
 
-**Common searches**:
-- `"prompt injection"` - Input manipulation attacks
-- `"bias"` - AI bias and fairness issues
-- `"privacy"` - Privacy-related risks
-- `"adversarial"` - Adversarial attacks
+### `list_mitigations`
+**Purpose**: List available mitigation documents
+**Usage**: `list_mitigations()`
+**Returns**: Structured list of 17 mitigation documents from GitHub repository
 
-## Details Tools
+### `get_mitigation`
+**Purpose**: Get complete content of a specific mitigation document
+**Usage**: `get_mitigation("01_data-encryption")`
+**Parameters**: mitigation_id (string) - Mitigation ID from list_mitigations
+**Returns**: Full mitigation document content with metadata and sections
 
-### `get_mitigation_details`
-**Purpose**: Get full details for a specific mitigation
-**Usage**: `get_mitigation_details("mi-1")`
-**Available IDs**: mi-1 through mi-17
+### `search_mitigations`
+**Purpose**: Search within mitigation documentation
+**Usage**: `search_mitigations("encryption", 3)`
+**Parameters**:
+- query (string) - Search term to find in mitigation content
+- limit (int, optional) - Maximum number of results (default: 5)
+**Returns**: Search results with matching mitigation content snippets
 
-**Popular mitigations**:
-- **mi-1**: Data leakage prevention
-- **mi-2**: External knowledge base filtering
-- **mi-3**: User/app/model firewalling
-- **mi-4**: AI system observability
-- **mi-5**: System acceptance testing
-
-### `get_risk_details`
-**Purpose**: Get full details for a specific risk assessment
-**Usage**: `get_risk_details("ri-2")`
-**Available IDs**: ri-1, ri-2, ri-3, ri-5 through ri-16, ri-19, ri-23
-
-**Popular risks**:
-- **ri-1**: Adversarial behavior against AI systems
-- **ri-2**: Prompt injection attacks
-- **ri-3**: Training data poisoning
-- **ri-6**: Data leakage vulnerabilities
-
-## Listing Tools
-
-### `list_all_mitigations`
-**Purpose**: Browse all available mitigations
-**Usage**: `list_all_mitigations()`
-**Returns**: Complete list of all 17 mitigations with metadata
-
-### `list_all_risks`
-**Purpose**: Browse all available risk assessments
-**Usage**: `list_all_risks()`
-**Returns**: Complete list of all 17 risks with metadata
-
-## System Tools
+## System Monitoring Tools
 
 ### `get_service_health`
-**Purpose**: Check if the server is working properly
+**Purpose**: Get current service health status
 **Usage**: `get_service_health()`
-**Returns**: Health status, uptime, error counts
+**Returns**: Health metrics including uptime, version, and service status
 
-### `get_service_metrics`
-**Purpose**: Get performance statistics
-**Usage**: `get_service_metrics()`
-**Returns**: Response times, request counts, success rates
+**Health Metrics**:
+- Service status (healthy/degraded)
+- Uptime in seconds
+- Server version
+- Service component health
 
 ### `get_cache_stats`
-**Purpose**: Check cache performance
+**Purpose**: Get cache performance statistics
 **Usage**: `get_cache_stats()`
-**Returns**: Cache hit rates, memory usage, entry counts
+**Returns**: Cache performance metrics and hit rates
 
-### `reset_service_health`
-**Purpose**: Reset error counters
-**Usage**: `reset_service_health()`
-**Returns**: Confirmation of reset
-
-## Usage Examples
-
-### Framework Research Workflow: Risk Management
-```
-1. list_frameworks()                      # See available frameworks
-2. search_frameworks("risk management")   # Cross-framework search
-3. get_framework_details("nist-ai-rmf")   # Get NIST details
-4. get_compliance_analysis()              # Analyze coverage
-```
-
-### Framework-Specific Workflow: OWASP Security
-```
-1. search_framework_references("injection", "owasp-llm-top-10")
-2. get_framework_details("owasp-llm-top-10")
-3. search_frameworks("security testing")  # Cross-framework context
-```
-
-### FINOS Workflow: Data Protection
-```
-1. search_mitigations("data protection")
-2. get_mitigation_details("mi-1")         # Data leakage prevention
-3. search_risks("data leakage")           # Find related risks
-4. get_risk_details("ri-6")               # Data leakage details
-```
-
-### FINOS Workflow: Prompt Security
-```
-1. search_risks("prompt injection")       # Find injection risks
-2. get_risk_details("ri-2")              # Prompt injection details
-3. search_mitigations("input validation") # Find protections
-4. get_mitigation_details("mi-3")        # Firewalling details
-```
+**Cache Metrics**:
+- Total requests processed
+- Cache hits and misses
+- Hit rate percentage
+- Performance statistics
 
 ---
 
-**→ [Back to Setup Guide](README.md)**
+---
+
+## MCP Prompts (3)
+
+### `analyze_framework_compliance`
+**Purpose**: Analyze compliance requirements across AI governance frameworks
+**Usage**: Available as MCP prompt template for compliance analysis
+**Parameters**: Framework selection and compliance requirements
+**Returns**: Structured compliance gap analysis and recommendations
+
+### `risk_assessment_analysis`
+**Purpose**: Conduct comprehensive AI risk assessment using FINOS methodology
+**Usage**: Available as MCP prompt template for risk evaluation
+**Parameters**: AI system description and risk categories
+**Returns**: Risk assessment matrix with severity ratings and mitigation priorities
+
+### `mitigation_strategy_prompt`
+**Purpose**: Develop comprehensive mitigation strategies for identified AI risks
+**Usage**: Available as MCP prompt template for mitigation planning
+**Parameters**: Risk profile and organizational context
+**Returns**: Tailored mitigation strategy with implementation roadmap
+
+---
+
+## MCP Resources (3)
+
+### `finos://frameworks/{id}`
+**Purpose**: URI-based access to framework content
+**Usage**: Direct resource access via MCP resource protocol
+**Examples**:
+- `finos://frameworks/nist-ai-600-1`
+- `finos://frameworks/eu-ai-act`
+- `finos://frameworks/iso-42001`
+
+### `finos://risks/{id}`
+**Purpose**: URI-based access to risk documents
+**Usage**: Direct resource access via MCP resource protocol
+**Examples**:
+- `finos://risks/01_model-inversion`
+- `finos://risks/10_prompt-injection`
+
+### `finos://mitigations/{id}`
+**Purpose**: URI-based access to mitigation documents
+**Usage**: Direct resource access via MCP resource protocol
+**Examples**:
+- `finos://mitigations/01_data-encryption`
+- `finos://mitigations/10_ai-model-version-pinning`
+
+---
+
+## Tool Output Format
+
+All tools return structured Pydantic models with type safety and validation. This follows the MCP 2025-06-18 specification for consistent tool integration and structured output.
+
+## Error Handling
+
+All tools include comprehensive error handling:
+- Invalid framework IDs return structured error responses
+- Network issues are handled gracefully
+- Service degradation is reported in health metrics
+
+---
+
+For implementation examples and integration guides, see the [User Guide](user-guide/).

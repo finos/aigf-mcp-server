@@ -5,10 +5,10 @@ Provides comprehensive protection against denial of service attacks through
 oversized requests, request flooding, and resource exhaustion.
 """
 
+import asyncio
 import time
 import uuid
 from collections import defaultdict, deque
-from threading import Lock
 from typing import Any
 
 from ..logging import get_logger
@@ -41,7 +41,7 @@ class RequestSizeValidator:
 
         # Track concurrent memory usage
         self._concurrent_requests: dict[str, int] = {}
-        self._memory_lock = Lock()
+        self._memory_lock = asyncio.Lock()
 
     def validate_tool_result_size(self, result: list[Any]) -> None:
         """Validate tool result size.
@@ -116,28 +116,28 @@ class RequestSizeValidator:
                 f"Total concurrent memory usage exceeds limit ({total_concurrent} bytes)"
             )
 
-    def start_request_tracking(self, request_id: str, size: int) -> None:
+    async def start_request_tracking(self, request_id: str, size: int) -> None:
         """Start tracking memory usage for a request.
 
         Args:
             request_id: Unique request identifier
             size: Memory size being used by the request
         """
-        with self._memory_lock:
+        async with self._memory_lock:
             self._concurrent_requests[request_id] = size
 
-    def complete_request_tracking(self, request_id: str) -> None:
+    async def complete_request_tracking(self, request_id: str) -> None:
         """Complete tracking for a request.
 
         Args:
             request_id: Request identifier to stop tracking
         """
-        with self._memory_lock:
+        async with self._memory_lock:
             self._concurrent_requests.pop(request_id, None)
 
-    def get_current_memory_usage(self) -> int:
+    async def get_current_memory_usage(self) -> int:
         """Get current total memory usage across all tracked requests."""
-        with self._memory_lock:
+        async with self._memory_lock:
             return sum(self._concurrent_requests.values())
 
     def _calculate_content_size(self, content: Any) -> int:
@@ -249,9 +249,9 @@ class DoSProtector:
         self._request_history: dict[str, deque] = defaultdict(deque)
         self._concurrent_requests: dict[str, dict[str, float]] = defaultdict(dict)
         self._last_cleanup = time.time()
-        self._lock = Lock()
+        self._lock = asyncio.Lock()
 
-    def check_rate_limit(self, client_id: str) -> bool:
+    async def check_rate_limit(self, client_id: str) -> bool:
         """Check if client is within rate limits.
 
         Args:
@@ -262,7 +262,7 @@ class DoSProtector:
         """
         current_time = self._get_current_time()
 
-        with self._lock:
+        async with self._lock:
             # Clean up old requests
             self._cleanup_old_requests(client_id, current_time)
 
@@ -279,7 +279,7 @@ class DoSProtector:
             self._request_history[client_id].append(current_time)
             return True
 
-    def start_request(self, client_id: str) -> str:
+    async def start_request(self, client_id: str) -> str:
         """Start tracking a concurrent request.
 
         Args:
@@ -294,7 +294,7 @@ class DoSProtector:
         current_time = self._get_current_time()
         request_id = str(uuid.uuid4())
 
-        with self._lock:
+        async with self._lock:
             # Clean up timed out requests
             self._cleanup_timed_out_requests(client_id, current_time)
 
@@ -315,19 +315,19 @@ class DoSProtector:
 
             return request_id
 
-    def complete_request(self, client_id: str, request_id: str) -> None:
+    async def complete_request(self, client_id: str, request_id: str) -> None:
         """Complete tracking for a request.
 
         Args:
             client_id: Client identifier
             request_id: Request identifier
         """
-        with self._lock:
+        async with self._lock:
             if client_id in self._concurrent_requests:
                 self._concurrent_requests[client_id].pop(request_id, None)
                 logger.debug(f"Completed request {request_id} for client {client_id}")
 
-    def get_client_stats(self, client_id: str) -> dict[str, Any]:
+    async def get_client_stats(self, client_id: str) -> dict[str, Any]:
         """Get statistics for a client.
 
         Args:
@@ -338,7 +338,7 @@ class DoSProtector:
         """
         current_time = self._get_current_time()
 
-        with self._lock:
+        async with self._lock:
             self._cleanup_old_requests(client_id, current_time)
             self._cleanup_timed_out_requests(client_id, current_time)
 
@@ -386,14 +386,14 @@ class DoSProtector:
         """Get current time (mockable for testing)."""
         return time.time()
 
-    def periodic_cleanup(self) -> None:
+    async def periodic_cleanup(self) -> None:
         """Perform periodic cleanup of old tracking data."""
         current_time = self._get_current_time()
 
         if current_time - self._last_cleanup < self.cleanup_interval:
             return
 
-        with self._lock:
+        async with self._lock:
             # Clean up all clients
             for client_id in list(self._request_history.keys()):
                 self._cleanup_old_requests(client_id, current_time)

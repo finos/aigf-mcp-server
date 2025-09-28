@@ -69,8 +69,8 @@ class SecureCacheEntry(BaseModel):
         if not v or not isinstance(v, str):
             raise ValueError("Cache key must be a non-empty string")
 
-        # Prevent path traversal in keys
-        if any(char in v for char in ["../", "/", "\\", ":", "*", "?", "<", ">", "|"]):
+        # Prevent path traversal in keys (allow colons for framework:filename format)
+        if any(char in v for char in ["../", "/", "\\", "*", "?", "<", ">", "|"]):
             raise ValueError("Cache key contains invalid characters")
 
         if len(v) > 255:

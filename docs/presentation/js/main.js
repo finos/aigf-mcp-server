@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }, observerOptions);
 
     // Observe all cards and sections for animation
-    document.querySelectorAll('.arch-card, .security-card, .metric-card, .usecase-card, .achievement-card').forEach(card => {
+    document.querySelectorAll('.arch-card, .usecase-card, .category-section, .framework-item').forEach(card => {
         card.style.opacity = '0';
         card.style.transform = 'translateY(30px)';
         card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Add ripple effect to cards (excluding arch-cards which have flip functionality)
-    document.querySelectorAll('.security-card, .usecase-card, .achievement-card').forEach(card => {
+    document.querySelectorAll('.usecase-card, .category-section, .framework-item').forEach(card => {
         card.addEventListener('click', function(e) {
             const ripple = document.createElement('span');
             const rect = this.getBoundingClientRect();
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add CSS for ripple effect
     const style = document.createElement('style');
     style.textContent = `
-        .security-card, .usecase-card, .achievement-card {
+        .usecase-card, .category-section, .framework-item {
             position: relative;
             overflow: hidden;
             cursor: pointer;

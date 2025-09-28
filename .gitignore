@@ -123,8 +123,26 @@ $RECYCLE.BIN/
 .nfs*
 
 # ===============================================================================
-# 5. TEMPORARY DEVELOPMENT FILES (SPECIFIC NAMES ONLY)
+# 5. DEVELOPMENT AND CODING SESSION FILES
 # ===============================================================================
+
+# Private development files that should not be public
+CLAUDE.md
+PERFORMANCE_SETUP.md
+.claude/
+.cache/
+.playwright-mcp/
+security-reports/
+coverage-reports/
+coverage.json
+mcp-*config.json
+mcp_*.py
+test_mcp_client.py
+show_frameworks.py
+scripts/test-mcp-*.sh
+tests/golden/
+tests/internal/
+json
 
 # Temporary sensitive files
 temp-api-key.txt

@@ -6,7 +6,6 @@ and startup validation with various configuration scenarios.
 """
 
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -60,7 +59,7 @@ class TestSettingsValidation:
         assert settings.debug_mode is False
         assert settings.server_name == "finos-ai-governance"
         assert settings.server_version == __version__
-        assert settings.config_file is None
+        # config_file field removed from Settings model
 
     def test_environment_variable_override(self, clean_env):
         """Test that environment variables override defaults."""
@@ -124,7 +123,7 @@ class TestSettingsValidation:
             "https://",
             "",
             "file:///local/path",
-            "http://localhost:8000",  # localhost URLs are rejected for security
+            # Note: localhost URLs are now allowed for development
         ]
 
         for url in invalid_urls:
@@ -176,29 +175,7 @@ class TestSettingsValidation:
         with pytest.raises(ValidationError):
             Settings()
 
-    def test_config_file_validation_nonexistent(self, clean_env):
-        """Test config file validation with non-existent file."""
-        os.environ["FINOS_MCP_CONFIG_FILE"] = "/nonexistent/file.yaml"
-
-        with pytest.raises(ValidationError) as exc_info:
-            Settings()
-
-        error = exc_info.value.errors()[0]
-        assert "Invalid configuration file path" in str(error["ctx"]["error"])
-
-    def test_config_file_validation_valid(self, clean_env):
-        """Test config file validation with valid file."""
-        # Create temp file in project directory (allowed directory)
-        temp_file = Path("test_config.yaml")
-        temp_file.write_text("# Test config file")
-
-        try:
-            os.environ["FINOS_MCP_CONFIG_FILE"] = str(temp_file)
-            settings = Settings()
-            assert settings.config_file == temp_file.resolve()
-        finally:
-            if temp_file.exists():
-                temp_file.unlink()
+    # Config file tests removed - functionality no longer exists
 
 
 @pytest.mark.unit

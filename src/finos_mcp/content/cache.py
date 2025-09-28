@@ -26,7 +26,6 @@ import asyncio
 import gzip
 import json
 import os
-import threading
 import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -242,9 +241,9 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         self.cleanup_interval = cleanup_interval
         self.enable_compression = enable_compression
 
-        # Thread-safe storage using OrderedDict for LRU behavior
+        # Async-safe storage using OrderedDict for LRU behavior
         self._cache: OrderedDict[K, CacheEntry[T]] = OrderedDict()
-        self._lock = threading.RLock()
+        self._lock = asyncio.Lock()
 
         # Statistics
         self._stats = CacheStats(max_size=max_size)
@@ -619,7 +618,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         """Get value from cache."""
         current_time = time.time()
 
-        with self._lock:
+        async with self._lock:
             entry = self._cache.get(key)
 
             if entry is None:
@@ -657,7 +656,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         # Secure serialize value and get actual size
         stored_value, size_bytes = self._compress_value(value, str(key))
 
-        with self._lock:
+        async with self._lock:
             # Create new entry with potentially compressed value
             entry = CacheEntry(
                 value=stored_value,
@@ -684,7 +683,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
     async def delete(self, key: K) -> bool:
         """Delete value from cache. Returns True if key existed."""
-        with self._lock:
+        async with self._lock:
             if key in self._cache:
                 del self._cache[key]
                 self._record_operation(CacheOperation.DELETE, key)
@@ -693,7 +692,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
     async def clear(self) -> None:
         """Clear all cache entries."""
-        with self._lock:
+        async with self._lock:
             self._cache.clear()
             self._record_operation(CacheOperation.CLEAR)
 
@@ -701,7 +700,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         """Check if key exists in cache."""
         current_time = time.time()
 
-        with self._lock:
+        async with self._lock:
             entry = self._cache.get(key)
             if entry is None:
                 return False
@@ -716,12 +715,12 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
     async def size(self) -> int:
         """Get current cache size."""
-        with self._lock:
+        async with self._lock:
             return len(self._cache)
 
     async def get_stats(self) -> CacheStats:
         """Get cache statistics."""
-        with self._lock:
+        async with self._lock:
             # Update current metrics
             self._record_operation(
                 CacheOperation.HIT
@@ -747,7 +746,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         current_time = time.time()
         expired_keys = []
 
-        with self._lock:
+        async with self._lock:
             for key, entry in list(self._cache.items()):
                 if entry.is_expired(current_time):
                     expired_keys.append(key)
@@ -766,7 +765,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         """Get detailed information about a cache entry."""
         current_time = time.time()
 
-        with self._lock:
+        async with self._lock:
             entry = self._cache.get(key)
             if entry is None:
                 return None
@@ -797,16 +796,16 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
 
 class CacheManager:
-    """Singleton manager for the global cache instance."""
+    """Async-safe singleton manager for the global cache instance."""
 
     _instance: Optional["CacheManager"] = None
     _cache: TTLCache[str, Any] | None = None
-    _lock = threading.Lock()
+    _lock: asyncio.Lock
 
     def __new__(cls) -> "CacheManager":
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super().__new__(cls)
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._lock = asyncio.Lock()
         return cls._instance
 
     async def get_cache(self) -> TTLCache[str, Any]:
@@ -817,7 +816,7 @@ class CacheManager:
 
         """
         if self._cache is None:
-            with self._lock:
+            async with self._lock:
                 # Double-check pattern to prevent race conditions
                 if self._cache is None:
                     settings = get_settings()

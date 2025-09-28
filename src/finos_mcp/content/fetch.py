@@ -269,25 +269,58 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
 
         # Update client limits if changed
         if self._current_max_connections != old_max:
-            # Create new client with updated limits
-            old_client = self._client
-            timeout_config = old_client._timeout
+            # Try to update limits without recreating client (httpx 0.24+ approach)
+            try:
+                # Update the connection pool limits directly if possible
+                if hasattr(self._client, "_transport") and hasattr(
+                    self._client._transport, "_pool"
+                ):
+                    pool = self._client._transport._pool
+                    if hasattr(pool, "_max_connections"):
+                        pool._max_connections = self._current_max_connections
+                        pool._max_keepalive_connections = self._current_max_keepalive
+                        self.logger.debug(
+                            "Updated connection pool limits directly: max_connections=%d, max_keepalive=%d",
+                            self._current_max_connections,
+                            self._current_max_keepalive,
+                        )
+                    else:
+                        # Fallback to client recreation for older httpx versions
+                        await self._recreate_client_with_new_limits()
+                else:
+                    # Fallback to client recreation
+                    await self._recreate_client_with_new_limits()
 
-            self._client = httpx.AsyncClient(
-                timeout=timeout_config,
-                limits=httpx.Limits(
-                    max_keepalive_connections=self._current_max_keepalive,
-                    max_connections=self._current_max_connections,
-                    keepalive_expiry=30.0,
-                ),
-                follow_redirects=True,
-                headers=old_client.headers,
-            )
-
-            # Close old client
-            await old_client.aclose()
+            except (AttributeError, Exception) as e:
+                # Fallback to client recreation if direct update fails
+                self.logger.debug("Direct pool update failed, recreating client: %s", e)
+                await self._recreate_client_with_new_limits()
 
         self._pool_stats.last_adjustment = current_time
+
+    async def _recreate_client_with_new_limits(self) -> None:
+        """Recreate HTTP client with new connection limits (fallback method)."""
+        old_client = self._client
+        timeout_config = old_client._timeout
+
+        self._client = httpx.AsyncClient(
+            timeout=timeout_config,
+            limits=httpx.Limits(
+                max_keepalive_connections=self._current_max_keepalive,
+                max_connections=self._current_max_connections,
+                keepalive_expiry=30.0,
+            ),
+            follow_redirects=True,
+            headers=old_client.headers,
+        )
+
+        # Close old client
+        await old_client.aclose()
+        self.logger.debug(
+            "Recreated HTTP client with new limits: max_connections=%d, max_keepalive=%d",
+            self._current_max_connections,
+            self._current_max_keepalive,
+        )
 
     @retry(
         stop=stop_after_attempt(3),

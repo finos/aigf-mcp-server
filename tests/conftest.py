@@ -145,11 +145,11 @@ def mcp_server_direct() -> Generator[subprocess.Popen, None, None]:
     """Start MCP server via direct module execution for comparison testing.
 
     Yields:
-        Running subprocess.Popen instance for the MCP server (direct module)
+        Running subprocess.Popen instance for the FastMCP server (direct module)
     """
-    # Start server via direct module execution
+    # Start server via direct module execution using FastMCP
     process = subprocess.Popen(
-        [sys.executable, "-m", "finos_mcp.server"],
+        [sys.executable, "-m", "finos_mcp.fastmcp_main"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

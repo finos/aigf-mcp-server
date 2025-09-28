@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.finos_mcp.security.content_filter import ContentSecurityValidator
+from finos_mcp.security.content_filter import ContentSecurityValidator
 
 
 class TestContentTypeValidation:
@@ -104,7 +104,7 @@ class TestSecurityHeaders:
     @pytest.fixture
     def security_headers(self):
         """Create security headers configuration."""
-        from src.finos_mcp.security.content_filter import SecurityHeaders
+        from finos_mcp.security.content_filter import SecurityHeaders
 
         return SecurityHeaders()
 
@@ -167,7 +167,7 @@ class TestHTTPClientSecurity:
 
     def test_http_client_security_headers_generation(self):
         """Test that security headers are properly generated for HTTP requests."""
-        from src.finos_mcp.security.content_filter import SecurityHeaders
+        from finos_mcp.security.content_filter import SecurityHeaders
 
         security_headers = SecurityHeaders()
         request_headers = security_headers.get_request_headers("1.0.0")
@@ -193,7 +193,7 @@ class TestHTTPClientSecurity:
 
     def test_response_content_validation(self):
         """Test that response content is validated for security."""
-        from src.finos_mcp.security.content_filter import ContentSecurityValidator
+        from finos_mcp.security.content_filter import ContentSecurityValidator
 
         validator = ContentSecurityValidator()
 
@@ -214,7 +214,7 @@ class TestHTTPClientSecurity:
 
     def test_content_type_header_validation(self):
         """Test that Content-Type headers are properly validated."""
-        from src.finos_mcp.security.content_filter import ContentSecurityValidator
+        from finos_mcp.security.content_filter import ContentSecurityValidator
 
         validator = ContentSecurityValidator()
 
@@ -236,7 +236,7 @@ class TestContentFilteringIntegration:
 
     def test_filters_content_in_framework_loading(self):
         """Test that content filtering is applied when loading framework data."""
-        from src.finos_mcp.security.content_filter import ContentSecurityValidator
+        from finos_mcp.security.content_filter import ContentSecurityValidator
 
         validator = ContentSecurityValidator()
 
