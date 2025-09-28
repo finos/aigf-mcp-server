@@ -110,7 +110,9 @@ class TestFastMCPProtocolCompliance:
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="CLI integration tests require external MCP CLI tool installation")
+@pytest.mark.skip(
+    reason="CLI integration tests require external MCP CLI tool installation"
+)
 class TestMCPCLIIntegration:
     """Test FastMCP server integration with MCP CLI tools (requires manual setup)."""
 
