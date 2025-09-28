@@ -6,10 +6,6 @@ structured output, and real-world usage scenarios.
 """
 
 import asyncio
-import json
-import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 
