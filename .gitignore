@@ -126,7 +126,7 @@ $RECYCLE.BIN/
 # 5. DEVELOPMENT AND CODING SESSION FILES
 # ===============================================================================
 
-# Private development files that should not be public
+# Private development files that should not be public (specific names only)
 CLAUDE.md
 PERFORMANCE_SETUP.md
 .claude/
@@ -135,13 +135,26 @@ PERFORMANCE_SETUP.md
 security-reports/
 coverage-reports/
 coverage.json
-mcp-*config.json
-mcp_*.py
+
+# Specific development/testing files (not wildcards to avoid catching legitimate files)
+mcp-cli-config.json
+mcp-config.json
+mcp-test-config.json
+mcp_demo_config.json
+mcp_client_demo.py
+mcp_server_entry.py
 test_mcp_client.py
 show_frameworks.py
-scripts/test-mcp-*.sh
+
+# Specific test script files
+scripts/test-mcp-cli.sh
+scripts/test-mcp-inspector-cli.sh
+
+# Test directories that should remain private
 tests/golden/
 tests/internal/
+
+# Temp files
 json
 
 # Temporary sensitive files
