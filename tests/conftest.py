@@ -24,11 +24,16 @@ def mcp_server_process() -> Generator[subprocess.Popen, None, None]:
     Yields:
         Running subprocess.Popen instance for the MCP server
     """
-    # Find finos-mcp script - prefer virtual environment
+    # Use virtual environment script only - never fall back to global
     import os
 
     venv_script = os.path.join(os.path.dirname(sys.executable), "finos-mcp")
-    script_path = venv_script if os.path.exists(venv_script) else "finos-mcp"
+    if not os.path.exists(venv_script):
+        raise RuntimeError(
+            f"finos-mcp script not found in virtual environment: {venv_script}. "
+            "Run 'pip install -e .' to install the package in development mode."
+        )
+    script_path = venv_script
 
     # Start server process
     process = subprocess.Popen(
