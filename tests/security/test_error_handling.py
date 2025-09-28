@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.finos_mcp.security.error_handler import SecureErrorHandler
+from finos_mcp.security.error_handler import SecureErrorHandler
 
 
 class TestSecureErrorHandling:
@@ -77,7 +77,7 @@ class TestErrorLogging:
         """Create SecureErrorHandler instance for testing."""
         return SecureErrorHandler()
 
-    @patch("src.finos_mcp.security.error_handler.logger")
+    @patch("finos_mcp.security.error_handler.logger")
     def test_internal_logging_preserves_details(self, mock_logger, error_handler):
         """Test that internal logs preserve error details for debugging."""
         original_error = (

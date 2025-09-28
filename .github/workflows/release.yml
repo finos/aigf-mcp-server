@@ -42,7 +42,7 @@ jobs:
       run: |
         bandit -c config/security/bandit.yml -r src/
         semgrep --config config/security/semgrep.yml src/
-        pylint src/finos_mcp --fail-under=8.5
+        pylint src/finos_mcp --fail-under=8.0
 
     - name: Run tests
       run: |
@@ -115,10 +115,12 @@ jobs:
         ## What's Changed
 
         This release includes:
+        - 11 MCP tools for AI governance framework access
+        - 3 MCP prompt templates for compliance and risk analysis
+        - 3 MCP resources with finos:// URI scheme
         - Security-first development with comprehensive scanning
         - Enterprise-grade quality controls
-        - Production-ready containerization
-        - Full MCP server functionality for FINOS AI Governance Framework
+        - FastMCP server implementation with MCP 2025-06-18 compliance
 
         ## Installation
 

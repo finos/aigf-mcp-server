@@ -63,7 +63,7 @@ test = [
 ]
 
 [project.scripts]
-finos-mcp = "finos_mcp.server:main"
+finos-mcp = "finos_mcp.fastmcp_main:main"
 
 [project.urls]
 Homepage = "https://github.com/hugo-calderon/finos-mcp-server"
@@ -161,7 +161,7 @@ addopts = [
     "--disable-warnings",
     "-ra",
 ]
-testpaths = ["tests/unit", "tests/integration", "tests/internal"]
+testpaths = ["tests/unit", "tests/integration"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

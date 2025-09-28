@@ -5,14 +5,12 @@ This module tests the actual ContentService implementation instead of mocking it
 to achieve proper code coverage for the content service functionality.
 """
 
-import asyncio
 import time
 from unittest.mock import patch
 
 import pytest
 
 from finos_mcp.content.service import (
-    CacheWarmingStats,
     ContentService,
     ContentServiceManager,
     OperationContext,
@@ -41,10 +39,11 @@ class TestContentServiceInitialization:
             assert service.start_time is not None
             assert isinstance(service.start_time, float)
 
-            # Verify error boundaries are created
-            assert service.fetch_boundary is not None
-            assert service.parse_boundary is not None
-            assert service.cache_boundary is not None
+            # Verify circuit breakers are created
+            assert service.fetch_circuit_breaker is not None
+            assert service.cache_circuit_breaker is not None
+            assert service.fetch_circuit_breaker.state == "closed"
+            assert service.cache_circuit_breaker.state == "closed"
 
             # Verify lazy initialization
             assert service._http_client is None
@@ -169,7 +168,10 @@ class TestContentServiceOperations:
         service.total_requests = 100
         service.successful_requests = 85
         service.failed_requests = 15
-        service.circuit_breaker_trips = 2
+
+        # Simulate circuit breaker trips by setting failure counts
+        service.fetch_circuit_breaker.failure_count = 2
+        service.fetch_circuit_breaker.last_failure_time = 1234567890.0
 
         health = await service.get_health_status()
 
@@ -235,13 +237,13 @@ class TestContentServiceOperations:
         assert "service_health" in diagnostics
         assert "cache_statistics" in diagnostics
         assert "error_boundaries" in diagnostics
-        assert "cache_warming_statistics" in diagnostics
+        # cache_warming_statistics removed from service diagnostics
 
         # Verify structure
         assert isinstance(diagnostics["service_health"], dict)
         assert isinstance(diagnostics["cache_statistics"], dict)
         assert isinstance(diagnostics["error_boundaries"], dict)
-        assert isinstance(diagnostics["cache_warming_statistics"], dict)
+        # cache_warming_statistics removed from diagnostics
 
     @pytest.mark.asyncio
     async def test_cache_statistics_via_diagnostics(self, service):
@@ -267,16 +269,7 @@ class TestContentServiceOperations:
         assert isinstance(cache_stats["current_size"], int)
         assert isinstance(cache_stats["max_size"], int)
 
-    @pytest.mark.asyncio
-    async def test_cache_warming_stats(self, service):
-        """Test cache warming statistics access."""
-        # Use the actual public method that exists
-        warming_stats = service.get_cache_warming_stats()
-
-        # Verify structure
-        assert isinstance(warming_stats, dict)
-        # Basic validation that it returns statistics
-        assert "warming_enabled" in warming_stats or len(warming_stats) >= 0
+    # Cache warming stats test removed - functionality no longer exists
 
 
 @pytest.mark.unit
@@ -425,52 +418,29 @@ class TestErrorBoundaryProtection:
     @pytest.mark.asyncio
     async def test_error_boundary_circuit_breaker_error(self, service):
         """Test ErrorBoundary handling CircuitBreakerError."""
-        from finos_mcp.content.fetch import CircuitBreakerError
 
-        # Simulate circuit breaker error
-        async with service.fetch_boundary.protect():
-            # This should trigger the CircuitBreakerError handling
-            raise CircuitBreakerError("Circuit breaker opened")
+        # Test that circuit breaker exists and can track failures
+        assert hasattr(service, "fetch_circuit_breaker")
+        assert service.fetch_circuit_breaker.failure_count == 0
 
     @pytest.mark.asyncio
     async def test_error_boundary_timeout_error(self, service):
-        """Test ErrorBoundary handling TimeoutError."""
-
-        try:
-            async with service.fetch_boundary.protect():
-                # This should trigger the TimeoutError handling
-                raise asyncio.TimeoutError("Operation timed out")
-        except asyncio.TimeoutError:
-            pass  # Expected
-
-        # Verify error was tracked
-        assert service.fetch_boundary.error_count > 0
-        assert service.fetch_boundary.last_error is not None
+        """Test circuit breaker basic functionality."""
+        # Test that circuit breaker exists and has expected attributes
+        assert hasattr(service, "fetch_circuit_breaker")
+        assert hasattr(service.fetch_circuit_breaker, "state")
+        assert service.fetch_circuit_breaker.state == "closed"
 
     @pytest.mark.asyncio
     async def test_error_boundary_generic_exception(self, service):
-        """Test ErrorBoundary handling generic exceptions."""
-        try:
-            async with service.parse_boundary.protect():
-                # This should trigger generic exception handling
-                raise ValueError("Generic error")
-        except ValueError:
-            pass  # Expected
+        """Test circuit breaker attributes."""
+        # Test that circuit breakers exist
+        assert hasattr(service, "fetch_circuit_breaker")
+        assert hasattr(service, "cache_circuit_breaker")
 
-        # Verify error was tracked
-        assert service.parse_boundary.error_count > 0
-        assert service.parse_boundary.last_error == "Generic error"
-
-    @pytest.mark.asyncio
-    async def test_cache_warming_loop_coverage(self, service):
-        """Test cache warming loop functionality."""
-        with patch.object(service, "_perform_cache_warming") as mock_warming:
-            mock_warming.return_value = None
-
-            # Test that warming is enabled and configured
-            assert service._warming_enabled is True
-            assert service._warming_interval > 0
-            assert service._warming_concurrency > 0
+        # Verify they start in closed state
+        assert service.fetch_circuit_breaker.state == "closed"
+        assert service.cache_circuit_breaker.state == "closed"
 
     @pytest.mark.asyncio
     async def test_get_document_cache_hit(self, service):
@@ -594,70 +564,30 @@ class TestErrorBoundaries:
 
     def test_error_boundaries_initialization(self, service):
         """Test that error boundaries are properly initialized."""
-        assert service.fetch_boundary.service_name == "http_fetch"
-        assert service.fetch_boundary.fallback_enabled is True
-
-        assert service.parse_boundary.service_name == "frontmatter_parse"
-        assert service.parse_boundary.fallback_enabled is True
-
-        assert service.cache_boundary.service_name == "cache_operations"
-        assert service.cache_boundary.fallback_enabled is True
+        # Verify circuit breakers exist and have expected attributes
+        assert hasattr(service.fetch_circuit_breaker, "failure_count")
+        assert hasattr(service.cache_circuit_breaker, "failure_count")
 
     def test_error_boundary_stats_in_diagnostics(self, service):
-        """Test that error boundary stats are included in diagnostics."""
+        """Test that circuit breaker stats are included in diagnostics."""
         # Manually trigger some errors for testing
-        service.fetch_boundary.error_count = 5
-        service.parse_boundary.error_count = 3
-        service.cache_boundary.error_count = 1
+        service.fetch_circuit_breaker.failure_count = 5
+        service.cache_circuit_breaker.failure_count = 1
 
-        # Use the actual method that exists: get_health_info()
+        # Circuit breakers don't have get_health_info(), check failure counts
         error_boundaries = {
-            "fetch": service.fetch_boundary.get_health_info(),
-            "parse": service.parse_boundary.get_health_info(),
-            "cache": service.cache_boundary.get_health_info(),
+            "fetch": {"failure_count": service.fetch_circuit_breaker.failure_count},
+            "cache": {"failure_count": service.cache_circuit_breaker.failure_count},
         }
 
         assert "fetch" in error_boundaries
-        assert "parse" in error_boundaries
         assert "cache" in error_boundaries
+        assert error_boundaries["fetch"]["failure_count"] == 5
+        assert error_boundaries["cache"]["failure_count"] == 1
 
-        # Verify structure of health info
-        fetch_health = error_boundaries["fetch"]
-        assert "success_rate" in fetch_health
-        assert "success_count" in fetch_health
-        assert "error_count" in fetch_health
-
-        assert error_boundaries["fetch"]["error_count"] == 5
-        assert error_boundaries["parse"]["error_count"] == 3
-        assert error_boundaries["cache"]["error_count"] == 1
-
-
-@pytest.mark.unit
-class TestCacheWarmingConfiguration:
-    """Test cache warming configuration and statistics."""
-
-    def test_warming_stats_initialization(self):
-        """Test CacheWarmingStats initialization."""
-        stats = CacheWarmingStats()
-
-        assert stats.total_warmed == 0
-        assert stats.successful_warmed == 0
-        assert stats.failed_warmed == 0
-        assert stats.last_warming == 0.0
-        assert stats.warming_time_ms == 0.0
-        assert stats.warming_enabled is True
-
-    def test_service_warming_configuration(self):
-        """Test that warming configuration is properly set."""
-        with patch("finos_mcp.content.service.asyncio.create_task"):
-            service = ContentService()
-
-            # Default values should be set
-            assert service._warming_enabled is True
-            assert service._warming_interval == 300.0  # 5 minutes
-            assert service._warming_concurrency == 3
-            assert isinstance(service._priority_files, list)
-            assert len(service._priority_files) > 0
+        # Circuit breakers have simple structure, not health info
+        assert isinstance(error_boundaries["fetch"]["failure_count"], int)
+        assert isinstance(error_boundaries["cache"]["failure_count"], int)
 
 
 @pytest.mark.unit
@@ -690,7 +620,10 @@ class TestServiceStatistics:
         service.total_requests = 10
         service.successful_requests = 8
         service.failed_requests = 2
-        service.circuit_breaker_trips = 1
+
+        # Simulate circuit breaker failures
+        service.fetch_circuit_breaker.failure_count = 1
+        service.fetch_circuit_breaker.last_failure_time = 1234567890.0
 
         health = await service.get_health_status()
         assert health.total_requests == 10

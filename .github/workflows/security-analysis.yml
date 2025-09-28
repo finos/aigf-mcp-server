@@ -24,7 +24,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.11, 3.12]
+        python-version: [3.11, 3.12, 3.13]
       fail-fast: false
 
     steps:
@@ -208,12 +208,16 @@ jobs:
         # Run pip-audit scan - fail on any known vulnerabilities
         pip-audit --format json --output security-reports/pip-audit-report.json
 
-        # Check for vulnerabilities
-        VULNS=$(jq '.dependencies | map(select(.vulns | length > 0)) | length' security-reports/pip-audit-report.json)
+        # Check for vulnerabilities - handle both old and new pip-audit output formats
+        VULNS=$(jq 'if type == "array" then map(select(.vulns? | length? > 0)) | length elif .dependencies then .dependencies | map(select(.vulns | length > 0)) | length else 0 end' security-reports/pip-audit-report.json)
 
         if [ "$VULNS" -gt 0 ]; then
           echo "❌ CRITICAL: Found vulnerabilities in $VULNS dependencies"
-          jq '.dependencies | map(select(.vulns | length > 0))' security-reports/pip-audit-report.json
+          if jq -e '.dependencies' security-reports/pip-audit-report.json > /dev/null; then
+            jq '.dependencies | map(select(.vulns | length > 0))' security-reports/pip-audit-report.json
+          else
+            jq 'map(select(.vulns? | length? > 0))' security-reports/pip-audit-report.json
+          fi
           exit 1
         fi
 
@@ -289,7 +293,7 @@ jobs:
 
         async def test_server_startup():
             try:
-                from finos_mcp.server import main
+                from finos_mcp.fastmcp_main import main
                 from finos_mcp.content.service import get_content_service
                 print('✅ Server imports successful')
 

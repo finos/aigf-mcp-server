@@ -149,16 +149,18 @@ echo "📊 PHASE 3: Pylint Code Analysis (EXACT CI COMMAND)"
 echo "--------------------------------------------------"
 
 echo "Running Pylint code quality analysis..."
+set +e  # Temporarily disable exit on error to capture Pylint exit code
 python -m pylint src/ \
   --output-format=json \
   --reports=yes \
   --score=yes > security-reports/pylint-report.json
-
-# Pylint will exit with non-zero code if score < fail-under (8.5) - EXACT CI LOGIC
 PYLINT_EXIT_CODE=$?
+set -e  # Re-enable exit on error
 
 if [ $PYLINT_EXIT_CODE -ne 0 ]; then
   echo "❌ CRITICAL: Pylint score below 8.5 threshold (exit code: $PYLINT_EXIT_CODE)"
+  echo "📋 Detailed Pylint report:"
+  cat security-reports/pylint-report.json | jq '.[] | select(.type == "fatal" or .type == "error") | {type, message, path, line}'
   exit 1
 fi
 
@@ -273,16 +275,79 @@ python -m pip install pip-audit
 # Run pip-audit scan - fail on any known vulnerabilities
 pip-audit --format json --output security-reports/pip-audit-report.json
 
-# Check for vulnerabilities
-VULNS=$(jq '.dependencies | map(select(.vulns | length > 0)) | length' security-reports/pip-audit-report.json)
+# Check for vulnerabilities - handle both old and new pip-audit output formats (EXACT CI LOGIC)
+VULNS=$(jq 'if type == "array" then map(select(.vulns? | length? > 0)) | length elif .dependencies then .dependencies | map(select(.vulns | length > 0)) | length else 0 end' security-reports/pip-audit-report.json)
 
 if [ "$VULNS" -gt 0 ]; then
   echo "❌ CRITICAL: Found vulnerabilities in $VULNS dependencies"
-  jq '.dependencies | map(select(.vulns | length > 0))' security-reports/pip-audit-report.json
+  if jq -e '.dependencies' security-reports/pip-audit-report.json > /dev/null; then
+    jq '.dependencies | map(select(.vulns | length > 0))' security-reports/pip-audit-report.json
+  else
+    jq 'map(select(.vulns? | length? > 0))' security-reports/pip-audit-report.json
+  fi
   exit 1
 fi
 
 echo "✅ No known vulnerabilities found in dependencies"
+
+# =============================================================================
+# PHASE 8: INTEGRATION TESTS (EXACT CI COMMAND)
+# =============================================================================
+echo ""
+echo "🔗 PHASE 8: Integration Tests (EXACT CI COMMAND)"
+echo "-----------------------------------------------"
+
+echo "Running integration tests..."
+# Test that the MCP server can actually start and respond (EXACT CI CODE)
+# Use python timeout implementation for cross-platform compatibility
+python -c "
+import asyncio
+import sys
+import signal
+sys.path.insert(0, 'src')
+
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException('Integration test timed out after 30 seconds')
+
+# Set timeout (Linux/macOS compatible)
+try:
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(30)
+except AttributeError:
+    # Windows doesn't have SIGALRM, skip timeout
+    pass
+
+async def test_server_startup():
+    try:
+        from finos_mcp.fastmcp_main import main
+        from finos_mcp.content.service import get_content_service
+        print('✅ Server imports successful')
+
+        # Test service initialization
+        service = await get_content_service()
+        print('✅ Content service initialization successful')
+
+        print('✅ Integration tests passed')
+    except Exception as e:
+        print(f'❌ Integration test failed: {e}')
+        sys.exit(1)
+    finally:
+        try:
+            signal.alarm(0)  # Cancel timeout
+        except AttributeError:
+            pass
+
+try:
+    asyncio.run(test_server_startup())
+except TimeoutException as e:
+    print(f'❌ Integration test failed: {e}')
+    sys.exit(1)
+"
+
+echo "✅ Integration tests completed successfully"
 
 # =============================================================================
 # FINAL VALIDATION SUMMARY
@@ -299,8 +364,9 @@ if [ $OVERALL_EXIT_CODE -eq 0 ]; then
     echo "  ✅ Pylint Code Quality"
     echo "  ✅ Ruff Linter & Formatter"
     echo "  ✅ MyPy Type Checking"
-    echo "  ✅ All Tests (unit/integration/internal)"
+    echo "  ✅ All Tests (unit/integration)"
     echo "  ✅ pip-audit Dependency Scanner"
+    echo "  ✅ Integration Tests (Server Startup)"
     echo ""
     echo "🚀 This code is ready for CI - all checks will pass"
 else

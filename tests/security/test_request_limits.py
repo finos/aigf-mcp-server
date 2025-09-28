@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.finos_mcp.security.request_validator import RequestSizeValidator
+from finos_mcp.security.request_validator import RequestSizeValidator
 
 
 class TestRequestSizeLimits:
@@ -89,7 +89,7 @@ class TestDoSProtection:
     @pytest.fixture
     def dos_protector(self):
         """Create DoS protection instance."""
-        from src.finos_mcp.security.request_validator import DoSProtector
+        from finos_mcp.security.request_validator import DoSProtector
 
         return DoSProtector(
             max_requests_per_minute=60,
@@ -97,7 +97,8 @@ class TestDoSProtection:
             request_timeout_seconds=30,
         )
 
-    def test_prevents_request_flooding(self, dos_protector):
+    @pytest.mark.asyncio
+    async def test_prevents_request_flooding(self, dos_protector):
         """Test that rapid request flooding is prevented."""
         client_id = "test_client"
 
@@ -105,42 +106,49 @@ class TestDoSProtection:
         for i in range(61):
             if i < 60:
                 # First 60 should be allowed
-                assert dos_protector.check_rate_limit(client_id) is True
+                result = await dos_protector.check_rate_limit(client_id)
+                assert result is True
             else:
                 # 61st request should be blocked
-                assert dos_protector.check_rate_limit(client_id) is False
+                result = await dos_protector.check_rate_limit(client_id)
+                assert result is False
 
-    def test_prevents_concurrent_request_overload(self, dos_protector):
+    @pytest.mark.asyncio
+    async def test_prevents_concurrent_request_overload(self, dos_protector):
         """Test that too many concurrent requests are prevented."""
         client_id = "test_client"
 
         # Start 10 concurrent requests (at the limit)
         for _i in range(10):
-            dos_protector.start_request(client_id)
+            await dos_protector.start_request(client_id)
 
         # 11th concurrent request should be blocked
         with pytest.raises(ValueError, match="Too many concurrent requests"):
-            dos_protector.start_request(client_id)
+            await dos_protector.start_request(client_id)
 
-    def test_releases_concurrent_slots_when_requests_complete(self, dos_protector):
+    @pytest.mark.asyncio
+    async def test_releases_concurrent_slots_when_requests_complete(
+        self, dos_protector
+    ):
         """Test that concurrent request slots are released when requests complete."""
         client_id = "test_client"
 
         # Start and complete requests
         for _i in range(5):
-            request_id = dos_protector.start_request(client_id)
-            dos_protector.complete_request(client_id, request_id)
+            request_id = await dos_protector.start_request(client_id)
+            await dos_protector.complete_request(client_id, request_id)
 
         # Should still be able to start new requests
-        request_id = dos_protector.start_request(client_id)
+        request_id = await dos_protector.start_request(client_id)
         assert request_id is not None
 
+    @pytest.mark.asyncio
     async def test_request_timeout_protection(self, dos_protector):
         """Test that long-running requests are timed out."""
         client_id = "test_client"
 
         # Start a request that will timeout
-        request_id = dos_protector.start_request(client_id)
+        request_id = await dos_protector.start_request(client_id)
         start_time = dos_protector._get_current_time()
 
         # Mock timeout scenario
@@ -151,15 +159,18 @@ class TestDoSProtection:
             # Check if request is considered timed out
             assert dos_protector._is_request_timed_out(client_id, request_id) is True
 
-    def test_different_clients_have_separate_limits(self, dos_protector):
+    @pytest.mark.asyncio
+    async def test_different_clients_have_separate_limits(self, dos_protector):
         """Test that different clients have separate rate limiting."""
         client1 = "client_1"
         client2 = "client_2"
 
         # Each client should be able to make their full quota
         for _i in range(60):
-            assert dos_protector.check_rate_limit(client1) is True
-            assert dos_protector.check_rate_limit(client2) is True
+            result1 = await dos_protector.check_rate_limit(client1)
+            result2 = await dos_protector.check_rate_limit(client2)
+            assert result1 is True
+            assert result2 is True
 
 
 class TestResourceExhaustion:

@@ -16,6 +16,7 @@ import httpx
 from ..config import get_settings
 from ..health import get_health_monitor
 from ..logging import get_logger
+from .fetch import HTTPClient, get_http_client
 
 # Removed security rate limiting - using simple HTTP requests
 
@@ -62,6 +63,14 @@ STATIC_RISK_FILES = [
     "ri-23_ai-system-reliability-and-quality.md",
 ]
 
+STATIC_FRAMEWORK_FILES = [
+    "nist-ai-600-1.yml",
+    "eu-ai-act.yml",
+    "gdpr.yml",
+    "owasp-llm.yml",
+    "iso-23053.yml",
+]
+
 
 @dataclass
 class GitHubFileInfo:
@@ -81,6 +90,7 @@ class DiscoveryResult:
 
     mitigation_files: list[GitHubFileInfo]
     risk_files: list[GitHubFileInfo]
+    framework_files: list[GitHubFileInfo]
     source: str  # "github_api", "cache", or "static_fallback"
     cache_expires: datetime | None = None
     rate_limit_remaining: int | None = None
@@ -99,6 +109,7 @@ class GitHubDiscoveryService:
         self.repo_name = "ai-governance-framework"
         self.mitigation_path = "docs/_mitigations"
         self.risk_path = "docs/_risks"
+        self.framework_path = "docs/_data"
 
         # Cache duration (1 hour for production, 5 minutes for development)
         self.cache_duration_seconds = 3600 if not self.settings.debug_mode else 300
@@ -115,6 +126,7 @@ class GitHubDiscoveryService:
                         "source": "cache",
                         "mitigation_count": len(cached_result.mitigation_files),
                         "risk_count": len(cached_result.risk_files),
+                        "framework_count": len(cached_result.framework_files),
                         "expires": (
                             cached_result.cache_expires.isoformat()
                             if cached_result.cache_expires
@@ -135,6 +147,7 @@ class GitHubDiscoveryService:
                         "source": "github_api",
                         "mitigation_count": len(github_result.mitigation_files),
                         "risk_count": len(github_result.risk_files),
+                        "framework_count": len(github_result.framework_files),
                         "rate_limit_remaining": github_result.rate_limit_remaining,
                     },
                 )
@@ -157,85 +170,94 @@ class GitHubDiscoveryService:
         return self._create_static_fallback()
 
     async def _fetch_from_github(self) -> DiscoveryResult | None:
-        """Fetch file listings from GitHub API with simple HTTP requests."""
+        """Fetch file listings from GitHub API using shared HTTP client."""
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                # Fetch both directories concurrently with rate limiting
-                mitigation_task = self._fetch_directory(client, self.mitigation_path)
-                risk_task = self._fetch_directory(client, self.risk_path)
+        client = await get_http_client()
+        try:
+            # Fetch all three directories concurrently with rate limiting
+            mitigation_task = self._fetch_directory(client, self.mitigation_path, ".md")
+            risk_task = self._fetch_directory(client, self.risk_path, ".md")
+            framework_task = self._fetch_directory(client, self.framework_path, ".yml")
 
-                mitigation_files, risk_files = await asyncio.gather(
-                    mitigation_task, risk_task, return_exceptions=True
-                )
+            mitigation_files, risk_files, framework_files = await asyncio.gather(
+                mitigation_task, risk_task, framework_task, return_exceptions=True
+            )
 
-                # Handle potential exceptions from concurrent requests
-                if isinstance(mitigation_files, Exception):
-                    logger.error(
-                        "Failed to fetch mitigation files: %s", mitigation_files
-                    )
-                    return None
-
-                if isinstance(risk_files, Exception):
-                    logger.error("Failed to fetch risk files: %s", risk_files)
-                    return None
-
-                # At this point, we know both are list[GitHubFileInfo]
-                assert isinstance(mitigation_files, list)
-                assert isinstance(risk_files, list)
-
-                # Rate limiting removed for simplicity
-                rate_limit_remaining = None
-
-                logger.info(
-                    "GitHub API discovery successful",
-                    extra={
-                        "mitigation_count": len(mitigation_files),
-                        "risk_count": len(risk_files),
-                        "rate_limit_remaining": rate_limit_remaining,
-                    },
-                )
-
-                return DiscoveryResult(
-                    mitigation_files=mitigation_files,
-                    risk_files=risk_files,
-                    source="github_api",
-                    cache_expires=datetime.now(timezone.utc).replace(microsecond=0)
-                    + timedelta(seconds=self.cache_duration_seconds),
-                    rate_limit_remaining=rate_limit_remaining,
-                )
-
-            except (
-                httpx.HTTPError,
-                httpx.TimeoutException,
-                asyncio.TimeoutError,
-                ValueError,
-                TypeError,
-                KeyError,
-            ) as e:
-                # The rate limiter handles retries, so if we get here, all attempts failed
-                error_type = type(e).__name__
-                if isinstance(e, httpx.TimeoutException):
-                    logger.warning("GitHub API timeout after retries")
-                elif isinstance(e, httpx.HTTPStatusError):
-                    logger.warning(
-                        "GitHub API HTTP error after retries",
-                        extra={
-                            "status_code": (
-                                e.response.status_code if e.response else "unknown"  # pylint: disable=no-member
-                            ),
-                            "error_type": error_type,
-                        },
-                    )
-                else:
-                    logger.warning(
-                        "GitHub API request failed after retries",
-                        extra={"error": str(e), "error_type": error_type},
-                    )
+            # Handle potential exceptions from concurrent requests
+            if isinstance(mitigation_files, Exception):
+                logger.error("Failed to fetch mitigation files: %s", mitigation_files)
                 return None
 
+            if isinstance(risk_files, Exception):
+                logger.error("Failed to fetch risk files: %s", risk_files)
+                return None
+
+            if isinstance(framework_files, Exception):
+                logger.error("Failed to fetch framework files: %s", framework_files)
+                return None
+
+            # At this point, we know all are list[GitHubFileInfo]
+            assert isinstance(mitigation_files, list)
+            assert isinstance(risk_files, list)
+            assert isinstance(framework_files, list)
+
+            # Rate limiting removed for simplicity
+            rate_limit_remaining = None
+
+            logger.info(
+                "GitHub API discovery successful",
+                extra={
+                    "mitigation_count": len(mitigation_files),
+                    "risk_count": len(risk_files),
+                    "framework_count": len(framework_files),
+                    "rate_limit_remaining": rate_limit_remaining,
+                },
+            )
+
+            return DiscoveryResult(
+                mitigation_files=mitigation_files,
+                risk_files=risk_files,
+                framework_files=framework_files,
+                source="github_api",
+                cache_expires=datetime.now(timezone.utc).replace(microsecond=0)
+                + timedelta(seconds=self.cache_duration_seconds),
+                rate_limit_remaining=rate_limit_remaining,
+            )
+
+        except (
+            httpx.HTTPError,
+            httpx.TimeoutException,
+            asyncio.TimeoutError,
+            ValueError,
+            TypeError,
+            KeyError,
+        ) as e:
+            # The rate limiter handles retries, so if we get here, all attempts failed
+            error_type = type(e).__name__
+            if isinstance(e, httpx.TimeoutException):
+                logger.warning("GitHub API timeout after retries")
+            elif isinstance(e, httpx.HTTPStatusError):
+                logger.warning(
+                    "GitHub API HTTP error after retries",
+                    extra={
+                        "status_code": (
+                            e.response.status_code if e.response else "unknown"  # pylint: disable=no-member
+                        ),
+                        "error_type": error_type,
+                    },
+                )
+            else:
+                logger.warning(
+                    "GitHub API request failed after retries",
+                    extra={"error": str(e), "error_type": error_type},
+                )
+            return None
+
     async def _fetch_directory(
-        self, client: httpx.AsyncClient, directory_path: str
+        self,
+        client: HTTPClient,
+        directory_path: str,
+        file_extension: str = ".md",
     ) -> list[GitHubFileInfo]:
         """Fetch files from a specific directory in the repository with rate limiting."""
         url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/contents/{directory_path}"
@@ -259,7 +281,7 @@ class GitHubDiscoveryService:
 
         files = []
         for item in response.json():
-            if item["type"] == "file" and item["name"].endswith(".md"):
+            if item["type"] == "file" and item["name"].endswith(file_extension):
                 files.append(
                     GitHubFileInfo(
                         filename=item["name"],
@@ -297,10 +319,15 @@ class GitHubDiscoveryService:
             risk_files = [
                 GitHubFileInfo(**file_data) for file_data in data["risk_files"]
             ]
+            framework_files = [
+                GitHubFileInfo(**file_data)
+                for file_data in data.get("framework_files", [])
+            ]
 
             return DiscoveryResult(
                 mitigation_files=mitigation_files,
                 risk_files=risk_files,
+                framework_files=framework_files,
                 source="cache",
                 cache_expires=cache_expires,
                 rate_limit_remaining=data.get("rate_limit_remaining"),
@@ -345,6 +372,19 @@ class GitHubDiscoveryService:
                     }
                     for f in result.risk_files
                 ],
+                "framework_files": [
+                    {
+                        "filename": f.filename,
+                        "path": f.path,
+                        "sha": f.sha,
+                        "size": f.size,
+                        "download_url": f.download_url,
+                        "last_modified": (
+                            f.last_modified.isoformat() if f.last_modified else None
+                        ),
+                    }
+                    for f in result.framework_files
+                ],
                 "source": "github_api",
                 "cache_expires": (
                     result.cache_expires.isoformat() if result.cache_expires else None
@@ -383,17 +423,30 @@ class GitHubDiscoveryService:
             for filename in STATIC_RISK_FILES
         ]
 
+        framework_files = [
+            GitHubFileInfo(
+                filename=filename,
+                path=f"{self.framework_path}/{filename}",
+                sha="static",
+                size=0,
+                download_url=f"https://raw.githubusercontent.com/{self.repo_owner}/{self.repo_name}/main/{self.framework_path}/{filename}",
+            )
+            for filename in STATIC_FRAMEWORK_FILES
+        ]
+
         logger.info(
             "Using static fallback for content discovery",
             extra={
                 "mitigation_count": len(mitigation_files),
                 "risk_count": len(risk_files),
+                "framework_count": len(framework_files),
             },
         )
 
         return DiscoveryResult(
             mitigation_files=mitigation_files,
             risk_files=risk_files,
+            framework_files=framework_files,
             source="static_fallback",
         )
 
