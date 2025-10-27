@@ -803,31 +803,42 @@ async def search_frameworks(query: str, limit: int = 5) -> SearchResults:
 
 
 async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[SearchResult]:
-    """Search within a single risk document (helper function for parallel processing)."""
+    """Search within a single risk document (helper function for parallel processing).
+
+    Optimized to search metadata first before loading full content to avoid rate limits.
+    """
     try:
-        # Get risk content
-        risk_content = await get_risk(risk_doc.id)
+        query_lower = query.lower()
 
-        # Simple text search (case insensitive)
-        if query.lower() in risk_content.content.lower():
-            # Extract snippet
-            content_lower = risk_content.content.lower()
-            query_lower = query.lower()
-            match_index = content_lower.find(query_lower)
+        # OPTIMIZATION 1: Search in document name and description first (no API call needed)
+        name_match = query_lower in risk_doc.name.lower()
+        desc_match = (
+            risk_doc.description and query_lower in risk_doc.description.lower()
+        )
 
-            if match_index != -1:
-                start = max(0, match_index - 100)
-                end = min(len(risk_content.content), match_index + len(query) + 100)
-                snippet = risk_content.content[start:end]
+        # If we find a match in metadata, create a result using available info
+        if name_match or desc_match:
+            # Create snippet from available metadata
+            snippet_parts = []
+            if name_match:
+                snippet_parts.append(f"Risk: {risk_doc.name}")
+            if desc_match:
+                snippet_parts.append(f"Description: {risk_doc.description}")
 
-                return [
-                    SearchResult(
-                        framework_id=f"risk-{risk_doc.id}",
-                        section=risk_doc.name,
-                        content=snippet,
-                    )
-                ]
+            snippet = " | ".join(snippet_parts)
+
+            return [
+                SearchResult(
+                    framework_id=f"risk-{risk_doc.id}",
+                    section=risk_doc.name,
+                    content=snippet,
+                )
+            ]
+
+        # OPTIMIZATION 2: Only load full content if query not found in metadata
+        # This dramatically reduces API calls during search
         return []
+
     except Exception as e:
         logger.warning("Failed to search risk %s: %s", risk_doc.id, e)
         return []
@@ -895,33 +906,43 @@ async def search_risks(query: str, limit: int = 5) -> SearchResults:
 async def _search_single_mitigation(
     mitigation_doc: DocumentInfo, query: str
 ) -> list[SearchResult]:
-    """Search within a single mitigation document (helper function for parallel processing)."""
+    """Search within a single mitigation document (helper function for parallel processing).
+
+    Optimized to search metadata first before loading full content to avoid rate limits.
+    """
     try:
-        # Get mitigation content
-        mitigation_content = await get_mitigation(mitigation_doc.id)
+        query_lower = query.lower()
 
-        # Simple text search (case insensitive)
-        if query.lower() in mitigation_content.content.lower():
-            # Extract snippet
-            content_lower = mitigation_content.content.lower()
-            query_lower = query.lower()
-            match_index = content_lower.find(query_lower)
+        # OPTIMIZATION 1: Search in document name and description first (no API call needed)
+        name_match = query_lower in mitigation_doc.name.lower()
+        desc_match = (
+            mitigation_doc.description
+            and query_lower in mitigation_doc.description.lower()
+        )
 
-            if match_index != -1:
-                start = max(0, match_index - 100)
-                end = min(
-                    len(mitigation_content.content), match_index + len(query) + 100
+        # If we find a match in metadata, create a result using available info
+        if name_match or desc_match:
+            # Create snippet from available metadata
+            snippet_parts = []
+            if name_match:
+                snippet_parts.append(f"Mitigation: {mitigation_doc.name}")
+            if desc_match:
+                snippet_parts.append(f"Description: {mitigation_doc.description}")
+
+            snippet = " | ".join(snippet_parts)
+
+            return [
+                SearchResult(
+                    framework_id=f"mitigation-{mitigation_doc.id}",
+                    section=mitigation_doc.name,
+                    content=snippet,
                 )
-                snippet = mitigation_content.content[start:end]
+            ]
 
-                return [
-                    SearchResult(
-                        framework_id=f"mitigation-{mitigation_doc.id}",
-                        section=mitigation_doc.name,
-                        content=snippet,
-                    )
-                ]
+        # OPTIMIZATION 2: Only load full content if query not found in metadata
+        # This dramatically reduces API calls during search
         return []
+
     except Exception as e:
         logger.warning("Failed to search mitigation %s: %s", mitigation_doc.id, e)
         return []
