@@ -23,9 +23,25 @@ from .fetch import HTTPClient, get_http_client
 
 logger = get_logger("content_discovery")
 
-# Static fallback lists (used when GitHub API is unavailable)
+# Static fallback lists (auto-generated - do not edit manually)
+# To update: python scripts/update-static-fallback.py
+# Last updated: 2025-10-27
 STATIC_MITIGATION_FILES = [
+    "mi-10_ai-model-version-pinning.md",
+    "mi-11_human-feedback-loop-for-ai-systems.md",
+    "mi-12_role-based-access-control-for-ai-data.md",
+    "mi-13_providing-citations-and-source-traceability-for-ai-generated-information.md",
+    "mi-14_encryption-of-ai-data-at-rest.md",
+    "mi-15_using-large-language-models-for-automated-evaluation-llm-as-a-judge-.md",
+    "mi-16_preserving-source-data-access-controls-in-ai-systems.md",
+    "mi-17_ai-firewall-implementation-and-management.md",
+    "mi-18_agent-authority-least-privilege-framework.md",
+    "mi-19_tool-chain-validation-and-sanitization.md",
     "mi-1_ai-data-leakage-prevention-and-detection.md",
+    "mi-20_mcp-server-security-governance.md",
+    "mi-21_agent-decision-audit-and-explainability.md",
+    "mi-22_multi-agent-isolation-and-segmentation.md",
+    "mi-23_agentic-system-credential-protection-framework.md",
     "mi-2_data-filtering-from-external-knowledge-bases.md",
     "mi-3_user-app-model-firewalling-filtering.md",
     "mi-4_ai-system-observability.md",
@@ -34,42 +50,42 @@ STATIC_MITIGATION_FILES = [
     "mi-7_legal-and-contractual-frameworks-for-ai-systems.md",
     "mi-8_quality-of-service-qos-and-ddos-prevention-for-ai-systems.md",
     "mi-9_ai-system-alerting-and-denial-of-wallet-dow-spend-monitoring.md",
-    "mi-10_ai-model-version-pinning.md",
-    "mi-11_ai-system-governance-and-compliance-attestation-and-validation.md",
-    "mi-12_ai-system-interaction-logging.md",
-    "mi-13_ai-system-vulnerability-assessment-and-penetration-testing.md",
-    "mi-14_ai-training-and-test-data-purging.md",
-    "mi-15_responsible-ai-data-governance.md",
-    "mi-16_ai-system-evaluation-and-validation.md",
-    "mi-17_responsible-ai-governance-data-integration-and-security.md",
 ]
 
 STATIC_RISK_FILES = [
-    "ri-1_adversarial-behavior-against-ai-systems.md",
-    "ri-2_prompt-injection.md",
-    "ri-3_training-data-poisoning.md",
-    "ri-5_supply-chain-compromises.md",
-    "ri-6_data-leakage.md",
-    "ri-7_ai-system-availability-and-performance.md",
-    "ri-8_ai-system-configuration-and-third-party-integrations.md",
-    "ri-9_ai-system-governance-and-security.md",
-    "ri-10_over-reliance-on-generated-content.md",
-    "ri-11_data-extraction-and-inference.md",
-    "ri-12_ai-system-backdoors.md",
-    "ri-13_ai-system-unintended-bias.md",
-    "ri-14_ai-system-misinformation-generation.md",
-    "ri-15_ai-system-privacy-and-confidentiality.md",
-    "ri-16_ai-system-governance-data-and-business-model-risks.md",
-    "ri-19_ai-system-operational-data-security.md",
-    "ri-23_ai-system-reliability-and-quality.md",
+    "ri-10_prompt-injection.md",
+    "ri-14_inadequate-system-alignment.md",
+    "ri-16_bias-and-discrimination.md",
+    "ri-17_lack-of-explainability.md",
+    "ri-18_model-overreach-expanded-use.md",
+    "ri-19_data-quality-and-drift.md",
+    "ri-1_information-leaked-to-hosted-model.md",
+    "ri-20_reputational-risk.md",
+    "ri-22_regulatory-compliance-and-oversight.md",
+    "ri-23_intellectual-property-ip-and-copyright.md",
+    "ri-24_agent-action-authorization-bypass.md",
+    "ri-25_tool-chain-manipulation-and-injection.md",
+    "ri-26_mcp-server-supply-chain-compromise.md",
+    "ri-27_agent-state-persistence-poisoning.md",
+    "ri-28_multi-agent-trust-boundary-violations.md",
+    "ri-29_agent-mediated-credential-discovery-and-harvesting.md",
+    "ri-2_information-leaked-to-vector-store.md",
+    "ri-4_hallucination-and-inaccurate-outputs.md",
+    "ri-5_foundation-model-versioning.md",
+    "ri-6_non-deterministic-behaviour.md",
+    "ri-7_availability-of-foundational-model.md",
+    "ri-8_tampering-with-the-foundational-model.md",
+    "ri-9_data-poisoning.md",
 ]
 
 STATIC_FRAMEWORK_FILES = [
-    "nist-ai-600-1.yml",
     "eu-ai-act.yml",
-    "gdpr.yml",
+    "ffiec-itbooklets.yml",
+    "iso-42001.yml",
+    "nist-ai-600-1.yml",
+    "nist-sp-800-53r5.yml",
     "owasp-llm.yml",
-    "iso-23053.yml",
+    "owasp-ml.yml",
 ]
 
 
