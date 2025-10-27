@@ -6,6 +6,7 @@ repository using the GitHub API, with intelligent caching and graceful fallback.
 
 import asyncio
 import json
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -101,8 +102,29 @@ class GitHubDiscoveryService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.cache_dir = Path(".cache/discovery")
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Try to create cache directory in current working directory
+        # If that fails (e.g., read-only filesystem in Claude Desktop),
+        # fallback to system temporary directory
+        try:
+            self.cache_dir = Path(".cache/discovery")
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            # Test write permissions by attempting to create a test file
+            test_file = self.cache_dir / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+            logger.info("Using local cache directory: %s", self.cache_dir)
+        except (OSError, PermissionError) as e:
+            # Fallback to system temporary directory
+            temp_base = Path(tempfile.gettempdir())
+            self.cache_dir = temp_base / "finos_mcp_cache" / "discovery"
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            logger.warning(
+                "Could not create local cache directory (read-only filesystem), "
+                "using system temp directory: %s (original error: %s)",
+                self.cache_dir,
+                str(e),
+            )
 
         # GitHub API configuration
         self.repo_owner = "finos"
@@ -333,14 +355,30 @@ class GitHubDiscoveryService:
                 rate_limit_remaining=data.get("rate_limit_remaining"),
             )
 
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.warning("Invalid cache file, will refresh", extra={"error": str(e)})
-            # Remove invalid cache file
-            cache_file.unlink(missing_ok=True)
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            ValueError,
+            OSError,
+            PermissionError,
+        ) as e:
+            logger.warning(
+                "Invalid or inaccessible cache file, will refresh",
+                extra={"error": str(e)},
+            )
+            # Try to remove invalid cache file, but don't fail if we can't
+            try:
+                cache_file.unlink(missing_ok=True)
+            except (OSError, PermissionError):
+                pass  # Ignore errors during cleanup
             return None
 
     async def _save_to_cache(self, result: DiscoveryResult) -> None:
-        """Save discovery result to cache."""
+        """Save discovery result to cache.
+
+        Gracefully handles write failures - service continues to work
+        without caching if filesystem is read-only.
+        """
         cache_file = self.cache_dir / "github_discovery.json"
 
         try:
@@ -396,8 +434,20 @@ class GitHubDiscoveryService:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
 
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning("Failed to save discovery cache", extra={"error": str(e)})
+            logger.debug("Discovery cache saved successfully to %s", cache_file)
+
+        except (
+            OSError,
+            PermissionError,
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+        ) as e:
+            logger.warning(
+                "Failed to save discovery cache (service continues without caching): %s",
+                str(e),
+                extra={"error_type": type(e).__name__, "cache_file": str(cache_file)},
+            )
 
     def _create_static_fallback(self) -> DiscoveryResult:
         """Create discovery result from static file lists."""
