@@ -56,7 +56,7 @@ def format_python_list(files, indent=4):
 
 def generate_updated_code(files):
     """Generate the updated Python code for discovery.py."""
-    code = f'''# Static fallback file lists (auto-generated - do not edit manually)
+    code = f"""# Static fallback file lists (auto-generated - do not edit manually)
 # To update: python scripts/update-static-fallback.py
 
 STATIC_MITIGATION_FILES = {format_python_list(files["mitigations"])}
@@ -64,7 +64,7 @@ STATIC_MITIGATION_FILES = {format_python_list(files["mitigations"])}
 STATIC_RISK_FILES = {format_python_list(files["risks"])}
 
 STATIC_FRAMEWORK_FILES = {format_python_list(files["frameworks"])}
-'''
+"""
     return code
 
 
