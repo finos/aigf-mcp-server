@@ -195,7 +195,7 @@ class ErrorReporter:
                 )
 
         # Generic suggestions based on exception type
-        if isinstance(error, (ConnectionError, TimeoutError)):
+        if isinstance(error, ConnectionError | TimeoutError):
             suggestions.extend(
                 [
                     "Check network connectivity",

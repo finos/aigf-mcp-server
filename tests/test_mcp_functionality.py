@@ -57,7 +57,7 @@ def success(text: str):
 
 def info(text: str):
     """Print info message."""
-    print(f"{Colors.CYAN}ℹ{Colors.END} {text}")
+    print(f"{Colors.CYAN}i{Colors.END} {text}")
 
 
 def warning(text: str):
@@ -300,7 +300,7 @@ async def test_get_framework(framework_id: str):
         if len(result.content) > 200:
             preview = result.content[:200].replace("\n", " ")
             print(f"\nContent Preview:\n{preview}...\n")
-            success(f"Framework content loaded successfully")
+            success("Framework content loaded successfully")
             return True
         else:
             warning(f"Content seems short or failed to load: {result.content}")
@@ -327,7 +327,7 @@ async def test_get_risk(risk_id: str):
         if len(result.content) > 200:
             preview = result.content[:200].replace("\n", " ")
             print(f"\nContent Preview:\n{preview}...\n")
-            success(f"Risk content loaded successfully")
+            success("Risk content loaded successfully")
             return True
         else:
             warning(f"Content seems short or failed to load: {result.content}")
@@ -354,7 +354,7 @@ async def test_get_mitigation(mitigation_id: str):
         if len(result.content) > 200:
             preview = result.content[:200].replace("\n", " ")
             print(f"\nContent Preview:\n{preview}...\n")
-            success(f"Mitigation content loaded successfully")
+            success("Mitigation content loaded successfully")
             return True
         else:
             warning(f"Content seems short or failed to load: {result.content}")
@@ -368,13 +368,17 @@ async def test_get_mitigation(mitigation_id: str):
 async def run_all_tests():
     """Run comprehensive test suite."""
     print(f"\n{Colors.BOLD}{'=' * 80}{Colors.END}")
-    print(f"{Colors.BOLD}{'FINOS MCP Server - Comprehensive Functionality Test':^80}{Colors.END}")
+    print(
+        f"{Colors.BOLD}{'FINOS MCP Server - Comprehensive Functionality Test':^80}{Colors.END}"
+    )
     print(f"{Colors.BOLD}{'=' * 80}{Colors.END}")
 
     results = {}
 
     # Phase 1: Service Health Tests (No API calls)
-    print(f"\n{Colors.CYAN}{Colors.BOLD}PHASE 1: Service Health & Infrastructure{Colors.END}")
+    print(
+        f"\n{Colors.CYAN}{Colors.BOLD}PHASE 1: Service Health & Infrastructure{Colors.END}"
+    )
     results["service_health"] = await test_service_health()
     results["cache_stats"] = await test_cache_stats()
 
@@ -390,7 +394,9 @@ async def run_all_tests():
     results["list_mitigations"] = success_m
 
     # Phase 3: Search Tests (Optimized - No API calls)
-    print(f"\n{Colors.CYAN}{Colors.BOLD}PHASE 3: Optimized Search (Metadata Only){Colors.END}")
+    print(
+        f"\n{Colors.CYAN}{Colors.BOLD}PHASE 3: Optimized Search (Metadata Only){Colors.END}"
+    )
     info("These searches use NO API calls - instant results from cached metadata")
 
     results["search_frameworks"] = await test_search_frameworks()
@@ -476,11 +482,17 @@ async def run_all_tests():
     # Recommendations
     if passed < total:
         print(f"{Colors.YELLOW}Recommendations:{Colors.END}")
-        if not results.get("get_framework") or not results.get("get_risk") or not results.get("get_mitigation"):
-            print(f"  • Document detail tests failed - likely hit GitHub rate limit (60/hour)")
-            print(f"  • Solution 1: Wait 1 hour and try again")
-            print(f"  • Solution 2: Add GitHub token for 5000/hour limit:")
-            print(f"      export FINOS_MCP_GITHUB_TOKEN='your_token_here'")
+        if (
+            not results.get("get_framework")
+            or not results.get("get_risk")
+            or not results.get("get_mitigation")
+        ):
+            print(
+                "  • Document detail tests failed - likely hit GitHub rate limit (60/hour)"
+            )
+            print("  • Solution 1: Wait 1 hour and try again")
+            print("  • Solution 2: Add GitHub token for 5000/hour limit:")
+            print("      export FINOS_MCP_GITHUB_TOKEN='your_token_here'")
         print()
 
     if passed == total:
@@ -489,7 +501,9 @@ async def run_all_tests():
         return 0
     elif passed >= total * 0.75:
         print(f"{Colors.YELLOW}{Colors.BOLD}⚠ MOSTLY WORKING{Colors.END}")
-        print(f"{Colors.YELLOW}Core functionality works. Some tests failed due to rate limiting.{Colors.END}\n")
+        print(
+            f"{Colors.YELLOW}Core functionality works. Some tests failed due to rate limiting.{Colors.END}\n"
+        )
         return 0
     else:
         print(f"{Colors.RED}{Colors.BOLD}✗ MULTIPLE FAILURES{Colors.END}")

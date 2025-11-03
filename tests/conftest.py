@@ -298,9 +298,13 @@ def setup_test_environment():
     # Set test validation mode for all tests
     os.environ["FINOS_MCP_VALIDATION_MODE"] = "disabled"
     # Set default cache secret for tests if not already set
-    cache_secret_set = "FINOS_MCP_CACHE_SECRET" not in os.environ
+    cache_secret_set = (
+        "FINOS_MCP_CACHE_SECRET" not in os.environ
+    )  # pragma: allowlist secret
     if cache_secret_set:
-        os.environ["FINOS_MCP_CACHE_SECRET"] = "test_default_cache_secret_32chars"
+        os.environ["FINOS_MCP_CACHE_SECRET"] = (
+            "test_default_cache_secret_32chars"  # pragma: allowlist secret
+        )
 
     yield
 

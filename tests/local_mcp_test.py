@@ -9,7 +9,6 @@ Usage:
 """
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -17,17 +16,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from finos_mcp.fastmcp_server import (
-    list_frameworks,
-    get_framework,
-    search_frameworks,
-    list_risks,
-    get_risk,
-    search_risks,
-    list_mitigations,
-    get_mitigation,
-    search_mitigations,
-    get_service_health,
     get_cache_stats,
+    get_framework,
+    get_mitigation,
+    get_risk,
+    get_service_health,
+    list_frameworks,
+    list_mitigations,
+    list_risks,
+    search_frameworks,
+    search_mitigations,
+    search_risks,
 )
 
 
@@ -58,7 +57,7 @@ def print_success(text: str):
 
 def print_info(text: str):
     """Print info message."""
-    print(f"{Colors.OKCYAN}ℹ{Colors.ENDC} {text}")
+    print(f"{Colors.OKCYAN}i{Colors.ENDC} {text}")
 
 
 def print_error(text: str):
@@ -324,7 +323,9 @@ async def test_service_health():
         print_info(f"Status: {result.status}")
         print_info(f"Version: {result.version}")
         print_info(f"Uptime: {result.uptime_seconds:.2f} seconds")
-        print_info(f"Healthy services: {result.healthy_services}/{result.total_services}")
+        print_info(
+            f"Healthy services: {result.healthy_services}/{result.total_services}"
+        )
 
         print_success("get_service_health() working correctly")
         return True, result
@@ -357,7 +358,9 @@ async def test_cache_stats():
 async def run_all_tests():
     """Run all MCP server tests."""
     print(f"\n{Colors.BOLD}{'=' * 80}{Colors.ENDC}")
-    print(f"{Colors.BOLD}{'FINOS AI Governance MCP Server - Local Testing':^80}{Colors.ENDC}")
+    print(
+        f"{Colors.BOLD}{'FINOS AI Governance MCP Server - Local Testing':^80}{Colors.ENDC}"
+    )
     print(f"{Colors.BOLD}{'=' * 80}{Colors.ENDC}")
 
     results = {}

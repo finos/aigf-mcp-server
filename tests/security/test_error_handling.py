@@ -101,7 +101,7 @@ class TestErrorLogging:
         sensitive_errors = [
             "User john.doe@company.com authentication failed",
             "API key sk_live_abc123def456 is invalid",
-            "Database query failed: SELECT * FROM users WHERE password='secret123'",  # FAKE TEST DATA
+            "Database query failed: SELECT * FROM users WHERE password='secret123'",  # pragma: allowlist secret
             "File access denied: /home/admin/.ssh/id_rsa",
         ]
 

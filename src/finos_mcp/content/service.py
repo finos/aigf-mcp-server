@@ -305,7 +305,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             except Exception as e:
                 # Convert generic exceptions to structured ones
                 if isinstance(
-                    e, (ContentValidationError, HTTPClientError, ContentLoadingError)
+                    e, ContentValidationError | HTTPClientError | ContentLoadingError
                 ):
                     raise
                 else:
