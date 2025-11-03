@@ -19,10 +19,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from finos_mcp.content.discovery import (
-    DiscoveryServiceManager,
     STATIC_FRAMEWORK_FILES,
     STATIC_MITIGATION_FILES,
     STATIC_RISK_FILES,
+    DiscoveryServiceManager,
 )
 
 
@@ -135,7 +135,9 @@ async def test_fallback_and_api_produce_same_ids():
 
     # Extract IDs from both methods
     def extract_ids(files):
-        return sorted([f.filename.replace(".md", "").replace(".yml", "") for f in files])
+        return sorted(
+            [f.filename.replace(".md", "").replace(".yml", "") for f in files]
+        )
 
     api_mitigation_ids = extract_ids(api_result.mitigation_files)
     fallback_mitigation_ids = extract_ids(fallback_result.mitigation_files)

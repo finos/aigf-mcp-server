@@ -37,30 +37,30 @@ async def trace_get_risk():
         print(f"  Checking: filename='{file_info.filename}' -> file_id='{file_id}'")
         if file_id == risk_id:
             target_file = file_info
-            print(f"  ✓ MATCH FOUND!")
+            print("  ✓ MATCH FOUND!")
             break
 
     if not target_file:
-        print(f"  ✗ NO MATCH FOUND")
+        print("  ✗ NO MATCH FOUND")
         return
 
-    print(f"\nTarget file found:")
+    print("\nTarget file found:")
     print(f"  filename: {target_file.filename}")
     print(f"  path: {target_file.path}")
     print(f"  download_url: {target_file.download_url}")
 
     # Step 3: Try to load the document
-    print(f"\nStep 3: Loading document via ContentService")
+    print("\nStep 3: Loading document via ContentService")
     service = await get_content_service()
 
     doc = await service.get_document("risk", target_file.filename)
 
     if doc:
-        print(f"  ✓ Document loaded successfully")
+        print("  ✓ Document loaded successfully")
         print(f"  - Title: {doc.get('title', 'N/A')}")
         print(f"  - Content length: {len(doc.get('content', ''))} characters")
     else:
-        print(f"  ✗ Document loading FAILED - returned None")
+        print("  ✗ Document loading FAILED - returned None")
 
 
 async def main():

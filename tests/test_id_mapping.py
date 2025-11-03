@@ -13,12 +13,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from finos_mcp.fastmcp_server import (
-    list_risks,
-    get_risk,
-    search_risks,
-    list_mitigations,
     get_mitigation,
+    get_risk,
+    list_mitigations,
+    list_risks,
     search_mitigations,
+    search_risks,
 )
 
 
@@ -36,7 +36,7 @@ async def test_risk_id_mapping():
 
     if risks_list.documents:
         first_risk = risks_list.documents[0]
-        print(f"\n   First risk from list:")
+        print("\n   First risk from list:")
         print(f"   - ID: {first_risk.id}")
         print(f"   - Name: {first_risk.name}")
 
@@ -49,16 +49,16 @@ async def test_risk_id_mapping():
         if "Failed to load" in risk_content.content or "Error" in risk_content.title:
             print(f"   ✗ FAILED: {risk_content.content[:100]}")
         else:
-            print(f"   ✓ SUCCESS: Content loaded")
+            print("   ✓ SUCCESS: Content loaded")
 
     # Step 3: Search for risks
-    print(f"\n3. Searching for 'injection'...")
+    print("\n3. Searching for 'injection'...")
     search_results = await search_risks("injection", limit=3)
     print(f"   Found {search_results.total_found} results")
 
     if search_results.results:
         first_result = search_results.results[0]
-        print(f"\n   First search result:")
+        print("\n   First search result:")
         print(f"   - Framework ID: {first_result.framework_id}")
         print(f"   - Section: {first_result.section}")
 
@@ -76,7 +76,7 @@ async def test_risk_id_mapping():
             print(f"   ✗ FAILED: {risk_content.content[:200]}")
             return False
         else:
-            print(f"   ✓ SUCCESS: Content loaded correctly")
+            print("   ✓ SUCCESS: Content loaded correctly")
             return True
 
     return False
@@ -96,7 +96,7 @@ async def test_mitigation_id_mapping():
 
     if mitigations_list.documents:
         first_mit = mitigations_list.documents[0]
-        print(f"\n   First mitigation from list:")
+        print("\n   First mitigation from list:")
         print(f"   - ID: {first_mit.id}")
         print(f"   - Name: {first_mit.name}")
 
@@ -109,16 +109,16 @@ async def test_mitigation_id_mapping():
         if "Failed to load" in mit_content.content or "Error" in mit_content.title:
             print(f"   ✗ FAILED: {mit_content.content[:100]}")
         else:
-            print(f"   ✓ SUCCESS: Content loaded")
+            print("   ✓ SUCCESS: Content loaded")
 
     # Step 3: Search for mitigations
-    print(f"\n3. Searching for 'data'...")
+    print("\n3. Searching for 'data'...")
     search_results = await search_mitigations("data", limit=3)
     print(f"   Found {search_results.total_found} results")
 
     if search_results.results:
         first_result = search_results.results[0]
-        print(f"\n   First search result:")
+        print("\n   First search result:")
         print(f"   - Framework ID: {first_result.framework_id}")
         print(f"   - Section: {first_result.section}")
 
@@ -136,7 +136,7 @@ async def test_mitigation_id_mapping():
             print(f"   ✗ FAILED: {mit_content.content[:200]}")
             return False
         else:
-            print(f"   ✓ SUCCESS: Content loaded correctly")
+            print("   ✓ SUCCESS: Content loaded correctly")
             return True
 
     return False
