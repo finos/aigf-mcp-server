@@ -285,8 +285,8 @@ async def test_search_mitigations():
         return False, None
 
 
-async def test_get_framework(framework_id: str):
-    """Test 9: Get Framework Details."""
+async def get_framework_details(framework_id: str):
+    """Helper: Get Framework Details."""
     header(f"TEST 9: Get Framework Details ({framework_id})")
 
     try:
@@ -311,8 +311,8 @@ async def test_get_framework(framework_id: str):
         return False
 
 
-async def test_get_risk(risk_id: str):
-    """Test 10: Get Risk Document Details."""
+async def get_risk_details(risk_id: str):
+    """Helper: Get Risk Document Details."""
     header(f"TEST 10: Get Risk Details ({risk_id})")
 
     try:
@@ -338,8 +338,8 @@ async def test_get_risk(risk_id: str):
         return False
 
 
-async def test_get_mitigation(mitigation_id: str):
-    """Test 11: Get Mitigation Strategy Details."""
+async def get_mitigation_details(mitigation_id: str):
+    """Helper: Get Mitigation Strategy Details."""
     header(f"TEST 11: Get Mitigation Details ({mitigation_id})")
 
     try:
@@ -417,27 +417,27 @@ async def run_all_tests():
     # Test framework details (if available)
     if frameworks and frameworks.frameworks:
         fw_id = frameworks.frameworks[0].id
-        results["get_framework"] = await test_get_framework(fw_id)
+        results["get_framework"] = await get_framework_details(fw_id)
     else:
         results["get_framework"] = False
 
     # Test risk details (use search result if available)
     if search_risks_result and search_risks_result.results:
         risk_id = search_risks_result.results[0].framework_id.replace("risk-", "")
-        results["get_risk"] = await test_get_risk(risk_id)
+        results["get_risk"] = await get_risk_details(risk_id)
     elif risks and risks.documents:
         risk_id = risks.documents[0].id
-        results["get_risk"] = await test_get_risk(risk_id)
+        results["get_risk"] = await get_risk_details(risk_id)
     else:
         results["get_risk"] = False
 
     # Test mitigation details (use search result if available)
     if search_mit_result and search_mit_result.results:
         mit_id = search_mit_result.results[0].framework_id.replace("mitigation-", "")
-        results["get_mitigation"] = await test_get_mitigation(mit_id)
+        results["get_mitigation"] = await get_mitigation_details(mit_id)
     elif mitigations and mitigations.documents:
         mit_id = mitigations.documents[0].id
-        results["get_mitigation"] = await test_get_mitigation(mit_id)
+        results["get_mitigation"] = await get_mitigation_details(mit_id)
     else:
         results["get_mitigation"] = False
 

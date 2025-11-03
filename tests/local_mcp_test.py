@@ -95,7 +95,7 @@ async def test_list_frameworks():
         return False, None
 
 
-async def test_get_framework(framework_id: str):
+async def get_framework_details(framework_id: str):
     """Test 2: get_framework tool."""
     print_header(f"TEST 2: get_framework('{framework_id}')")
 
@@ -120,7 +120,7 @@ async def test_get_framework(framework_id: str):
         return False, None
 
 
-async def test_search_frameworks(query: str):
+async def search_frameworks_helper(query: str):
     """Test 3: search_frameworks tool."""
     print_header(f"TEST 3: search_frameworks('{query}')")
 
@@ -175,7 +175,7 @@ async def test_list_risks():
         return False, None
 
 
-async def test_get_risk(risk_id: str):
+async def get_risk_details(risk_id: str):
     """Test 5: get_risk tool."""
     print_header(f"TEST 5: get_risk('{risk_id}')")
 
@@ -201,7 +201,7 @@ async def test_get_risk(risk_id: str):
         return False, None
 
 
-async def test_search_risks(query: str):
+async def search_risks_helper(query: str):
     """Test 6: search_risks tool."""
     print_header(f"TEST 6: search_risks('{query}')")
 
@@ -257,7 +257,7 @@ async def test_list_mitigations():
         return False, None
 
 
-async def test_get_mitigation(mitigation_id: str):
+async def get_mitigation_details(mitigation_id: str):
     """Test 8: get_mitigation tool."""
     print_header(f"TEST 8: get_mitigation('{mitigation_id}')")
 
@@ -283,7 +283,7 @@ async def test_get_mitigation(mitigation_id: str):
         return False, None
 
 
-async def test_search_mitigations(query: str):
+async def search_mitigations_helper(query: str):
     """Test 9: search_mitigations tool."""
     print_header(f"TEST 9: search_mitigations('{query}')")
 
@@ -372,13 +372,13 @@ async def run_all_tests():
     # Test 2: Get framework (use first framework from list)
     if success and frameworks_data and frameworks_data.frameworks:
         framework_id = frameworks_data.frameworks[0].id
-        success, _ = await test_get_framework(framework_id)
+        success, _ = await get_framework_details(framework_id)
         results["get_framework"] = success
     else:
         results["get_framework"] = False
 
     # Test 3: Search frameworks
-    success, _ = await test_search_frameworks("risk")
+    success, _ = await search_frameworks_helper("risk")
     results["search_frameworks"] = success
 
     # Test 4: List risks
@@ -388,13 +388,13 @@ async def run_all_tests():
     # Test 5: Get risk (use first risk from list)
     if success and risks_data and risks_data.documents:
         risk_id = risks_data.documents[0].id
-        success, _ = await test_get_risk(risk_id)
+        success, _ = await get_risk_details(risk_id)
         results["get_risk"] = success
     else:
         results["get_risk"] = False
 
     # Test 6: Search risks
-    success, _ = await test_search_risks("injection")
+    success, _ = await search_risks_helper("injection")
     results["search_risks"] = success
 
     # Test 7: List mitigations
@@ -404,13 +404,13 @@ async def run_all_tests():
     # Test 8: Get mitigation (use first mitigation from list)
     if success and mitigations_data and mitigations_data.documents:
         mitigation_id = mitigations_data.documents[0].id
-        success, _ = await test_get_mitigation(mitigation_id)
+        success, _ = await get_mitigation_details(mitigation_id)
         results["get_mitigation"] = success
     else:
         results["get_mitigation"] = False
 
     # Test 9: Search mitigations
-    success, _ = await test_search_mitigations("data")
+    success, _ = await search_mitigations_helper("data")
     results["search_mitigations"] = success
 
     # Test 10: Service health
