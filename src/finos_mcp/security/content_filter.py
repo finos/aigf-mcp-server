@@ -223,7 +223,7 @@ class ContentSecurityValidator:
                     if not self.validate_content_safety(value):
                         logger.warning(f"Unsafe content in field: {key}")
                         return False
-                elif isinstance(value, (dict, list)):
+                elif isinstance(value, dict | list):
                     if not self.validate_framework_content(value):
                         return False
 

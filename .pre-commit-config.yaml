@@ -47,7 +47,7 @@ repos:
 
   # Dependency vulnerability scanning
   - repo: https://github.com/pypa/pip-audit
-    rev: v2.7.3
+    rev: v2.9.0
     hooks:
       - id: pip-audit
 
@@ -56,6 +56,16 @@ repos:
   # ===============================================================================
   - repo: local
     hooks:
+      - id: validate-static-fallback
+        name: "Validate static fallback sync (Warning)"
+        description: Warns if static fallback lists may be out of sync with GitHub
+        entry: 'bash -c "if git diff --cached --name-only | grep -q \"src/finos_mcp/content/discovery.py\"; then echo \"⚠️  WARNING: discovery.py changed. If modifying static fallback lists, run: python scripts/update-static-fallback.py\"; fi; exit 0"'
+        language: system
+        stages: [pre-commit]
+        types: [python]
+        pass_filenames: false
+        always_run: false
+
       - id: block-claude-content
         name: "Block .claude content (CRITICAL SECURITY)"
         description: Prevents any .claude content from being committed

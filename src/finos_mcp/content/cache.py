@@ -364,7 +364,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         ) as e:
             logger.warning("Secure serialization failed: %s", e)
             # Raise security errors to prevent unsafe fallbacks
-            if isinstance(e, (CacheValidationError, CacheSecurityError)):
+            if isinstance(e, CacheValidationError | CacheSecurityError):
                 raise
             # Check if this is a memory/size limit error that should be enforced
             if isinstance(e, ValueError) and (
@@ -484,7 +484,7 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         ) as e:
             logger.error("Secure deserialization failed: %s", e)
             # For security errors, do not return potentially unsafe data
-            if isinstance(e, (CacheValidationError, CacheSecurityError)):
+            if isinstance(e, CacheValidationError | CacheSecurityError):
                 raise
             # For other errors, do not attempt fallback - safer to fail
             raise CacheValidationError(f"Cache data validation failed: {e}") from e

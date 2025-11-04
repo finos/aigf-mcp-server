@@ -172,11 +172,11 @@ class RequestSizeValidator:
                 visited.add(obj_id)
 
                 # Handle different types
-                if isinstance(current, (str, bytes)):
+                if isinstance(current, str | bytes):
                     total_size += len(
                         current.encode("utf-8") if isinstance(current, str) else current
                     )
-                elif isinstance(current, (list, tuple)):
+                elif isinstance(current, list | tuple):
                     # Add items to stack for processing (limit depth)
                     if len(stack) < 1000:  # Prevent stack overflow
                         stack.extend(current)

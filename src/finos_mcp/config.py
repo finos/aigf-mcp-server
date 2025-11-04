@@ -111,6 +111,17 @@ class Settings(BaseSettings):
         description="GitHub API request timeout in seconds",
     )
 
+    # SHA-based Version Tracking
+    enable_sha_validation: bool = Field(
+        default=True,
+        description="Enable SHA-based content change detection to extend cache lifetime",
+    )
+
+    check_static_fallback: bool = Field(
+        default=True,
+        description="Check if static fallback lists are outdated and log warnings",
+    )
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

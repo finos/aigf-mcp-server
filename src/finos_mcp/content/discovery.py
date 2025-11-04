@@ -6,6 +6,7 @@ repository using the GitHub API, with intelligent caching and graceful fallback.
 
 import asyncio
 import json
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -22,9 +23,25 @@ from .fetch import HTTPClient, get_http_client
 
 logger = get_logger("content_discovery")
 
-# Static fallback lists (used when GitHub API is unavailable)
+# Static fallback lists (auto-generated - do not edit manually)
+# To update: python scripts/update-static-fallback.py
+# Last updated: 2025-10-27
 STATIC_MITIGATION_FILES = [
+    "mi-10_ai-model-version-pinning.md",
+    "mi-11_human-feedback-loop-for-ai-systems.md",
+    "mi-12_role-based-access-control-for-ai-data.md",
+    "mi-13_providing-citations-and-source-traceability-for-ai-generated-information.md",
+    "mi-14_encryption-of-ai-data-at-rest.md",
+    "mi-15_using-large-language-models-for-automated-evaluation-llm-as-a-judge-.md",
+    "mi-16_preserving-source-data-access-controls-in-ai-systems.md",
+    "mi-17_ai-firewall-implementation-and-management.md",
+    "mi-18_agent-authority-least-privilege-framework.md",
+    "mi-19_tool-chain-validation-and-sanitization.md",
     "mi-1_ai-data-leakage-prevention-and-detection.md",
+    "mi-20_mcp-server-security-governance.md",
+    "mi-21_agent-decision-audit-and-explainability.md",
+    "mi-22_multi-agent-isolation-and-segmentation.md",
+    "mi-23_agentic-system-credential-protection-framework.md",
     "mi-2_data-filtering-from-external-knowledge-bases.md",
     "mi-3_user-app-model-firewalling-filtering.md",
     "mi-4_ai-system-observability.md",
@@ -33,42 +50,42 @@ STATIC_MITIGATION_FILES = [
     "mi-7_legal-and-contractual-frameworks-for-ai-systems.md",
     "mi-8_quality-of-service-qos-and-ddos-prevention-for-ai-systems.md",
     "mi-9_ai-system-alerting-and-denial-of-wallet-dow-spend-monitoring.md",
-    "mi-10_ai-model-version-pinning.md",
-    "mi-11_ai-system-governance-and-compliance-attestation-and-validation.md",
-    "mi-12_ai-system-interaction-logging.md",
-    "mi-13_ai-system-vulnerability-assessment-and-penetration-testing.md",
-    "mi-14_ai-training-and-test-data-purging.md",
-    "mi-15_responsible-ai-data-governance.md",
-    "mi-16_ai-system-evaluation-and-validation.md",
-    "mi-17_responsible-ai-governance-data-integration-and-security.md",
 ]
 
 STATIC_RISK_FILES = [
-    "ri-1_adversarial-behavior-against-ai-systems.md",
-    "ri-2_prompt-injection.md",
-    "ri-3_training-data-poisoning.md",
-    "ri-5_supply-chain-compromises.md",
-    "ri-6_data-leakage.md",
-    "ri-7_ai-system-availability-and-performance.md",
-    "ri-8_ai-system-configuration-and-third-party-integrations.md",
-    "ri-9_ai-system-governance-and-security.md",
-    "ri-10_over-reliance-on-generated-content.md",
-    "ri-11_data-extraction-and-inference.md",
-    "ri-12_ai-system-backdoors.md",
-    "ri-13_ai-system-unintended-bias.md",
-    "ri-14_ai-system-misinformation-generation.md",
-    "ri-15_ai-system-privacy-and-confidentiality.md",
-    "ri-16_ai-system-governance-data-and-business-model-risks.md",
-    "ri-19_ai-system-operational-data-security.md",
-    "ri-23_ai-system-reliability-and-quality.md",
+    "ri-10_prompt-injection.md",
+    "ri-14_inadequate-system-alignment.md",
+    "ri-16_bias-and-discrimination.md",
+    "ri-17_lack-of-explainability.md",
+    "ri-18_model-overreach-expanded-use.md",
+    "ri-19_data-quality-and-drift.md",
+    "ri-1_information-leaked-to-hosted-model.md",
+    "ri-20_reputational-risk.md",
+    "ri-22_regulatory-compliance-and-oversight.md",
+    "ri-23_intellectual-property-ip-and-copyright.md",
+    "ri-24_agent-action-authorization-bypass.md",
+    "ri-25_tool-chain-manipulation-and-injection.md",
+    "ri-26_mcp-server-supply-chain-compromise.md",
+    "ri-27_agent-state-persistence-poisoning.md",
+    "ri-28_multi-agent-trust-boundary-violations.md",
+    "ri-29_agent-mediated-credential-discovery-and-harvesting.md",
+    "ri-2_information-leaked-to-vector-store.md",
+    "ri-4_hallucination-and-inaccurate-outputs.md",
+    "ri-5_foundation-model-versioning.md",
+    "ri-6_non-deterministic-behaviour.md",
+    "ri-7_availability-of-foundational-model.md",
+    "ri-8_tampering-with-the-foundational-model.md",
+    "ri-9_data-poisoning.md",
 ]
 
 STATIC_FRAMEWORK_FILES = [
-    "nist-ai-600-1.yml",
     "eu-ai-act.yml",
-    "gdpr.yml",
+    "ffiec-itbooklets.yml",
+    "iso-42001.yml",
+    "nist-ai-600-1.yml",
+    "nist-sp-800-53r5.yml",
     "owasp-llm.yml",
-    "iso-23053.yml",
+    "owasp-ml.yml",
 ]
 
 
@@ -101,8 +118,29 @@ class GitHubDiscoveryService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.cache_dir = Path(".cache/discovery")
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Try to create cache directory in current working directory
+        # If that fails (e.g., read-only filesystem in Claude Desktop),
+        # fallback to system temporary directory
+        try:
+            self.cache_dir = Path(".cache/discovery")
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            # Test write permissions by attempting to create a test file
+            test_file = self.cache_dir / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+            logger.info("Using local cache directory: %s", self.cache_dir)
+        except (OSError, PermissionError) as e:
+            # Fallback to system temporary directory
+            temp_base = Path(tempfile.gettempdir())
+            self.cache_dir = temp_base / "finos_mcp_cache" / "discovery"
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            logger.warning(
+                "Could not create local cache directory (read-only filesystem), "
+                "using system temp directory: %s (original error: %s)",
+                self.cache_dir,
+                str(e),
+            )
 
         # GitHub API configuration
         self.repo_owner = "finos"
@@ -115,11 +153,12 @@ class GitHubDiscoveryService:
         self.cache_duration_seconds = 3600 if not self.settings.debug_mode else 300
 
     async def discover_content(self) -> DiscoveryResult:
-        """Discover mitigation and risk files with caching and fallback."""
+        """Discover mitigation and risk files with caching and SHA-based validation."""
         try:
             # Try to load from cache first
             cached_result = await self._load_from_cache()
             if cached_result:
+                # Cache is still fresh (time-based)
                 logger.info(
                     "Content discovery served from cache",
                     extra={
@@ -136,11 +175,39 @@ class GitHubDiscoveryService:
                 )
                 return cached_result
 
+            # Cache expired or missing - check if content actually changed (SHA validation)
+            if self.settings.enable_sha_validation:
+                # Try to load expired cache for SHA comparison
+                expired_cache = await self._load_expired_cache()
+                if expired_cache:
+                    if await self._content_unchanged(expired_cache):
+                        # Content hasn't changed - extend cache TTL
+                        logger.info(
+                            "Cache expired but content unchanged, extending TTL",
+                            extra={
+                                "mitigation_count": len(expired_cache.mitigation_files),
+                                "risk_count": len(expired_cache.risk_files),
+                                "framework_count": len(expired_cache.framework_files),
+                            },
+                        )
+                        expired_cache.cache_expires = datetime.now(
+                            timezone.utc
+                        ).replace(microsecond=0) + timedelta(
+                            seconds=self.cache_duration_seconds
+                        )
+                        await self._save_to_cache(expired_cache)
+                        return expired_cache
+
             # Fetch from GitHub API
             github_result = await self._fetch_from_github()
             if github_result:
                 # Save to cache
                 await self._save_to_cache(github_result)
+
+                # Check if static fallback needs update
+                if self.settings.check_static_fallback:
+                    self._check_static_fallback_sync(github_result)
+
                 logger.info(
                     "Content discovery via GitHub API successful",
                     extra={
@@ -333,14 +400,30 @@ class GitHubDiscoveryService:
                 rate_limit_remaining=data.get("rate_limit_remaining"),
             )
 
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.warning("Invalid cache file, will refresh", extra={"error": str(e)})
-            # Remove invalid cache file
-            cache_file.unlink(missing_ok=True)
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            ValueError,
+            OSError,
+            PermissionError,
+        ) as e:
+            logger.warning(
+                "Invalid or inaccessible cache file, will refresh",
+                extra={"error": str(e)},
+            )
+            # Try to remove invalid cache file, but don't fail if we can't
+            try:
+                cache_file.unlink(missing_ok=True)
+            except (OSError, PermissionError):
+                pass  # Ignore errors during cleanup
             return None
 
     async def _save_to_cache(self, result: DiscoveryResult) -> None:
-        """Save discovery result to cache."""
+        """Save discovery result to cache.
+
+        Gracefully handles write failures - service continues to work
+        without caching if filesystem is read-only.
+        """
         cache_file = self.cache_dir / "github_discovery.json"
 
         try:
@@ -396,8 +479,239 @@ class GitHubDiscoveryService:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
 
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning("Failed to save discovery cache", extra={"error": str(e)})
+            logger.debug("Discovery cache saved successfully to %s", cache_file)
+
+        except (
+            OSError,
+            PermissionError,
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+        ) as e:
+            logger.warning(
+                "Failed to save discovery cache (service continues without caching): %s",
+                str(e),
+                extra={"error_type": type(e).__name__, "cache_file": str(cache_file)},
+            )
+
+    async def _load_expired_cache(self) -> DiscoveryResult | None:
+        """Load cache even if expired, for SHA comparison purposes."""
+        cache_file = self.cache_dir / "github_discovery.json"
+
+        try:
+            if not cache_file.exists():
+                return None
+
+            with open(cache_file, encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Load cache regardless of expiration time
+            cache_expires = datetime.fromisoformat(data["cache_expires"])
+
+            # Reconstruct GitHubFileInfo objects
+            mitigation_files = [
+                GitHubFileInfo(**file_data) for file_data in data["mitigation_files"]
+            ]
+            risk_files = [
+                GitHubFileInfo(**file_data) for file_data in data["risk_files"]
+            ]
+            framework_files = [
+                GitHubFileInfo(**file_data)
+                for file_data in data.get("framework_files", [])
+            ]
+
+            return DiscoveryResult(
+                mitigation_files=mitigation_files,
+                risk_files=risk_files,
+                framework_files=framework_files,
+                source="cache",
+                cache_expires=cache_expires,
+                rate_limit_remaining=data.get("rate_limit_remaining"),
+            )
+
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            ValueError,
+            OSError,
+            PermissionError,
+        ) as e:
+            logger.debug(
+                "Could not load expired cache for SHA comparison: %s",
+                str(e),
+            )
+            return None
+
+    async def _content_unchanged(self, cached_result: DiscoveryResult) -> bool:
+        """Check if GitHub content SHAs match cached SHAs.
+
+        This makes minimal API calls - just directory listings (metadata),
+        not full file downloads.
+
+        Args:
+            cached_result: Previously cached discovery result with SHAs
+
+        Returns:
+            True if all SHAs match (content unchanged), False otherwise
+        """
+        try:
+            logger.debug("Checking if content changed via SHA comparison")
+
+            # Fetch just the directory listings (cheap API call - metadata only)
+            client = await get_http_client()
+
+            current_mitigations = await self._fetch_directory(
+                client, self.mitigation_path, ".md"
+            )
+            current_risks = await self._fetch_directory(client, self.risk_path, ".md")
+            current_frameworks = await self._fetch_directory(
+                client, self.framework_path, ".yml"
+            )
+
+            # Compare SHAs for each category
+            if not self._shas_match(
+                cached_result.mitigation_files, current_mitigations
+            ):
+                logger.info("Mitigation files changed, invalidating cache")
+                return False
+
+            if not self._shas_match(cached_result.risk_files, current_risks):
+                logger.info("Risk files changed, invalidating cache")
+                return False
+
+            if not self._shas_match(cached_result.framework_files, current_frameworks):
+                logger.info("Framework files changed, invalidating cache")
+                return False
+
+            logger.info("All SHAs match - content unchanged since last check")
+            return True
+
+        except (
+            httpx.HTTPError,
+            httpx.TimeoutException,
+            asyncio.TimeoutError,
+            ValueError,
+            TypeError,
+            KeyError,
+        ) as e:
+            logger.warning(
+                "SHA comparison failed, assuming content changed: %s",
+                str(e),
+                extra={"error_type": type(e).__name__},
+            )
+            return False  # Fail safe - if can't verify, assume changed
+
+    def _shas_match(
+        self,
+        cached_files: list[GitHubFileInfo],
+        current_files: list[GitHubFileInfo],
+    ) -> bool:
+        """Compare two file lists by SHA hashes.
+
+        Args:
+            cached_files: Previously cached file list
+            current_files: Current file list from GitHub
+
+        Returns:
+            True if all files and their SHAs match, False otherwise
+        """
+        # Build SHA maps for O(1) lookup
+        cached_shas = {f.filename: f.sha for f in cached_files}
+        current_shas = {f.filename: f.sha for f in current_files}
+
+        # Check for added/removed files
+        if set(cached_shas.keys()) != set(current_shas.keys()):
+            added = set(current_shas.keys()) - set(cached_shas.keys())
+            removed = set(cached_shas.keys()) - set(current_shas.keys())
+            if added:
+                logger.info("New files detected: %s", added)
+            if removed:
+                logger.info("Removed files detected: %s", removed)
+            return False
+
+        # Check for modified files (SHA changed)
+        for filename, cached_sha in cached_shas.items():
+            if current_shas[filename] != cached_sha:
+                logger.info(
+                    "File modified: %s (SHA changed from %s to %s)",
+                    filename,
+                    cached_sha[:8],
+                    current_shas[filename][:8],
+                )
+                return False
+
+        return True
+
+    def _check_static_fallback_sync(self, current_result: DiscoveryResult) -> None:
+        """Check if static fallback lists match current GitHub state.
+
+        Logs warnings if mismatches are detected, helping developers know
+        when to run the update script.
+
+        Args:
+            current_result: Current discovery result from GitHub API
+        """
+        current_mitigations = {f.filename for f in current_result.mitigation_files}
+        current_risks = {f.filename for f in current_result.risk_files}
+        current_frameworks = {f.filename for f in current_result.framework_files}
+
+        static_mitigations = set(STATIC_MITIGATION_FILES)
+        static_risks = set(STATIC_RISK_FILES)
+        static_frameworks = set(STATIC_FRAMEWORK_FILES)
+
+        mismatch_detected = False
+
+        # Check mitigations
+        if current_mitigations != static_mitigations:
+            added = current_mitigations - static_mitigations
+            removed = static_mitigations - current_mitigations
+            logger.warning(
+                "Static mitigation fallback list is outdated",
+                extra={
+                    "added_count": len(added),
+                    "removed_count": len(removed),
+                    "added_files": list(added) if added else None,
+                    "removed_files": list(removed) if removed else None,
+                },
+            )
+            mismatch_detected = True
+
+        # Check risks
+        if current_risks != static_risks:
+            added = current_risks - static_risks
+            removed = static_risks - current_risks
+            logger.warning(
+                "Static risk fallback list is outdated",
+                extra={
+                    "added_count": len(added),
+                    "removed_count": len(removed),
+                    "added_files": list(added) if added else None,
+                    "removed_files": list(removed) if removed else None,
+                },
+            )
+            mismatch_detected = True
+
+        # Check frameworks
+        if current_frameworks != static_frameworks:
+            added = current_frameworks - static_frameworks
+            removed = static_frameworks - current_frameworks
+            logger.warning(
+                "Static framework fallback list is outdated",
+                extra={
+                    "added_count": len(added),
+                    "removed_count": len(removed),
+                    "added_files": list(added) if added else None,
+                    "removed_files": list(removed) if removed else None,
+                },
+            )
+            mismatch_detected = True
+
+        if mismatch_detected:
+            logger.warning(
+                "Static fallback lists need update - run: python scripts/update-static-fallback.py"
+            )
+        else:
+            logger.debug("Static fallback lists are synchronized with GitHub")
 
     def _create_static_fallback(self) -> DiscoveryResult:
         """Create discovery result from static file lists."""

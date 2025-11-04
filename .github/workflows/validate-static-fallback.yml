@@ -1,0 +1,131 @@
+name: Validate Static Fallback Sync
+
+on:
+  # Run weekly on Mondays at 9 AM UTC to detect upstream repository changes
+  schedule:
+    - cron: '0 9 * * 1'
+  # Run on push to main to catch manual edits to discovery.py
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/finos_mcp/content/discovery.py'
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write  # To create issues if out of sync
+
+jobs:
+  validate-sync:
+    name: Validate Static Fallback Lists
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,test]
+
+      - name: Run static fallback validation test
+        id: validation
+        continue-on-error: true
+        run: |
+          python -m pytest tests/integration/test_static_fallback_sync.py -v --tb=short
+
+      - name: Check validation result
+        if: steps.validation.outcome == 'failure'
+        run: |
+          echo "❌ Static fallback lists are out of sync with GitHub repository!"
+          echo ""
+          echo "To fix this issue:"
+          echo "1. Run: python scripts/update-static-fallback.py"
+          echo "2. Review the generated code"
+          echo "3. Commit the updated discovery.py file"
+          echo ""
+          echo "See docs/static-fallback-maintenance.md for details"
+          exit 1
+
+      - name: Report success
+        if: steps.validation.outcome == 'success'
+        run: |
+          echo "✓ Static fallback lists are synchronized with GitHub repository"
+
+      - name: Create issue if out of sync (scheduled runs only)
+        if: steps.validation.outcome == 'failure' && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🔄 Static fallback lists out of sync with GitHub repository';
+            const body = `## Problem
+
+            The static fallback lists in \`src/finos_mcp/content/discovery.py\` are out of sync with the actual FINOS AI Governance Framework repository.
+
+            This can cause ID mapping bugs where:
+            - ✅ \`list_risks()\` returns risk IDs
+            - ✅ \`search_risks()\` finds risks
+            - ❌ \`get_risk(id)\` fails with "not found"
+
+            ## Solution
+
+            1. **Run the update script:**
+               \`\`\`bash
+               python scripts/update-static-fallback.py
+               \`\`\`
+
+            2. **Review the changes:**
+               Check that file counts and names are reasonable
+
+            3. **Test the fix:**
+               \`\`\`bash
+               pytest tests/integration/test_static_fallback_sync.py
+               python tests/test_id_mapping.py
+               \`\`\`
+
+            4. **Commit the changes:**
+               \`\`\`bash
+               git add src/finos_mcp/content/discovery.py
+               git commit -m "fix(discovery): update static fallback lists to match GitHub repository"
+               git push
+               \`\`\`
+
+            ## Documentation
+
+            See \`docs/static-fallback-maintenance.md\` for detailed instructions.
+
+            ## Validation
+
+            This issue was automatically created by the weekly validation workflow.
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            `;
+
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'static-fallback-sync',
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['bug', 'static-fallback-sync', 'automated'],
+              });
+              console.log('✓ Created issue for static fallback sync');
+            } else {
+              console.log('ℹ Issue already exists, skipping creation');
+            }

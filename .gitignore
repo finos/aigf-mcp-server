@@ -129,6 +129,8 @@ $RECYCLE.BIN/
 # Private development files that should not be public (specific names only)
 CLAUDE.md
 PERFORMANCE_SETUP.md
+DEVELOPMENT.md
+ARCHITECTURE.md
 .claude/
 .cache/
 .playwright-mcp/

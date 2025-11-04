@@ -3,6 +3,16 @@
 # This script runs the IDENTICAL commands that GitHub Actions CI runs
 # to prevent local/CI validation mismatches
 # UPDATED: Fixed CI workflow discrepancies (Ruff & Pylint error handling)
+#
+# ⚠️  IMPORTANT: This script simulates CI but cannot guarantee 100% parity because:
+# - Tool versions may differ (GitHub Actions may use newer versions)
+# - Different Python/OS environments may have different behaviors
+# - Always verify critical changes pass actual GitHub CI before merging
+#
+# 💡 To minimize differences:
+# - Keep tool versions in pyproject.toml up to date
+# - Run this script before every commit
+# - Monitor GitHub Actions for version updates
 
 set -uo pipefail  # Exit on undefined variables or pipe failures, but not regular errors
 
@@ -186,13 +196,28 @@ echo "Ruff found $RUFF_ISSUES linting issues"
 # CRITICAL: Fail if Ruff found any issues (EXACT CI BEHAVIOR)
 if [ $RUFF_EXIT_CODE -ne 0 ]; then
   echo "❌ CRITICAL: Ruff found $RUFF_ISSUES linting issues"
+  echo "📋 Detailed Ruff issues:"
   jq '.' security-reports/ruff-report.json
+  echo ""
+  echo "💡 To fix these issues automatically, run:"
+  echo "   ruff check src/ tests/ scripts/ --fix --unsafe-fixes"
+  echo "   ruff format src/ tests/ scripts/"
   exit 1
 fi
 
 # Check formatting (EXACT CI COMMAND)
 echo "Checking code formatting with Ruff..."
+set +e
 ruff format --check src/ tests/ scripts/
+FORMAT_EXIT_CODE=$?
+set -e
+
+if [ $FORMAT_EXIT_CODE -ne 0 ]; then
+  echo "❌ CRITICAL: Ruff format check failed"
+  echo "💡 To fix formatting issues, run:"
+  echo "   ruff format src/ tests/ scripts/"
+  exit 1
+fi
 
 echo "✅ Ruff linting and formatting checks passed"
 

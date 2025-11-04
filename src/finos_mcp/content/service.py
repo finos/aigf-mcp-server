@@ -26,6 +26,7 @@ and circuit breaker patterns to ensure system resilience.
 """
 
 import asyncio
+import base64
 import time
 import traceback
 from dataclasses import dataclass
@@ -193,6 +194,73 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
 
     # All cache warming methods removed - over-engineered for MCP usage patterns
 
+    async def _fetch_github_api_content(
+        self, repo_path: str, context: OperationContext
+    ) -> str | None:
+        """Fetch content via GitHub API (base64 encoded) instead of raw.githubusercontent.com.
+
+        This approach has higher rate limits (5000/hour with token, 60/hour without)
+        compared to raw.githubusercontent.com (strict 60/hour limit).
+
+        Args:
+            repo_path: Path within repository (e.g., "docs/_data/owasp-llm.yml")
+            context: Operation context
+
+        Returns:
+            Decoded content string or None if failed
+        """
+        # Construct GitHub API content URL
+        api_url = f"https://api.github.com/repos/finos/ai-governance-framework/contents/{repo_path}"
+
+        http_client = await self._get_http_client()
+
+        try:
+            # Add GitHub token if available for higher rate limits
+            headers = {}
+            if hasattr(self.settings, "github_token") and self.settings.github_token:
+                headers["Authorization"] = f"token {self.settings.github_token}"
+                headers["Accept"] = "application/vnd.github.v3+json"
+
+            response = await http_client.get(api_url, headers=headers)
+            data = response.json()
+
+            # GitHub API returns base64-encoded content
+            if "content" in data and data.get("encoding") == "base64":
+                # Decode base64 content
+                content_base64 = data["content"].replace("\n", "")  # Remove newlines
+                content_bytes = base64.b64decode(content_base64)
+                content = content_bytes.decode("utf-8")
+
+                self.logger.debug(
+                    "Content fetched via GitHub API: %s characters",
+                    len(content),
+                    extra={
+                        "operation_id": context.operation_id,
+                        "api_url": api_url,
+                        "content_length": len(content),
+                        "encoding": data.get("encoding"),
+                    },
+                )
+
+                return content
+            else:
+                raise ContentValidationError(
+                    "unexpected_format",
+                    f"GitHub API response missing content or unexpected encoding: {data.get('encoding')}",
+                )
+
+        except Exception as e:
+            self.logger.warning(
+                "GitHub API content fetch failed: %s",
+                str(e),
+                extra={
+                    "operation_id": context.operation_id,
+                    "api_url": api_url,
+                    "error_type": type(e).__name__,
+                },
+            )
+            return None
+
     @with_retry(max_attempts=3, base_delay=1.0)
     async def _fetch_content_with_boundary(
         self, url: str, context: OperationContext
@@ -237,7 +305,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             except Exception as e:
                 # Convert generic exceptions to structured ones
                 if isinstance(
-                    e, (ContentValidationError, HTTPClientError, ContentLoadingError)
+                    e, ContentValidationError | HTTPClientError | ContentLoadingError
                 ):
                     raise
                 else:
@@ -452,7 +520,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         """Get document with comprehensive error handling and caching.
 
         Args:
-            doc_type: Type of document ('mitigation' or 'risk')
+            doc_type: Type of document ('mitigation', 'risk', or 'framework')
             filename: Document filename
             ttl_override: Optional TTL override for caching
             correlation_id: Optional correlation ID for tracing
@@ -466,12 +534,16 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         if correlation_id is None:
             correlation_id = set_correlation_id()
 
+        # Map document types to repository paths
         if doc_type == "mitigation":
             base_url = self.settings.mitigations_url
+            repo_path = f"docs/_mitigations/{filename}"
         elif doc_type == "risk":
             base_url = self.settings.risks_url
+            repo_path = f"docs/_risks/{filename}"
         elif doc_type == "framework":
             base_url = self.settings.frameworks_url
+            repo_path = f"docs/_data/{filename}"
         else:
             raise ValueError(f"Unknown document type: {doc_type}")
 
@@ -490,7 +562,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             )
             return None
 
-        # Use urljoin for safe URL construction
+        # Use urljoin for safe URL construction (fallback URL for raw content)
         url = urljoin(base_url.rstrip("/") + "/", filename)
 
         context = OperationContext(
@@ -539,8 +611,20 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
 
                 return cached_data
 
-            # Step 2: Fetch content
-            content = await self._fetch_content_with_boundary(url, context)
+            # Step 2: Fetch content - try GitHub API first (higher rate limits), fallback to raw URL
+            content = None
+
+            # Try GitHub API first for better rate limits
+            content = await self._fetch_github_api_content(repo_path, context)
+
+            # Fallback to raw.githubusercontent.com if GitHub API fails
+            if not content:
+                self.logger.debug(
+                    "GitHub API fetch failed, trying raw URL fallback",
+                    extra={"operation_id": operation_id},
+                )
+                content = await self._fetch_content_with_boundary(url, context)
+
             if not content:
                 self.failed_requests += 1
 
