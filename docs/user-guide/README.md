@@ -1,179 +1,95 @@
-# Framework Tool Usage Guide
+# User Guide
 
-User-friendly guide for compliance teams, risk managers, and governance professionals using the FINOS AI Governance Framework tools.
+Welcome to the FINOS AI Governance MCP Server user guide.
 
-## Quick Navigation
+## Available Guides
 
-- **[Getting Started](getting-started.md)** - First steps and basic concepts
-- **[Framework Search Guide](framework-search.md)** - Finding the right governance content
-- **[Compliance Analysis](compliance-analysis.md)** - Assessing compliance across frameworks
-- **[Cross-Framework Navigation](cross-framework-navigation.md)** - Mapping between different frameworks
-- **[Export and Reporting](export-reporting.md)** - Generating compliance reports
-- **[Common Workflows](common-workflows.md)** - Step-by-step compliance scenarios
-- **[Troubleshooting](troubleshooting.md)** - Solving common issues
+- **[Getting Started](getting-started.md)** - Quick start guide for using the 11 MCP tools
 
-## Who Should Use This Guide
+## Tool Categories
 
-### Compliance Teams
-- Assess organizational compliance across multiple frameworks
-- Generate compliance reports and documentation
-- Identify and address compliance gaps
+The server provides 11 MCP tools organized in 3 categories:
 
-### Risk Managers
-- Search for risk-related requirements across frameworks
-- Analyze cross-framework risk coverage
-- Map risk controls between different standards
+### Framework Access Tools (5)
+- `list_frameworks` - List all available AI governance frameworks
+- `get_framework` - Get complete content of a specific framework
+- `search_frameworks` - Search for text within framework documents
+- `list_risks` - List all available risk documents
+- `get_risk` - Get complete content of specific risk documents
 
-### Governance Professionals
-- Research governance frameworks and their relationships
-- Create comprehensive governance documentation
-- Track framework updates and changes
+### Risk & Mitigation Tools (4)
+- `search_risks` - Search within risk documentation
+- `list_mitigations` - List all available mitigation documents
+- `get_mitigation` - Get complete content of mitigation documents
+- `search_mitigations` - Search within mitigation documentation
 
-### Auditors and Consultants
-- Compare client compliance across different frameworks
-- Generate audit reports and recommendations
-- Identify missing controls and requirements
+### System Monitoring Tools (2)
+- `get_service_health` - Get service health status and metrics
+- `get_cache_stats` - Get cache performance statistics
+
+## Quick Examples
+
+### List Available Frameworks
+```
+Use: list_frameworks()
+Returns: 7 governance frameworks (NIST AI 600-1, EU AI Act, ISO 42001, etc.)
+```
+
+### Search Across Frameworks
+```
+Use: search_frameworks("risk management", 5)
+Returns: 5 results matching "risk management" from all frameworks
+```
+
+### Get Framework Content
+```
+Use: get_framework("eu-ai-act")
+Returns: Complete EU AI Act document content
+```
+
+### List Risks
+```
+Use: list_risks()
+Returns: 17 AI governance risk documents from FINOS repository
+```
+
+### Search Risks
+```
+Use: search_risks("injection", 5)
+Returns: Risks related to injection attacks
+```
+
+## Common Workflows
+
+### Researching AI Governance
+1. List available frameworks: `list_frameworks()`
+2. Search for specific topics: `search_frameworks("data protection")`
+3. Get full framework content: `get_framework("nist-ai-600-1")`
+
+### Risk Assessment
+1. List all risks: `list_risks()`
+2. Search for specific risks: `search_risks("model bias")`
+3. Get risk details: `get_risk("01_model-inversion")`
+
+### Mitigation Planning
+1. List all mitigations: `list_mitigations()`
+2. Search for mitigations: `search_mitigations("encryption")`
+3. Get mitigation details: `get_mitigation("01_data-encryption")`
 
 ## Supported Frameworks
 
-| Framework | Type | Best For | Key Use Cases |
-|-----------|------|----------|---------------|
-| **NIST AI RMF** | Active | AI Risk Management | Risk assessment, trustworthy AI, governance culture |
-| **EU AI Act** | Active | AI Regulation | Legal compliance, high-risk AI systems, conformity assessment |
-| **OWASP LLM Top 10** | Active | AI Security | LLM vulnerabilities, prompt injection, model security |
-| **GDPR** | Active | Data Protection | Privacy compliance, data rights, processing rules |
-| **CCPA** | Modeled | California Privacy | Consumer privacy rights, data disclosure |
-| **ISO 27001** | Modeled | Information Security | Security management, risk controls |
-| **SOC 2** | Modeled | Service Organization Controls | Security, availability, confidentiality |
+| Framework | Description |
+|-----------|-------------|
+| **NIST AI 600-1** | Artificial Intelligence Risk Management Framework |
+| **EU AI Act** | European Union Artificial Intelligence Act |
+| **ISO 42001** | AI Management Systems Standard |
+| **FFIEC IT Booklets** | Federal Financial Institutions Examination Council IT guidance |
+| **NIST SP 800-53** | Security and Privacy Controls for Information Systems |
+| **OWASP LLM Top 10** | Top 10 security vulnerabilities for LLM applications |
+| **OWASP ML Top 10** | Top 10 risks for machine learning systems |
 
-## Framework Tool Categories
+## For More Information
 
-### 🔍 Search Tools
-- **Multi-Framework Search**: Find content across all frameworks
-- **Framework-Specific Search**: Deep dive into individual frameworks
-- **Advanced Search**: Complex queries with filters and exclusions
-
-### 📊 Analysis Tools
-- **Compliance Analysis**: Assess compliance status and coverage
-- **Gap Analysis**: Identify missing controls and requirements
-- **Correlation Analysis**: Understand framework relationships
-
-### 🗺️ Navigation Tools
-- **Control Mapping**: Find equivalent controls across frameworks
-- **Related Controls**: Discover connected requirements
-- **Framework Correlations**: Analyze thematic overlaps
-
-### 📋 Export Tools
-- **Framework Export**: Generate comprehensive framework reports
-- **Bulk Export**: Create multiple reports simultaneously
-- **Custom Reports**: Filtered exports with specific criteria
-
-## Quick Start Workflow
-
-### 1. Explore Available Frameworks
-```
-Tool: list_frameworks
-Purpose: See what frameworks are available and their status
-```
-
-### 2. Search for Your Topic
-```
-Tool: search_frameworks
-Query: "risk management" or "data protection"
-Purpose: Find relevant content across all frameworks
-```
-
-### 3. Get Framework Details
-```
-Tool: get_framework_details
-Framework: nist_ai_rmf (or your chosen framework)
-Purpose: Understand framework structure and requirements
-```
-
-### 4. Analyze Compliance
-```
-Tool: get_compliance_analysis
-Purpose: Assess current compliance status and identify gaps
-```
-
-### 5. Export Results
-```
-Tool: export_framework_data
-Format: markdown (for documentation) or csv (for analysis)
-Purpose: Generate reports for stakeholders
-```
-
-## Key Concepts
-
-### Framework Types
-- **Active Frameworks**: Live data from official sources, automatically updated
-- **Modeled Frameworks**: Internal representations, manually maintained
-
-### Relevance Scoring
-- **High (0.8-1.0)**: Directly relevant to your query
-- **Medium (0.5-0.8)**: Related content worth reviewing
-- **Low (0.2-0.5)**: Potentially relevant in specific contexts
-
-### Compliance Status
-- **Compliant**: Requirements fully met
-- **Partially Compliant**: Some aspects implemented
-- **Non-Compliant**: Requirements not met
-- **Not Assessed**: Status unknown or not evaluated
-
-### Severity Levels
-- **Critical**: Essential requirements, high impact if missing
-- **High**: Important requirements, significant impact
-- **Medium**: Standard requirements, moderate impact
-- **Low**: Recommended practices, minimal direct impact
-
-## Success Tips
-
-### 🎯 Effective Searching
-- Use specific terms for targeted results
-- Try different variations of your search terms
-- Use framework-specific searches for detailed requirements
-- Combine multiple searches for comprehensive coverage
-
-### 📈 Compliance Management
-- Start with broad compliance analysis
-- Focus on high-severity gaps first
-- Use cross-framework mapping to avoid duplication
-- Regular reassessment to track progress
-
-### 🔄 Cross-Framework Work
-- Begin with your primary framework
-- Map to secondary frameworks gradually
-- Look for correlation patterns between frameworks
-- Use gap analysis to identify unique requirements
-
-### 📊 Reporting Best Practices
-- Export in appropriate format for your audience
-- Include metadata for context and traceability
-- Filter results to focus on relevant content
-- Use bulk export for comprehensive documentation
-
-## Getting Help
-
-### Built-in Help
-- Use `get_service_health` to check system status
-- Check framework availability with `list_frameworks`
-- Review error messages for specific guidance
-
-### Documentation
-- Review the [API Reference](../api/mcp-tools.md) for technical details
-- Check [Troubleshooting](troubleshooting.md) for common issues
-- See [Common Workflows](common-workflows.md) for step-by-step guides
-
-### Support Resources
-- GitHub Issues for bug reports and feature requests
-- Community discussions for usage questions
-- Documentation feedback for guide improvements
-
-## Next Steps
-
-1. **New Users**: Start with [Getting Started](getting-started.md)
-2. **Search Focus**: Read [Framework Search Guide](framework-search.md)
-3. **Compliance Teams**: Go to [Compliance Analysis](compliance-analysis.md)
-4. **Multi-Framework**: See [Cross-Framework Navigation](cross-framework-navigation.md)
-
-This guide will help you maximize the value of the FINOS AI Governance Framework tools for your compliance and governance needs.
+- **[API Documentation](../api/README.md)** - Complete API reference for all 11 tools
+- **[Tools Reference](../tools-reference.md)** - Detailed tool documentation
+- **[Troubleshooting](../troubleshooting.md)** - Common issues and solutions

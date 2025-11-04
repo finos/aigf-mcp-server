@@ -7,7 +7,7 @@ Quick reference for all 11 available MCP tools organized in 3 categories.
 ### `list_frameworks`
 **Purpose**: List all supported AI governance frameworks
 **Usage**: `list_frameworks()`
-**Returns**: Structured list of 7 frameworks with descriptions
+**Returns**: Structured list of 5 frameworks with descriptions
 
 **Supported Frameworks**:
 - NIST AI 600-1 (Artificial Intelligence Risk Management Framework)
@@ -18,17 +18,17 @@ Quick reference for all 11 available MCP tools organized in 3 categories.
 - OWASP LLM Top 10 (Top 10 security vulnerabilities for LLM applications)
 - OWASP ML Top 10 (Top 10 risks for machine learning systems)
 
-### `get_framework_content`
+### `get_framework`
 **Purpose**: Get complete content of a specific framework
-**Usage**: `get_framework_content("nist-ai-600-1")`
-**Parameters**: framework (string) - Framework ID from list_frameworks
+**Usage**: `get_framework("nist-ai-600-1")`
+**Parameters**: framework_id (string) - Framework ID from list_frameworks
 **Returns**: Framework content with metadata and section count
 
 **Example Usage**:
 ```
-get_framework_content("eu-ai-act")
-get_framework_content("iso-42001")
-get_framework_content("owasp-llm-top10")
+get_framework("eu-ai-act")
+get_framework("iso-42001")
+get_framework("owasp-llm-top10")
 ```
 
 ### `search_frameworks`
@@ -102,8 +102,6 @@ get_framework_content("owasp-llm-top10")
 - Cache hits and misses
 - Hit rate percentage
 - Performance statistics
-
----
 
 ---
 

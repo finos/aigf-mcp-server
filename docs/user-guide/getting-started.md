@@ -1,310 +1,105 @@
-# Getting Started with Framework Tools
+# Getting Started
 
-This guide will get you up and running with the FINOS AI Governance Framework tools in just a few minutes.
+Quick start guide for using the FINOS AI Governance MCP Server's 11 tools.
 
 ## Prerequisites
 
-Before you begin, ensure you have:
-- Access to an MCP-compatible client (Claude, VS Code, Cursor)
-- The FINOS MCP Server installed and running
+- Access to an MCP-compatible client (Claude Desktop, VS Code, Cursor)
+- FINOS MCP Server installed and running
 - Basic understanding of AI governance concepts
 
 ## Your First 5 Minutes
 
-### Step 1: Check System Status (30 seconds)
+### Step 1: Check System Status
 
-Start by verifying the system is working properly:
+Verify the system is working:
 
-**Tool**: `get_service_health`
-**Arguments**: None required
-
-**What you'll see**:
-```json
-{
-  "overall_status": "healthy",
-  "uptime_seconds": 3456789,
-  "services": {
-    "framework_service": {"status": "healthy"},
-    "content_service": {"status": "healthy"}
-  }
-}
+```
+Tool: get_service_health()
+Returns: {status: "healthy", uptime_seconds: 3600, healthy_services: 5, total_services: 5}
 ```
 
-**✅ Success indicator**: `overall_status: "healthy"`
-**❌ If unhealthy**: Wait a few minutes and try again, or check the troubleshooting guide
-
-### Step 2: Explore Available Frameworks (1 minute)
+### Step 2: Explore Available Frameworks
 
 See what governance frameworks are available:
 
-**Tool**: `list_frameworks`
-**Arguments**:
-```json
-{
-  "include_stats": true
-}
+```
+Tool: list_frameworks()
+Returns: 5 frameworks (NIST AI 600-1, EU AI Act 2024, GDPR, OWASP LLM Top 10, ISO/IEC 23053)
 ```
 
-**What you'll see**:
-```json
-{
-  "total_frameworks": 7,
-  "active_frameworks": 4,
-  "frameworks": [
-    {
-      "id": "nist_ai_rmf",
-      "name": "NIST AI Risk Management Framework",
-      "status": "active",
-      "reference_count": 30
-    },
-    {
-      "id": "eu_ai_act",
-      "name": "EU Artificial Intelligence Act",
-      "status": "active",
-      "reference_count": 42
-    }
-  ]
-}
+### Step 3: Search Across Frameworks
+
+Try your first search:
+
+```
+Tool: search_frameworks("risk management", 5)
+Returns: 5 results matching "risk management" across all frameworks
 ```
 
-**Key insights**:
-- **Active frameworks**: Live data, automatically updated
-- **Reference count**: Number of requirements/controls available
-- **Status**: Whether the framework is currently available
+### Step 4: Get Framework Content
 
-### Step 3: Your First Search (2 minutes)
+Retrieve a complete framework:
 
-Try searching across all frameworks for a common governance topic:
-
-**Tool**: `search_frameworks`
-**Arguments**:
-```json
-{
-  "query": "risk management",
-  "limit": 5
-}
+```
+Tool: get_framework("nist-ai-600-1")
+Returns: Complete NIST AI RMF content with all sections
 ```
 
-**What you'll see**:
-```json
-{
-  "query": "risk management",
-  "total_results": 15,
-  "results": [
-    {
-      "framework": "nist_ai_rmf",
-      "reference_id": "ai-rmf-1.1",
-      "title": "Establish AI Risk Management Culture",
-      "relevance_score": 0.92,
-      "severity": "high"
-    }
-  ]
-}
+### Step 5: Explore Risks and Mitigations
+
+Browse AI governance risks:
+
+```
+Tool: list_risks()
+Returns: 17 risk documents from FINOS AI Governance Framework
 ```
 
-**Understanding the results**:
-- **relevance_score**: How well the content matches your query (0.0-1.0)
-- **severity**: Importance level (critical, high, medium, low)
-- **framework**: Which standard the requirement comes from
+Search for specific risks:
 
-### Step 4: Dive Deeper into a Framework (1 minute)
-
-Get detailed information about a specific framework:
-
-**Tool**: `get_framework_details`
-**Arguments**:
-```json
-{
-  "framework_id": "nist_ai_rmf",
-  "include_references": false
-}
+```
+Tool: search_risks("injection", 5)
+Returns: Risks related to injection attacks
 ```
 
-**What you'll see**:
-```json
-{
-  "framework": {
-    "id": "nist_ai_rmf",
-    "name": "NIST AI Risk Management Framework",
-    "version": "1.0",
-    "total_references": 30,
-    "compliance_metrics": {
-      "compliance_rate": 85.7
-    }
-  }
-}
+Get risk details:
+
 ```
-
-### Step 5: Quick Compliance Check (30 seconds)
-
-Get an overview of your compliance status:
-
-**Tool**: `get_compliance_analysis`
-**Arguments**:
-```json
-{
-  "include_gaps": true
-}
+Tool: get_risk("01_model-inversion")
+Returns: Complete model inversion risk documentation
 ```
-
-**What you'll see**:
-```json
-{
-  "analysis_summary": {
-    "overall_compliance_rate": 78.5,
-    "critical_gaps": 5
-  },
-  "framework_compliance": [
-    {
-      "framework": "nist_ai_rmf",
-      "compliance_rate": 85.7,
-      "status": "good"
-    }
-  ]
-}
-```
-
-## Understanding Framework Types
-
-### Active Frameworks 🟢
-These frameworks have live data from official sources:
-
-- **NIST AI RMF**: Updated from NIST's official publications
-- **EU AI Act**: Current regulatory text and guidance
-- **OWASP LLM Top 10**: Latest security vulnerability information
-- **GDPR**: Official regulation text and interpretations
-
-**Benefits**: Always current, authoritative sources
-**Note**: May occasionally be unavailable if source APIs are down
-
-### Modeled Frameworks 🟡
-These frameworks use internal data models:
-
-- **CCPA**: California Consumer Privacy Act
-- **ISO 27001**: Information Security Management
-- **SOC 2**: Service Organization Controls
-
-**Benefits**: Always available, consistent structure
-**Note**: Updated manually, may lag behind official changes
 
 ## Common Use Cases
 
-### 🎯 For Compliance Teams
+### Researching AI Governance
+1. `list_frameworks()` - See all available frameworks
+2. `search_frameworks("data protection")` - Find relevant content
+3. `get_framework("eu-ai-act")` - Get full framework
 
-**Goal**: Assess organizational compliance across multiple frameworks
+### Risk Assessment
+1. `list_risks()` - Browse all risks
+2. `search_risks("model bias")` - Find specific risks
+3. `get_risk("01_model-inversion")` - Get risk details
 
-**Recommended workflow**:
-1. `list_frameworks` - See what's available
-2. `get_compliance_analysis` - Get overall status
-3. `find_compliance_gaps` - Identify priority areas
-4. `export_framework_data` - Generate reports
+### Mitigation Planning
+1. `list_mitigations()` - Browse all mitigations
+2. `search_mitigations("encryption")` - Find relevant mitigations
+3. `get_mitigation("01_data-encryption")` - Get mitigation details
 
-### 🔍 For Risk Managers
+### System Monitoring
+1. `get_service_health()` - Check system status
+2. `get_cache_stats()` - Monitor performance
 
-**Goal**: Find and analyze risk-related requirements
+## Next Steps
 
-**Recommended workflow**:
-1. `search_frameworks` with "risk" or "threat"
-2. `search_framework_references` for specific frameworks
-3. `get_related_controls` - Map controls across frameworks
-4. `export_framework_data` - Create risk documentation
-
-### 📋 For Auditors
-
-**Goal**: Compare compliance across different standards
-
-**Recommended workflow**:
-1. `get_framework_correlations` - Understand relationships
-2. `find_compliance_gaps` - Identify missing controls
-3. `get_compliance_analysis` - Generate metrics
-4. `bulk_export_frameworks` - Create comprehensive reports
-
-## Quick Reference Commands
-
-### Essential Tools for Everyone
-```bash
-# Check if system is working
-get_service_health
-
-# See available frameworks
-list_frameworks
-
-# Search across all frameworks
-search_frameworks {"query": "your topic"}
-
-# Get framework details
-get_framework_details {"framework_id": "nist_ai_rmf"}
-```
-
-### For Compliance Analysis
-```bash
-# Overall compliance status
-get_compliance_analysis
-
-# Find gaps between frameworks
-find_compliance_gaps {"source_framework": "nist_ai_rmf", "target_frameworks": ["eu_ai_act"]}
-
-# Export compliance report
-export_framework_data {"framework_id": "nist_ai_rmf", "format": "csv"}
-```
-
-### For Cross-Framework Work
-```bash
-# Find related controls
-get_related_controls {"control_id": "ai-rmf-1.1"}
-
-# Analyze framework relationships
-get_framework_correlations {"framework_a": "nist_ai_rmf", "framework_b": "eu_ai_act"}
-```
+- **[User Guide](README.md)** - Complete tool reference
+- **[API Documentation](../api/README.md)** - Detailed API reference
+- **[Troubleshooting](../troubleshooting.md)** - Common issues and solutions
 
 ## Tips for Success
 
-### 🎯 Search Effectively
-- **Be specific**: "data protection" vs "privacy"
-- **Try variations**: "risk assessment" and "risk evaluation"
-- **Use quotes**: "prompt injection" for exact phrases
-- **Check all frameworks**: Different frameworks use different terminology
-
-### 📊 Understand Results
-- **Relevance scores**: 0.8+ are highly relevant, 0.5+ are worth reviewing
-- **Severity levels**: Focus on "critical" and "high" first
-- **Framework context**: Same concept may have different names in different frameworks
-
-### 🔄 Build Your Workflow
-- **Start broad**: Use multi-framework search first
-- **Narrow down**: Use framework-specific searches for details
-- **Map relationships**: Use correlation tools to understand connections
-- **Document findings**: Export results for future reference
-
-### ⚡ Performance Tips
-- **Use limits**: Set reasonable limits (10-20) for initial searches
-- **Cache results**: Same searches return cached results quickly
-- **Check health**: If responses are slow, check service health
-
-## What's Next?
-
-Now that you're familiar with the basics:
-
-1. **Deep dive into search**: Read the [Framework Search Guide](framework-search.md)
-2. **Learn compliance analysis**: See [Compliance Analysis](compliance-analysis.md)
-3. **Explore cross-framework features**: Check [Cross-Framework Navigation](cross-framework-navigation.md)
-4. **Generate reports**: Learn about [Export and Reporting](export-reporting.md)
-
-## Common First-Time Questions
-
-### Q: How do I know which framework to start with?
-**A**: Start with `list_frameworks` to see what's available, then use `search_frameworks` with your main compliance topic to see which frameworks have relevant content.
-
-### Q: What if a framework shows as "unavailable"?
-**A**: Active frameworks occasionally go offline. Check `get_service_health` and try again in a few minutes. You can still access cached data.
-
-### Q: How current is the framework data?
-**A**: Active frameworks are updated regularly from official sources. Check the `last_updated` field in framework details for specific timestamps.
-
-### Q: Can I search for specific regulation numbers or control IDs?
-**A**: Yes! Use `search_framework_references` with the specific framework and search for the exact ID or number.
-
-### Q: How do I export results for my team?
-**A**: Use `export_framework_data` with format "csv" for spreadsheets, "json" for data analysis, or "markdown" for documentation.
-
-You're now ready to start using the framework tools effectively! Choose your next guide based on your primary use case.
+- Start with broad searches, then narrow down
+- Use `list_*` tools to browse available content
+- Use `search_*` tools to find specific topics
+- Use `get_*` tools to retrieve complete documents
+- Check `get_service_health()` if you encounter issues

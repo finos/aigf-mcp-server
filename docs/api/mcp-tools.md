@@ -1,16 +1,102 @@
 # MCP Tools Reference
 
-Complete reference documentation for all MCP tools provided by the FINOS AI Governance Framework server.
+Complete reference documentation for all 11 MCP tools provided by the FINOS AI Governance Framework server.
 
-## Framework Navigation Tools
+## Overview
+
+The server provides 11 tools organized in 3 categories:
+- **Framework Access Tools** (5 tools): List, retrieve, and search governance frameworks
+- **Risk & Mitigation Tools** (4 tools): Access and search AI governance risks and mitigations
+- **System Monitoring Tools** (2 tools): Service health and cache performance monitoring
+
+---
+
+## Framework Access Tools
+
+### list_frameworks
+
+List all available AI governance frameworks.
+
+**Name**: `list_frameworks`
+
+**Description**: Returns a structured list of all supported AI governance frameworks with metadata including framework ID, name, and description.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+**Response Format**:
+```json
+{
+  "total_count": "integer",
+  "frameworks": [
+    {
+      "id": "string",
+      "name": "string",
+      "description": "string"
+    }
+  ]
+}
+```
+
+**Example**:
+```
+list_frameworks()
+→ Returns 5 frameworks: NIST AI 600-1, EU AI Act 2024, GDPR, OWASP LLM Top 10, ISO/IEC 23053
+```
+
+---
+
+### get_framework
+
+Get complete content of a specific framework.
+
+**Name**: `get_framework`
+
+**Description**: Retrieves the complete content of a governance framework document including all sections and metadata.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "framework_id": {
+      "type": "string",
+      "description": "Framework identifier (e.g., 'nist-ai-600-1', 'eu-ai-act')"
+    }
+  },
+  "required": ["framework_id"]
+}
+```
+
+**Response Format**:
+```json
+{
+  "framework_id": "string",
+  "sections": "array of strings",
+  "content": "string (full framework content)"
+}
+```
+
+**Example**:
+```
+get_framework("eu-ai-act")
+→ Returns complete EU AI Act content with all sections
+```
+
+---
 
 ### search_frameworks
 
-Search across all governance frameworks for specific requirements, controls, or topics.
+Search for text within framework documents.
 
 **Name**: `search_frameworks`
 
-**Description**: Cross-framework search with advanced filtering capabilities including framework type, severity, compliance status, and more.
+**Description**: Searches across all framework documents for specific text or keywords and returns matching content snippets.
 
 **Input Schema**:
 ```json
@@ -19,31 +105,13 @@ Search across all governance frameworks for specific requirements, controls, or 
   "properties": {
     "query": {
       "type": "string",
-      "description": "Search terms for finding relevant framework content"
-    },
-    "frameworks": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "enum": ["nist_ai_rmf", "eu_ai_act", "owasp_llm", "gdpr", "ccpa", "iso_27001", "soc_2"]
-      },
-      "description": "Specific frameworks to search (optional, searches all if not specified)"
-    },
-    "severity": {
-      "type": "string",
-      "enum": ["low", "medium", "high", "critical"],
-      "description": "Filter by severity level"
-    },
-    "compliance_status": {
-      "type": "string",
-      "enum": ["compliant", "non_compliant", "partially_compliant", "not_assessed"],
-      "description": "Filter by compliance status"
+      "description": "Search query text"
     },
     "limit": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 100,
-      "default": 20,
+      "maximum": 50,
+      "default": 5,
       "description": "Maximum number of results to return"
     }
   },
@@ -55,17 +123,12 @@ Search across all governance frameworks for specific requirements, controls, or 
 ```json
 {
   "query": "string",
-  "total_results": "integer",
-  "frameworks_searched": ["array of strings"],
+  "total_found": "integer",
   "results": [
     {
-      "framework": "string",
-      "reference_id": "string",
-      "title": "string",
-      "content": "string",
-      "relevance_score": "number",
-      "severity": "string",
-      "compliance_status": "string"
+      "framework_id": "string",
+      "section": "string",
+      "content": "string (matching content snippet)"
     }
   ]
 }
@@ -73,605 +136,57 @@ Search across all governance frameworks for specific requirements, controls, or 
 
 **Example**:
 ```
-Query: "risk management"
-Response: 15 results across NIST AI RMF, EU AI Act covering risk assessment, mitigation strategies, and monitoring requirements.
+search_frameworks("risk management", 5)
+→ Returns 5 results matching "risk management" across frameworks
 ```
 
 ---
 
-### list_frameworks
+### list_risks
 
-List all available governance frameworks with metadata and statistics.
+List all available risk documents.
 
-**Name**: `list_frameworks`
+**Name**: `list_risks`
 
-**Description**: Get comprehensive overview of supported frameworks including reference counts, last update times, and framework status.
+**Description**: Returns a structured list of all AI governance risk documents available in the system.
 
 **Input Schema**:
 ```json
 {
   "type": "object",
-  "properties": {
-    "include_stats": {
-      "type": "boolean",
-      "default": true,
-      "description": "Include detailed statistics for each framework"
-    },
-    "status_filter": {
-      "type": "string",
-      "enum": ["active", "modeled", "all"],
-      "default": "all",
-      "description": "Filter frameworks by their operational status"
-    }
-  }
+  "properties": {}
 }
 ```
 
 **Response Format**:
 ```json
 {
-  "total_frameworks": "integer",
-  "active_frameworks": "integer",
-  "frameworks": [
+  "total_count": "integer",
+  "source": "string (e.g., 'github_api' or 'static_fallback')",
+  "documents": [
     {
       "id": "string",
-      "name": "string",
-      "description": "string",
-      "type": "string",
-      "status": "active|modeled",
-      "version": "string",
-      "last_updated": "ISO date string",
-      "reference_count": "integer",
-      "compliance_coverage": "number (percentage)"
+      "name": "string"
     }
   ]
 }
 ```
 
----
-
-### get_framework_details
-
-Get detailed information about a specific governance framework.
-
-**Name**: `get_framework_details`
-
-**Description**: Retrieve comprehensive framework information including structure, references, and compliance data.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "framework_id": {
-      "type": "string",
-      "enum": ["nist_ai_rmf", "eu_ai_act", "owasp_llm", "gdpr", "ccpa", "iso_27001", "soc_2"],
-      "description": "Framework identifier"
-    },
-    "include_references": {
-      "type": "boolean",
-      "default": false,
-      "description": "Include full list of framework references"
-    }
-  },
-  "required": ["framework_id"]
-}
+**Example**:
 ```
-
-**Response Format**:
-```json
-{
-  "framework": {
-    "id": "string",
-    "name": "string",
-    "description": "string",
-    "version": "string",
-    "status": "string",
-    "categories": ["array of strings"],
-    "total_references": "integer",
-    "compliance_metrics": {
-      "total_controls": "integer",
-      "assessed_controls": "integer",
-      "compliance_rate": "number"
-    }
-  },
-  "references": [
-    {
-      "id": "string",
-      "title": "string",
-      "category": "string",
-      "severity": "string",
-      "content_preview": "string"
-    }
-  ]
-}
+list_risks()
+→ Returns 17 risk documents from FINOS AI Governance Framework
 ```
 
 ---
 
-### get_compliance_analysis
+### get_risk
 
-Get comprehensive compliance analysis across frameworks.
+Get complete content of a specific risk document.
 
-**Name**: `get_compliance_analysis`
+**Name**: `get_risk`
 
-**Description**: Analyze compliance coverage statistics and identify compliance gaps across multiple frameworks.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "frameworks": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Frameworks to analyze (optional, analyzes all if not specified)"
-    },
-    "include_gaps": {
-      "type": "boolean",
-      "default": true,
-      "description": "Include detailed gap analysis"
-    }
-  }
-}
-```
-
-**Response Format**:
-```json
-{
-  "analysis_summary": {
-    "frameworks_analyzed": "integer",
-    "total_requirements": "integer",
-    "overall_compliance_rate": "number"
-  },
-  "framework_compliance": [
-    {
-      "framework": "string",
-      "compliance_rate": "number",
-      "compliant_controls": "integer",
-      "total_controls": "integer",
-      "gaps": ["array of gap descriptions"]
-    }
-  ],
-  "cross_framework_gaps": ["array of compliance gaps"],
-  "recommendations": ["array of recommendations"]
-}
-```
-
----
-
-### search_framework_references
-
-Search for specific references within a particular governance framework.
-
-**Name**: `search_framework_references`
-
-**Description**: Deep search within a single framework for detailed requirements or controls.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "framework_id": {
-      "type": "string",
-      "enum": ["nist_ai_rmf", "eu_ai_act", "owasp_llm", "gdpr", "ccpa", "iso_27001", "soc_2"],
-      "description": "Framework to search within"
-    },
-    "query": {
-      "type": "string",
-      "description": "Search terms for finding specific references"
-    },
-    "category": {
-      "type": "string",
-      "description": "Filter by reference category (optional)"
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 50,
-      "default": 10
-    }
-  },
-  "required": ["framework_id", "query"]
-}
-```
-
-**Response Format**:
-```json
-{
-  "framework": "string",
-  "query": "string",
-  "total_results": "integer",
-  "results": [
-    {
-      "reference_id": "string",
-      "title": "string",
-      "category": "string",
-      "content": "string",
-      "relevance_score": "number",
-      "related_controls": ["array of control IDs"]
-    }
-  ]
-}
-```
-
----
-
-## Cross-Framework Navigation Tools
-
-### get_related_controls
-
-Find related controls across different governance frameworks.
-
-**Name**: `get_related_controls`
-
-**Description**: Cross-framework compliance mapping to find equivalent controls across different frameworks.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "control_id": {
-      "type": "string",
-      "description": "Control or reference ID to find relationships for"
-    },
-    "source_framework": {
-      "type": "string",
-      "description": "Framework containing the source control"
-    },
-    "target_frameworks": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Frameworks to search for related controls (optional)"
-    }
-  },
-  "required": ["control_id"]
-}
-```
-
-**Response Format**:
-```json
-{
-  "source_control": {
-    "id": "string",
-    "framework": "string",
-    "title": "string",
-    "description": "string"
-  },
-  "related_controls": [
-    {
-      "control_id": "string",
-      "framework": "string",
-      "title": "string",
-      "relationship_strength": "strong|moderate|weak",
-      "relationship_type": "equivalent|related|complementary"
-    }
-  ],
-  "mapping_confidence": "number"
-}
-```
-
----
-
-### get_framework_correlations
-
-Analyze correlations between governance frameworks.
-
-**Name**: `get_framework_correlations`
-
-**Description**: Identify thematic overlaps and relationship strength between different frameworks.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "framework_a": {
-      "type": "string",
-      "description": "First framework for correlation analysis"
-    },
-    "framework_b": {
-      "type": "string",
-      "description": "Second framework for correlation analysis"
-    },
-    "include_mappings": {
-      "type": "boolean",
-      "default": false,
-      "description": "Include detailed control mappings"
-    }
-  },
-  "required": ["framework_a", "framework_b"]
-}
-```
-
-**Response Format**:
-```json
-{
-  "correlation_analysis": {
-    "framework_a": "string",
-    "framework_b": "string",
-    "correlation_score": "number",
-    "thematic_overlaps": ["array of overlap areas"],
-    "mapping_coverage": "number"
-  },
-  "detailed_mappings": [
-    {
-      "control_a": "string",
-      "control_b": "string",
-      "mapping_strength": "string",
-      "confidence": "number"
-    }
-  ]
-}
-```
-
----
-
-### find_compliance_gaps
-
-Identify potential compliance gaps when mapping between frameworks.
-
-**Name**: `find_compliance_gaps`
-
-**Description**: Gap analysis for multi-framework compliance planning and risk assessment.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "source_framework": {
-      "type": "string",
-      "description": "Primary framework for compliance"
-    },
-    "target_frameworks": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Additional frameworks to check for gaps"
-    },
-    "severity_threshold": {
-      "type": "string",
-      "enum": ["low", "medium", "high", "critical"],
-      "default": "medium",
-      "description": "Minimum severity level for gap reporting"
-    }
-  },
-  "required": ["source_framework", "target_frameworks"]
-}
-```
-
-**Response Format**:
-```json
-{
-  "gap_analysis": {
-    "source_framework": "string",
-    "target_frameworks": ["array of strings"],
-    "total_gaps": "integer",
-    "critical_gaps": "integer"
-  },
-  "gaps": [
-    {
-      "gap_type": "missing_control|insufficient_coverage|conflicting_requirement",
-      "severity": "string",
-      "description": "string",
-      "affected_frameworks": ["array of strings"],
-      "recommendations": ["array of recommendations"]
-    }
-  ]
-}
-```
-
----
-
-## Advanced Framework Tools
-
-### advanced_search_frameworks
-
-Perform advanced search with enhanced filtering capabilities.
-
-**Name**: `advanced_search_frameworks`
-
-**Description**: Enhanced search with category filtering, term inclusion/exclusion, and date ranges.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "query": {
-      "type": "string",
-      "description": "Primary search terms"
-    },
-    "include_terms": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Terms that must be included"
-    },
-    "exclude_terms": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Terms to exclude from results"
-    },
-    "categories": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Filter by specific categories"
-    },
-    "date_range": {
-      "type": "object",
-      "properties": {
-        "start": {"type": "string", "format": "date"},
-        "end": {"type": "string", "format": "date"}
-      }
-    }
-  },
-  "required": ["query"]
-}
-```
-
----
-
-### export_framework_data
-
-Export framework data in multiple formats with filtering options.
-
-**Name**: `export_framework_data`
-
-**Description**: Generate reports and documentation in JSON, CSV, or Markdown format with comprehensive filtering.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "framework_id": {
-      "type": "string",
-      "description": "Framework to export"
-    },
-    "format": {
-      "type": "string",
-      "enum": ["json", "csv", "markdown"],
-      "default": "json",
-      "description": "Export format"
-    },
-    "filters": {
-      "type": "object",
-      "properties": {
-        "categories": {"type": "array", "items": {"type": "string"}},
-        "severity": {"type": "array", "items": {"type": "string"}},
-        "compliance_status": {"type": "array", "items": {"type": "string"}}
-      }
-    },
-    "include_metadata": {
-      "type": "boolean",
-      "default": true
-    }
-  },
-  "required": ["framework_id"]
-}
-```
-
----
-
-### bulk_export_frameworks
-
-Perform bulk export of multiple framework datasets.
-
-**Name**: `bulk_export_frameworks`
-
-**Description**: Generate comprehensive compliance documentation packages with multiple configurations.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "exports": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "framework_id": {"type": "string"},
-          "format": {"type": "string", "enum": ["json", "csv", "markdown"]},
-          "filters": {"type": "object"}
-        },
-        "required": ["framework_id", "format"]
-      }
-    }
-  },
-  "required": ["exports"]
-}
-```
-
----
-
-## FINOS Tools
-
-### search_mitigations
-
-Search through AI governance mitigations by keyword or topic.
-
-**Name**: `search_mitigations`
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "query": {
-      "type": "string",
-      "description": "Search terms for finding mitigations"
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 50,
-      "default": 10
-    }
-  },
-  "required": ["query"]
-}
-```
-
----
-
-### search_risks
-
-Search through AI governance risks by keyword or topic.
-
-**Name**: `search_risks`
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "query": {
-      "type": "string",
-      "description": "Search terms for finding risks"
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 50,
-      "default": 10
-    }
-  },
-  "required": ["query"]
-}
-```
-
----
-
-### get_mitigation_details
-
-Get detailed information about a specific mitigation.
-
-**Name**: `get_mitigation_details`
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "mitigation_id": {
-      "type": "string",
-      "description": "Mitigation identifier (e.g., 'mi-1', 'mi-2')"
-    }
-  },
-  "required": ["mitigation_id"]
-}
-```
-
----
-
-### get_risk_details
-
-Get detailed information about a specific risk.
-
-**Name**: `get_risk_details`
+**Description**: Retrieves the complete content of a specific AI governance risk document including all sections and details.
 
 **Input Schema**:
 ```json
@@ -680,54 +195,92 @@ Get detailed information about a specific risk.
   "properties": {
     "risk_id": {
       "type": "string",
-      "description": "Risk identifier (e.g., 'ri-1', 'ri-2')"
+      "description": "Risk identifier (e.g., '01_model-inversion', '02_data-poisoning')"
     }
   },
   "required": ["risk_id"]
 }
 ```
 
+**Response Format**:
+```json
+{
+  "document_id": "string",
+  "title": "string",
+  "sections": "array of strings",
+  "content": "string (full risk document content)"
+}
+```
+
+**Example**:
+```
+get_risk("01_model-inversion")
+→ Returns complete model inversion risk documentation
+```
+
 ---
 
-### list_all_mitigations
+## Risk & Mitigation Tools
 
-List all available AI governance mitigations with metadata.
+### search_risks
 
-**Name**: `list_all_mitigations`
+Search within risk documentation.
+
+**Name**: `search_risks`
+
+**Description**: Searches across all risk documents for specific text or keywords and returns matching content snippets.
 
 **Input Schema**:
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query text"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5,
+      "description": "Maximum number of results to return"
+    }
+  },
+  "required": ["query"]
 }
 ```
 
----
-
-### list_all_risks
-
-List all available AI governance risks with metadata.
-
-**Name**: `list_all_risks`
-
-**Input Schema**:
+**Response Format**:
 ```json
 {
-  "type": "object",
-  "properties": {}
+  "query": "string",
+  "total_found": "integer",
+  "results": [
+    {
+      "framework_id": "string (risk ID)",
+      "section": "string (risk name)",
+      "content": "string (matching content snippet)"
+    }
+  ]
 }
+```
+
+**Example**:
+```
+search_risks("injection", 5)
+→ Returns risks related to injection attacks
 ```
 
 ---
 
-## System Tools
+### list_mitigations
 
-### get_service_health
+List all available mitigation documents.
 
-Get comprehensive service health status and diagnostics.
+**Name**: `list_mitigations`
 
-**Name**: `get_service_health`
+**Description**: Returns a structured list of all AI governance mitigation strategy documents available in the system.
 
 **Input Schema**:
 ```json
@@ -740,28 +293,126 @@ Get comprehensive service health status and diagnostics.
 **Response Format**:
 ```json
 {
-  "status": "healthy|degraded|unhealthy",
-  "uptime_seconds": "number",
-  "services": {
-    "content_service": {"status": "string", "last_check": "ISO date"},
-    "framework_service": {"status": "string", "last_check": "ISO date"},
-    "cache_service": {"status": "string", "last_check": "ISO date"}
-  },
-  "performance_metrics": {
-    "avg_response_time_ms": "number",
-    "requests_per_minute": "number",
-    "error_rate": "number"
-  }
+  "total_count": "integer",
+  "source": "string (e.g., 'github_api' or 'static_fallback')",
+  "documents": [
+    {
+      "id": "string",
+      "name": "string"
+    }
+  ]
 }
+```
+
+**Example**:
+```
+list_mitigations()
+→ Returns 17 mitigation documents from FINOS AI Governance Framework
 ```
 
 ---
 
-### get_service_metrics
+### get_mitigation
 
-Get detailed service performance metrics and statistics.
+Get complete content of a specific mitigation document.
 
-**Name**: `get_service_metrics`
+**Name**: `get_mitigation`
+
+**Description**: Retrieves the complete content of a specific AI governance mitigation strategy document including all sections and details.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "mitigation_id": {
+      "type": "string",
+      "description": "Mitigation identifier (e.g., '01_data-encryption', '02_access-controls')"
+    }
+  },
+  "required": ["mitigation_id"]
+}
+```
+
+**Response Format**:
+```json
+{
+  "document_id": "string",
+  "title": "string",
+  "sections": "array of strings",
+  "content": "string (full mitigation document content)"
+}
+```
+
+**Example**:
+```
+get_mitigation("01_data-encryption")
+→ Returns complete data encryption mitigation documentation
+```
+
+---
+
+### search_mitigations
+
+Search within mitigation documentation.
+
+**Name**: `search_mitigations`
+
+**Description**: Searches across all mitigation documents for specific text or keywords and returns matching content snippets.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query text"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5,
+      "description": "Maximum number of results to return"
+    }
+  },
+  "required": ["query"]
+}
+```
+
+**Response Format**:
+```json
+{
+  "query": "string",
+  "total_found": "integer",
+  "results": [
+    {
+      "framework_id": "string (mitigation ID)",
+      "section": "string (mitigation name)",
+      "content": "string (matching content snippet)"
+    }
+  ]
+}
+```
+
+**Example**:
+```
+search_mitigations("encryption", 5)
+→ Returns mitigations related to encryption
+```
+
+---
+
+## System Monitoring Tools
+
+### get_service_health
+
+Get service health status and metrics.
+
+**Name**: `get_service_health`
+
+**Description**: Returns comprehensive health status of the MCP server including uptime, service status, and component health.
 
 **Input Schema**:
 ```json
@@ -769,31 +420,34 @@ Get detailed service performance metrics and statistics.
   "type": "object",
   "properties": {}
 }
+```
+
+**Response Format**:
+```json
+{
+  "status": "string (healthy/degraded/unhealthy)",
+  "version": "string",
+  "uptime_seconds": "number",
+  "healthy_services": "integer",
+  "total_services": "integer"
+}
+```
+
+**Example**:
+```
+get_service_health()
+→ Returns: status=healthy, uptime=3600s, services=5/5
 ```
 
 ---
 
 ### get_cache_stats
 
-Get cache performance statistics and metrics.
+Get cache performance statistics.
 
 **Name**: `get_cache_stats`
 
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {}
-}
-```
-
----
-
-### reset_service_health
-
-Reset service health counters and error boundaries.
-
-**Name**: `reset_service_health`
+**Description**: Returns cache performance metrics including hit rate, memory usage, and request statistics.
 
 **Input Schema**:
 ```json
@@ -803,33 +457,51 @@ Reset service health counters and error boundaries.
 }
 ```
 
----
-
-## Error Responses
-
-All tools may return errors in the following format:
-
+**Response Format**:
 ```json
 {
-  "error": "string",
-  "error_code": "string",
-  "details": "object (optional)"
+  "total_requests": "integer",
+  "cache_hits": "integer",
+  "cache_misses": "integer",
+  "hit_rate": "number (0.0 to 1.0)"
 }
 ```
 
-Common error codes:
-- `VALIDATION_ERROR` - Invalid input parameters
-- `NOT_FOUND` - Requested resource not found
-- `RATE_LIMITED` - Request rate limit exceeded
-- `INTERNAL_ERROR` - Server-side error
-- `FRAMEWORK_UNAVAILABLE` - Framework service unavailable
+**Example**:
+```
+get_cache_stats()
+→ Returns: 1000 requests, 950 hits, 50 misses, 95% hit rate
+```
+
+---
+
+## Error Handling
+
+All tools return structured error responses when errors occur:
+
+```json
+{
+  "error": "string (error type)",
+  "message": "string (human-readable error message)",
+  "details": "object (optional additional context)"
+}
+```
+
+Common error types:
+- `ValidationError`: Invalid input parameters
+- `NotFoundError`: Requested resource not found
+- `ServiceError`: Internal service error
+- `RateLimitError`: Rate limit exceeded
 
 ## Rate Limiting
 
-- **Tool Calls**: 50 requests per minute per client
-- **Resource Access**: 200 requests per minute per client
-- **Content Size Limits**: 10MB per resource, 50MB per tool response
+- **Tool calls**: 50 requests/minute per client
+- **Content retrieval**: Unlimited (cached content)
+- **Search operations**: 50 requests/minute per client
 
-Rate limit headers are included in responses:
-- `X-RateLimit-Remaining` - Requests remaining in current window
-- `X-RateLimit-Reset` - Time when rate limit resets
+## Performance Characteristics
+
+- **Cached content**: <0.1ms response time
+- **GitHub API calls**: 500-2000ms (when cache miss)
+- **Search operations**: 10-100ms depending on corpus size
+- **List operations**: <10ms (metadata only)

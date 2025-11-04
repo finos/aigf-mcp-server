@@ -47,7 +47,7 @@ mcp list tools
 | Tool Name | Description | Use Case |
 |-----------|-------------|----------|
 | `list_frameworks` | List all available AI governance frameworks | Get overview of supported frameworks (NIST AI 600-1, EU AI Act, ISO 42001, etc.) |
-| `get_framework_content` | Get complete content of a specific framework | Retrieve complete framework document content |
+| `get_framework` | Get complete content of a specific framework | Retrieve complete framework document content |
 | `search_frameworks` | Search for text within framework documents | Find specific content within framework documents |
 | `list_risks` | List all available risk documents | Get overview of AI governance risks |
 | `get_risk` | Get complete content of specific risk documents | Retrieve detailed risk documentation |
@@ -106,7 +106,7 @@ mcp list tools
 
 ### Framework Research
 - **List Available Frameworks**: Use `list_frameworks` to see all supported governance frameworks
-- **Get Framework Content**: Use `get_framework_content` to retrieve complete framework documents
+- **Get Framework Content**: Use `get_framework` to retrieve complete framework documents
 - **Search Framework Content**: Use `search_frameworks` to find specific text within frameworks
 
 ### Risk Management
