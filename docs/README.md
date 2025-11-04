@@ -2,7 +2,7 @@
 
 **Comprehensive governance framework reference system for your development tools.**
 
-This independent project provides access to governance frameworks, compliance analysis, and risk assessments through the Model Context Protocol (MCP), making them available in Claude, VS Code, Cursor, and other supported tools.
+This independent project provides access to governance frameworks and risk assessments through the Model Context Protocol (MCP), making them available in Claude, VS Code, Cursor, and other supported tools.
 
 ## 🚀 Quick Start (5 minutes)
 
@@ -61,7 +61,7 @@ Choose your tool:
   ]
 }
 ```
-4. ✅ Test: Use Continue chat to search framework content and compliance analysis
+4. ✅ Test: Use Continue chat to search framework content and AI governance risks
 
 ### Cursor
 1. Open Cursor settings
