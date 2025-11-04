@@ -16,13 +16,13 @@ graph TB
     Security --> Router[Tool Router & Registry]
 
     %% Tool Categories
-    Router --> FrameworkTools[Framework Tools<br/>11 tools]
-    Router --> FINOSTools[FINOS Content Tools<br/>4 tools]
-    Router --> SystemTools[System Tools<br/>4 tools]
+    Router --> FrameworkTools[Framework Access Tools<br/>5 tools]
+    Router --> RiskMitigationTools[Risk & Mitigation Tools<br/>4 tools]
+    Router --> SystemTools[System Monitoring Tools<br/>2 tools]
 
     %% Framework System
     FrameworkTools --> QueryEngine[Framework Query Engine]
-    FINOSTools --> QueryEngine
+    RiskMitigationTools --> QueryEngine
 
     %% Core Framework Components
     QueryEngine --> DataLoader[Dynamic Data Loader]
@@ -52,7 +52,7 @@ graph TB
     classDef data fill:#e8f5e8
     classDef cache fill:#fff3e0
 
-    class FrameworkTools,FINOSTools,SystemTools tool
+    class FrameworkTools,RiskMitigationTools,SystemTools tool
     class QueryEngine,CrossMapper,DataLoader,ContentService framework
     class DynamicLoaders,StaticData,FINOSRepo,MappingTables data
     class Cache,SearchIndex,ExportEngine,Analytics cache
