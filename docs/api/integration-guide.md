@@ -4,7 +4,7 @@ Comprehensive guide for developers integrating with the FINOS AI Governance Fram
 
 ## Overview
 
-The FINOS MCP Server provides a robust, well-documented API for accessing governance framework data through the Model Context Protocol (MCP). This guide covers integration patterns, best practices, and code examples for various use cases.
+The FINOS MCP Server provides 11 MCP tools for accessing AI governance framework data through the Model Context Protocol (MCP). This guide covers integration patterns, best practices, and code examples.
 
 ## Quick Start Integration
 
@@ -12,7 +12,7 @@ The FINOS MCP Server provides a robust, well-documented API for accessing govern
 
 **Prerequisites**:
 - Python 3.10+
-- MCP-compatible client (Claude, VS Code, Cursor)
+- MCP-compatible client (Claude Desktop, VS Code, Cursor)
 - Network access for framework data loading
 
 **Installation**:
@@ -27,8 +27,7 @@ pip install -e .
 # Test the installation
 finos-mcp --help
 
-# Verify server functionality
-finos-mcp --test-connection
+# Verify server connectivity via MCP client
 ```
 
 ### 2. First API Call
@@ -39,84 +38,140 @@ Start with a simple framework listing:
 # Example: List available frameworks
 {
   "tool": "list_frameworks",
-  "arguments": {
-    "include_stats": true
-  }
+  "arguments": {}
 }
 ```
 
 **Expected Response**:
 ```json
 {
-  "total_frameworks": 7,
-  "active_frameworks": 4,
+  "total_count": 7,
   "frameworks": [
     {
-      "id": "nist_ai_rmf",
+      "id": "nist-ai-600-1",
       "name": "NIST AI Risk Management Framework",
-      "status": "active",
-      "reference_count": 30
+      "description": "NIST's framework for managing AI risks"
     }
   ]
 }
 ```
 
+## Available Tools (11 Total)
+
+### Framework Access Tools (5)
+
+**1. list_frameworks** - List all supported AI governance frameworks
+```python
+# Usage
+mcp_client.call_tool("list_frameworks", {})
+
+# Returns: 7 frameworks with IDs, names, descriptions
+```
+
+**2. get_framework** - Get complete content of a specific framework
+```python
+# Usage
+mcp_client.call_tool("get_framework", {
+    "framework_id": "nist-ai-600-1"
+})
+
+# Returns: Complete framework content with sections
+```
+
+**3. search_frameworks** - Search for text within framework documents
+```python
+# Usage
+mcp_client.call_tool("search_frameworks", {
+    "query": "risk management",
+    "limit": 5
+})
+
+# Returns: Search results with matching content snippets
+```
+
+**4. list_risks** - List all available risk documents
+```python
+# Usage
+mcp_client.call_tool("list_risks", {})
+
+# Returns: 17 risk documents from FINOS repository
+```
+
+**5. get_risk** - Get complete content of specific risk documents
+```python
+# Usage
+mcp_client.call_tool("get_risk", {
+    "risk_id": "01_model-inversion"
+})
+
+# Returns: Complete risk document content
+```
+
+### Risk & Mitigation Tools (4)
+
+**6. search_risks** - Search within risk documentation
+```python
+# Usage
+mcp_client.call_tool("search_risks", {
+    "query": "injection",
+    "limit": 5
+})
+
+# Returns: Matching risk content snippets
+```
+
+**7. list_mitigations** - List all available mitigation documents
+```python
+# Usage
+mcp_client.call_tool("list_mitigations", {})
+
+# Returns: 17 mitigation documents from FINOS repository
+```
+
+**8. get_mitigation** - Get complete content of mitigation documents
+```python
+# Usage
+mcp_client.call_tool("get_mitigation", {
+    "mitigation_id": "01_data-encryption"
+})
+
+# Returns: Complete mitigation document content
+```
+
+**9. search_mitigations** - Search within mitigation documentation
+```python
+# Usage
+mcp_client.call_tool("search_mitigations", {
+    "query": "encryption",
+    "limit": 5
+})
+
+# Returns: Matching mitigation content snippets
+```
+
+### System Monitoring Tools (2)
+
+**10. get_service_health** - Get service health status and metrics
+```python
+# Usage
+mcp_client.call_tool("get_service_health", {})
+
+# Returns: Health status, uptime, service component status
+```
+
+**11. get_cache_stats** - Get cache performance statistics
+```python
+# Usage
+mcp_client.call_tool("get_cache_stats", {})
+
+# Returns: Cache hit rate, memory usage, performance metrics
+```
+
 ## Integration Patterns
 
-### 1. Compliance Monitoring System
+### 1. Framework Research System
 
-**Use Case**: Automated compliance monitoring and reporting
-
-**Architecture**:
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Your System   │───▶│   FINOS MCP      │───▶│   Framework     │
-│                 │    │   Server         │    │   Data Sources  │
-│ - Compliance    │    │                  │    │                 │
-│   Dashboard     │    │ - Query Engine   │    │ - NIST API      │
-│ - Risk Reports  │    │ - Data Mapping   │    │ - EU AI Act     │
-│ - Audit Trails  │    │ - Export Tools   │    │ - OWASP LLM     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-**Implementation Example**:
-```python
-class ComplianceMonitor:
-    def __init__(self, mcp_client):
-        self.mcp_client = mcp_client
-
-    async def assess_compliance(self, frameworks=None):
-        """Get comprehensive compliance assessment"""
-        response = await self.mcp_client.call_tool(
-            "get_compliance_analysis",
-            {
-                "frameworks": frameworks or ["nist_ai_rmf", "eu_ai_act"],
-                "include_gaps": True
-            }
-        )
-        return self._process_compliance_data(response)
-
-    async def generate_compliance_report(self, format="json"):
-        """Generate detailed compliance report"""
-        return await self.mcp_client.call_tool(
-            "export_framework_data",
-            {
-                "framework_id": "nist_ai_rmf",
-                "format": format,
-                "include_metadata": True
-            }
-        )
-```
-
-### 2. Research and Analysis Platform
-
-**Use Case**: Governance framework research and cross-framework analysis
-
-**Key Tools**:
-- `search_frameworks` - Multi-framework content search
-- `get_framework_correlations` - Framework relationship analysis
-- `find_compliance_gaps` - Gap analysis
-- `get_related_controls` - Control mapping
+**Use Case**: Search and retrieve governance framework content
 
 **Implementation Example**:
 ```python
@@ -124,213 +179,136 @@ class FrameworkResearcher:
     def __init__(self, mcp_client):
         self.mcp_client = mcp_client
 
-    async def research_topic(self, topic, frameworks=None):
-        """Research a topic across frameworks"""
+    async def research_topic(self, topic):
+        """Research a topic across all frameworks"""
+
+        # Search across frameworks
         results = await self.mcp_client.call_tool(
             "search_frameworks",
             {
                 "query": topic,
-                "frameworks": frameworks,
-                "limit": 50
+                "limit": 10
             }
         )
-
-        # Analyze correlations between results
-        correlations = await self._analyze_correlations(results)
 
         return {
             "search_results": results,
-            "correlations": correlations,
             "summary": self._generate_summary(results)
         }
 
-    async def map_frameworks(self, source_framework, target_frameworks):
-        """Map controls between frameworks"""
-        mapping_results = []
+    async def get_framework_details(self, framework_id):
+        """Get complete framework content"""
 
-        for target in target_frameworks:
-            correlation = await self.mcp_client.call_tool(
-                "get_framework_correlations",
-                {
-                    "framework_a": source_framework,
-                    "framework_b": target,
-                    "include_mappings": True
-                }
-            )
-            mapping_results.append(correlation)
-
-        return mapping_results
+        return await self.mcp_client.call_tool(
+            "get_framework",
+            {"framework_id": framework_id}
+        )
 ```
 
-### 3. Compliance Documentation Generator
+### 2. Risk Assessment Platform
 
-**Use Case**: Automated generation of compliance documentation
+**Use Case**: AI governance risk assessment and analysis
 
 **Implementation Example**:
-```python
-class DocumentationGenerator:
-    def __init__(self, mcp_client):
-        self.mcp_client = mcp_client
-
-    async def generate_framework_guide(self, framework_id):
-        """Generate comprehensive framework guide"""
-
-        # Get framework details
-        details = await self.mcp_client.call_tool(
-            "get_framework_details",
-            {
-                "framework_id": framework_id,
-                "include_references": True
-            }
-        )
-
-        # Export full framework data
-        data = await self.mcp_client.call_tool(
-            "export_framework_data",
-            {
-                "framework_id": framework_id,
-                "format": "markdown",
-                "include_metadata": True
-            }
-        )
-
-        return self._format_documentation(details, data)
-
-    async def generate_compliance_matrix(self, frameworks):
-        """Generate cross-framework compliance matrix"""
-        matrix = {}
-
-        for framework in frameworks:
-            compliance = await self.mcp_client.call_tool(
-                "get_compliance_analysis",
-                {"frameworks": [framework]}
-            )
-            matrix[framework] = compliance
-
-        return self._format_matrix(matrix)
-```
-
-## Advanced Integration Patterns
-
-### 1. Event-Driven Compliance Monitoring
-
-**Architecture**: React to changes in framework data or compliance status
-
-```python
-class EventDrivenMonitor:
-    def __init__(self, mcp_client):
-        self.mcp_client = mcp_client
-        self.subscribers = []
-
-    async def monitor_compliance_changes(self):
-        """Monitor for compliance status changes"""
-        while True:
-            current_status = await self._get_compliance_snapshot()
-
-            if self._has_changed(current_status):
-                await self._notify_subscribers(current_status)
-
-            await asyncio.sleep(300)  # Check every 5 minutes
-
-    async def _get_compliance_snapshot(self):
-        """Get current compliance snapshot"""
-        return await self.mcp_client.call_tool(
-            "get_compliance_analysis",
-            {"include_gaps": True}
-        )
-```
-
-### 2. Multi-Framework Risk Assessment
-
-**Use Case**: Comprehensive risk assessment across multiple frameworks
-
 ```python
 class RiskAssessment:
     def __init__(self, mcp_client):
         self.mcp_client = mcp_client
 
     async def comprehensive_risk_assessment(self):
-        """Perform comprehensive multi-framework risk assessment"""
+        """Perform comprehensive AI risk assessment"""
 
-        # Get all frameworks
-        frameworks = await self.mcp_client.call_tool("list_frameworks")
+        # Get all risks
+        risks = await self.mcp_client.call_tool("list_risks", {})
 
         risk_assessment = {}
 
-        for framework in frameworks["frameworks"]:
-            if framework["status"] == "active":
-                # Search for risk-related content
-                risks = await self.mcp_client.call_tool(
-                    "search_framework_references",
-                    {
-                        "framework_id": framework["id"],
-                        "query": "risk OR threat OR vulnerability",
-                        "limit": 20
-                    }
-                )
+        for risk in risks["documents"]:
+            # Get detailed risk content
+            risk_details = await self.mcp_client.call_tool(
+                "get_risk",
+                {"risk_id": risk["id"]}
+            )
 
-                # Analyze gaps
-                gaps = await self.mcp_client.call_tool(
-                    "find_compliance_gaps",
-                    {
-                        "source_framework": framework["id"],
-                        "target_frameworks": [f["id"] for f in frameworks["frameworks"] if f["id"] != framework["id"]]
-                    }
-                )
-
-                risk_assessment[framework["id"]] = {
-                    "risks": risks,
-                    "gaps": gaps,
-                    "severity_analysis": self._analyze_severity(risks)
-                }
+            risk_assessment[risk["id"]] = {
+                "title": risk_details["title"],
+                "content": risk_details["content"],
+                "severity_analysis": self._analyze_severity(risk_details)
+            }
 
         return risk_assessment
+
+    async def search_specific_risks(self, keyword):
+        """Search for specific types of risks"""
+
+        return await self.mcp_client.call_tool(
+            "search_risks",
+            {
+                "query": keyword,
+                "limit": 5
+            }
+        )
 ```
 
-### 3. Intelligent Framework Recommendation
+### 3. Mitigation Planning System
 
-**Use Case**: Recommend relevant frameworks based on requirements
+**Use Case**: Develop mitigation strategies for identified risks
 
+**Implementation Example**:
 ```python
-class FrameworkRecommender:
+class MitigationPlanner:
     def __init__(self, mcp_client):
         self.mcp_client = mcp_client
 
-    async def recommend_frameworks(self, requirements):
-        """Recommend frameworks based on requirements"""
+    async def get_mitigation_strategies(self, risk_keywords):
+        """Get relevant mitigation strategies for risks"""
 
-        recommendations = []
+        strategies = []
 
-        # Search across all frameworks
-        for requirement in requirements:
+        for keyword in risk_keywords:
+            # Search for relevant mitigations
             results = await self.mcp_client.call_tool(
-                "search_frameworks",
+                "search_mitigations",
                 {
-                    "query": requirement,
-                    "limit": 10
+                    "query": keyword,
+                    "limit": 3
                 }
             )
 
-            # Analyze results to build recommendations
-            for result in results["results"]:
-                framework_id = result["framework"]
-                score = result["relevance_score"]
+            strategies.extend(results["results"])
 
-                # Update recommendation scores
-                existing = next((r for r in recommendations if r["framework"] == framework_id), None)
-                if existing:
-                    existing["score"] += score
-                    existing["matching_requirements"].append(requirement)
-                else:
-                    recommendations.append({
-                        "framework": framework_id,
-                        "score": score,
-                        "matching_requirements": [requirement]
-                    })
+        return self._deduplicate_strategies(strategies)
 
-        # Sort by score and return top recommendations
-        recommendations.sort(key=lambda x: x["score"], reverse=True)
-        return recommendations[:5]
+    async def get_detailed_mitigation(self, mitigation_id):
+        """Get detailed mitigation implementation guide"""
+
+        return await self.mcp_client.call_tool(
+            "get_mitigation",
+            {"mitigation_id": mitigation_id}
+        )
+```
+
+### 4. System Monitoring
+
+**Use Case**: Monitor MCP server health and performance
+
+**Implementation Example**:
+```python
+class SystemMonitor:
+    def __init__(self, mcp_client):
+        self.mcp_client = mcp_client
+
+    async def check_system_health(self):
+        """Check MCP server health status"""
+
+        health = await self.mcp_client.call_tool("get_service_health", {})
+        cache_stats = await self.mcp_client.call_tool("get_cache_stats", {})
+
+        return {
+            "health": health,
+            "cache_performance": cache_stats,
+            "status": self._evaluate_status(health, cache_stats)
+        }
 ```
 
 ## Performance Optimization
@@ -339,8 +317,6 @@ class FrameworkRecommender:
 
 **Client-Side Caching**:
 ```python
-import asyncio
-from functools import lru_cache
 from datetime import datetime, timedelta
 
 class CachingMCPClient:
@@ -350,7 +326,7 @@ class CachingMCPClient:
         self.cache_ttl = timedelta(minutes=30)
 
     async def call_tool_cached(self, tool_name, arguments, ttl=None):
-        """Call tool with caching"""
+        """Call tool with client-side caching"""
         cache_key = self._generate_cache_key(tool_name, arguments)
 
         # Check cache
@@ -367,23 +343,28 @@ class CachingMCPClient:
         }
 
         return result
+
+    def _generate_cache_key(self, tool_name, arguments):
+        """Generate cache key from tool call"""
+        import json
+        args_str = json.dumps(arguments, sort_keys=True)
+        return f"{tool_name}:{args_str}"
 ```
 
 ### 2. Parallel Processing
 
 **Concurrent Framework Queries**:
 ```python
-async def parallel_framework_analysis(self, frameworks, query):
-    """Analyze multiple frameworks in parallel"""
+import asyncio
+
+async def parallel_framework_search(mcp_client, queries):
+    """Search multiple queries in parallel"""
 
     tasks = []
-    for framework in frameworks:
-        task = self.mcp_client.call_tool(
-            "search_framework_references",
-            {
-                "framework_id": framework,
-                "query": query
-            }
+    for query in queries:
+        task = mcp_client.call_tool(
+            "search_frameworks",
+            {"query": query, "limit": 5}
         )
         tasks.append(task)
 
@@ -394,44 +375,16 @@ async def parallel_framework_analysis(self, frameworks, query):
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             processed_results.append({
-                "framework": frameworks[i],
+                "query": queries[i],
                 "error": str(result)
             })
         else:
             processed_results.append({
-                "framework": frameworks[i],
+                "query": queries[i],
                 "data": result
             })
 
     return processed_results
-```
-
-### 3. Batch Operations
-
-**Bulk Export Processing**:
-```python
-async def bulk_export_optimized(self, export_configs):
-    """Optimized bulk export processing"""
-
-    # Group exports by framework to minimize server load
-    exports_by_framework = {}
-    for config in export_configs:
-        framework = config["framework_id"]
-        if framework not in exports_by_framework:
-            exports_by_framework[framework] = []
-        exports_by_framework[framework].append(config)
-
-    results = []
-
-    # Process each framework's exports together
-    for framework, configs in exports_by_framework.items():
-        batch_result = await self.mcp_client.call_tool(
-            "bulk_export_frameworks",
-            {"exports": configs}
-        )
-        results.append(batch_result)
-
-    return results
 ```
 
 ## Error Handling Best Practices
@@ -455,27 +408,13 @@ class RobustMCPClient:
             try:
                 return await self.mcp_client.call_tool(tool_name, arguments)
 
-            except RateLimitError as e:
-                if attempt < max_retries - 1:
-                    wait_time = e.retry_after if hasattr(e, 'retry_after') else 2 ** attempt
-                    self.logger.warning(f"Rate limited, waiting {wait_time}s")
-                    await asyncio.sleep(wait_time)
-                    continue
-                raise
-
-            except ServiceUnavailableError as e:
-                if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt
-                    self.logger.warning(f"Service unavailable, retrying in {wait_time}s")
-                    await asyncio.sleep(wait_time)
-                    continue
-                raise
-
             except Exception as e:
-                self.logger.error(f"Unexpected error calling {tool_name}: {e}")
+                self.logger.error(f"Error calling {tool_name}: {e}")
                 if attempt == max_retries - 1:
                     raise
-                await asyncio.sleep(1)
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+        return None
 ```
 
 ### 2. Graceful Degradation
@@ -485,31 +424,32 @@ class GracefulFrameworkClient:
     def __init__(self, mcp_client):
         self.mcp_client = mcp_client
 
-    async def get_framework_data_with_fallback(self, framework_id):
+    async def get_framework_with_fallback(self, framework_id):
         """Get framework data with fallback strategies"""
 
         try:
             # Try primary method
             return await self.mcp_client.call_tool(
-                "get_framework_details",
-                {"framework_id": framework_id, "include_references": True}
+                "get_framework",
+                {"framework_id": framework_id}
             )
 
-        except FrameworkUnavailableError:
-            # Fallback to basic details
+        except Exception:
+            # Fallback to framework list
             try:
-                return await self.mcp_client.call_tool(
-                    "get_framework_details",
-                    {"framework_id": framework_id, "include_references": False}
-                )
-            except Exception:
-                # Final fallback to framework list
-                frameworks = await self.mcp_client.call_tool("list_frameworks")
+                frameworks = await self.mcp_client.call_tool("list_frameworks", {})
                 for fw in frameworks["frameworks"]:
                     if fw["id"] == framework_id:
-                        return {"framework": fw, "references": []}
+                        return {
+                            "framework_id": framework_id,
+                            "name": fw["name"],
+                            "description": fw["description"],
+                            "content": "Detailed content unavailable"
+                        }
+            except Exception:
+                pass
 
-                raise FrameworkNotFoundError(f"Framework {framework_id} not available")
+            raise FrameworkNotFoundError(f"Framework {framework_id} not available")
 ```
 
 ## Testing Integration
@@ -527,18 +467,18 @@ class TestFrameworkIntegration:
         return client
 
     @pytest.mark.asyncio
-    async def test_compliance_analysis(self, mock_mcp_client):
+    async def test_framework_search(self, mock_mcp_client):
         # Mock response
         mock_mcp_client.call_tool.return_value = {
-            "analysis_summary": {
-                "overall_compliance_rate": 85.5
-            }
+            "query": "risk",
+            "total_found": 5,
+            "results": []
         }
 
-        monitor = ComplianceMonitor(mock_mcp_client)
-        result = await monitor.assess_compliance()
+        researcher = FrameworkResearcher(mock_mcp_client)
+        result = await researcher.research_topic("risk")
 
-        assert result["compliance_rate"] == 85.5
+        assert "search_results" in result
         mock_mcp_client.call_tool.assert_called_once()
 ```
 
@@ -555,9 +495,8 @@ class TestLiveIntegration:
             {"query": "risk management", "limit": 5}
         )
 
-        assert result["total_results"] > 0
+        assert result["total_found"] > 0
         assert len(result["results"]) <= 5
-        assert all("relevance_score" in r for r in result["results"])
 ```
 
 ## Production Deployment
@@ -568,46 +507,74 @@ class TestLiveIntegration:
 class ProductionMCPClient:
     def __init__(self, config):
         self.config = config
-        self.connection_pool = ConnectionPool(
-            max_connections=config.max_connections,
-            timeout=config.timeout
-        )
 
     async def __aenter__(self):
-        await self.connection_pool.start()
+        # Initialize connection
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.connection_pool.close()
+        # Clean up resources
+        pass
 ```
 
 ### 2. Monitoring and Metrics
 
 ```python
 import time
-import metrics
 
 class MonitoredMCPClient:
     def __init__(self, mcp_client):
         self.mcp_client = mcp_client
-        self.metrics = metrics.get_client()
 
     async def call_tool(self, tool_name, arguments):
         start_time = time.time()
 
         try:
             result = await self.mcp_client.call_tool(tool_name, arguments)
-            self.metrics.increment(f"mcp.tool.{tool_name}.success")
+            duration = time.time() - start_time
+            self._log_success(tool_name, duration)
             return result
 
         except Exception as e:
-            self.metrics.increment(f"mcp.tool.{tool_name}.error")
-            self.metrics.increment(f"mcp.error.{type(e).__name__}")
+            duration = time.time() - start_time
+            self._log_error(tool_name, duration, e)
             raise
 
-        finally:
-            duration = time.time() - start_time
-            self.metrics.timing(f"mcp.tool.{tool_name}.duration", duration)
+    def _log_success(self, tool_name, duration):
+        print(f"Tool {tool_name} succeeded in {duration:.2f}s")
+
+    def _log_error(self, tool_name, duration, error):
+        print(f"Tool {tool_name} failed after {duration:.2f}s: {error}")
 ```
 
-This comprehensive integration guide provides the foundation for building robust applications that leverage the FINOS MCP Server's governance framework capabilities.
+## Best Practices
+
+1. **Use Appropriate Tools**: Choose the right tool for your use case (list vs search vs get)
+2. **Implement Caching**: Cache frequently accessed framework content client-side
+3. **Handle Errors Gracefully**: Implement retry logic and fallback strategies
+4. **Monitor Performance**: Track tool call performance and cache hit rates
+5. **Test Thoroughly**: Write unit and integration tests for your integration
+6. **Follow MCP Protocol**: Adhere to MCP 2025-06-18 specification
+
+## Common Use Cases
+
+### Research Workflow
+1. `list_frameworks()` - See available frameworks
+2. `search_frameworks("topic")` - Find relevant content
+3. `get_framework("id")` - Get complete framework
+
+### Risk Assessment Workflow
+1. `list_risks()` - Browse all risks
+2. `search_risks("keyword")` - Find specific risks
+3. `get_risk("id")` - Get detailed risk information
+
+### Mitigation Planning Workflow
+1. `list_mitigations()` - Browse all mitigations
+2. `search_mitigations("keyword")` - Find relevant mitigations
+3. `get_mitigation("id")` - Get detailed mitigation strategies
+
+### System Monitoring Workflow
+1. `get_service_health()` - Check system status
+2. `get_cache_stats()` - Monitor cache performance
+
+This comprehensive integration guide provides the foundation for building robust applications that leverage the FINOS MCP Server's 11 governance framework tools.

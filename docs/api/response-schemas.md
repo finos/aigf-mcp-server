@@ -1,12 +1,12 @@
 # Response Schemas
 
-Detailed schemas and examples for all MCP tool responses in the FINOS AI Governance Framework server.
+Detailed schemas and examples for all 11 MCP tool responses in the FINOS AI Governance Framework server.
 
 ## Common Response Elements
 
 ### Base Response Structure
 
-All successful tool responses follow the MCP protocol structure:
+All successful tool responses follow the MCP protocol structure with Pydantic models:
 
 ```json
 {
@@ -31,447 +31,409 @@ All successful tool responses follow the MCP protocol structure:
 }
 ```
 
-## Framework Tool Responses
+## Framework Access Tools (5 tools)
 
-### search_frameworks Response
+### 1. list_frameworks Response
 
+Lists all available AI governance frameworks.
+
+**Response Schema**:
+```json
+{
+  "total_count": 7,
+  "frameworks": [
+    {
+      "id": "nist-ai-600-1",
+      "name": "NIST AI Risk Management Framework",
+      "description": "NIST's framework for managing AI risks"
+    },
+    {
+      "id": "eu-ai-act",
+      "name": "EU Artificial Intelligence Act",
+      "description": "European Union's comprehensive AI regulation"
+    },
+    {
+      "id": "iso-42001",
+      "name": "ISO 42001 - AI Management Systems",
+      "description": "International standard for AI management systems"
+    }
+  ]
+}
+```
+
+**Field Descriptions**:
+- `total_count` (integer): Total number of frameworks available
+- `frameworks` (array): List of framework objects
+  - `id` (string): Framework identifier for use with get_framework
+  - `name` (string): Human-readable framework name
+  - `description` (string): Brief description of the framework
+
+---
+
+### 2. get_framework Response
+
+Gets complete content of a specific framework.
+
+**Response Schema**:
+```json
+{
+  "framework_id": "nist-ai-600-1",
+  "sections": [
+    "Introduction",
+    "Core Principles",
+    "Implementation Guidance",
+    "References"
+  ],
+  "content": "# NIST AI Risk Management Framework\n\n## Introduction\n\nThe NIST AI RMF provides guidance for managing AI risks..."
+}
+```
+
+**Field Descriptions**:
+- `framework_id` (string): The framework identifier
+- `sections` (array of strings): List of section titles in the framework
+- `content` (string): Complete framework content in markdown format
+
+**Example**:
+```python
+# Request
+mcp_client.call_tool("get_framework", {"framework_id": "nist-ai-600-1"})
+
+# Response includes full framework content with all sections
+```
+
+---
+
+### 3. search_frameworks Response
+
+Searches for text within framework documents.
+
+**Response Schema**:
 ```json
 {
   "query": "risk management",
-  "total_results": 15,
-  "frameworks_searched": ["nist_ai_rmf", "eu_ai_act", "owasp_llm"],
-  "search_metadata": {
-    "execution_time_ms": 245,
-    "cache_hit": true,
-    "relevance_threshold": 0.5
-  },
+  "total_found": 15,
   "results": [
     {
-      "framework": "nist_ai_rmf",
-      "reference_id": "ai-rmf-1.1",
-      "title": "Risk Management Framework",
-      "content": "Establish and implement a comprehensive AI risk management framework...",
-      "relevance_score": 0.92,
-      "severity": "high",
-      "compliance_status": "compliant",
-      "category": "governance",
-      "highlights": [
-        "Risk management framework implementation",
-        "AI system risk assessment procedures"
-      ],
-      "related_controls": ["ai-rmf-1.2", "ai-rmf-2.1"]
-    }
-  ]
-}
-```
-
-### list_frameworks Response
-
-```json
-{
-  "total_frameworks": 7,
-  "active_frameworks": 4,
-  "modeled_frameworks": 3,
-  "last_updated": "2024-01-15T10:30:00Z",
-  "frameworks": [
-    {
-      "id": "nist_ai_rmf",
-      "name": "NIST AI Risk Management Framework",
-      "description": "NIST's framework for managing AI risks",
-      "type": "active",
-      "status": "production",
-      "version": "1.0",
-      "last_updated": "2024-01-15T08:00:00Z",
-      "reference_count": 30,
-      "compliance_coverage": 85.5,
-      "categories": ["governance", "risk_management", "trustworthy_ai"],
-      "source": "official_api",
-      "health_status": "healthy"
+      "framework_id": "nist-ai-600-1",
+      "section": "Core Principles",
+      "content": "...establishing a comprehensive risk management framework for AI systems..."
     },
     {
-      "id": "eu_ai_act",
-      "name": "EU Artificial Intelligence Act",
-      "description": "European Union's comprehensive AI regulation",
-      "type": "active",
-      "status": "production",
-      "version": "2024.1",
-      "last_updated": "2024-01-14T15:30:00Z",
-      "reference_count": 42,
-      "compliance_coverage": 92.1,
-      "categories": ["regulation", "compliance", "risk_assessment"],
-      "source": "official_api",
-      "health_status": "healthy"
+      "framework_id": "eu-ai-act",
+      "section": "Risk Assessment",
+      "content": "...AI systems shall implement risk management procedures..."
     }
   ]
 }
 ```
 
-### get_framework_details Response
+**Field Descriptions**:
+- `query` (string): The search query that was executed
+- `total_found` (integer): Total number of matching results
+- `results` (array): List of search result objects
+  - `framework_id` (string): Framework where match was found
+  - `section` (string): Section title containing the match
+  - `content` (string): Content snippet with matching text
 
+**Example**:
+```python
+# Request
+mcp_client.call_tool("search_frameworks", {
+    "query": "data protection",
+    "limit": 5
+})
+
+# Returns up to 5 matching results across all frameworks
+```
+
+---
+
+### 4. list_risks Response
+
+Lists all available risk documents.
+
+**Response Schema**:
 ```json
 {
-  "framework": {
-    "id": "nist_ai_rmf",
-    "name": "NIST AI Risk Management Framework",
-    "description": "Comprehensive framework for managing AI risks in organizational contexts",
-    "version": "1.0",
-    "status": "active",
-    "type": "governance_framework",
-    "publisher": "National Institute of Standards and Technology",
-    "publication_date": "2023-01-26",
-    "last_updated": "2024-01-15T08:00:00Z",
-    "categories": ["governance", "risk_management", "trustworthy_ai"],
-    "scope": "Applies to all AI systems and applications",
-    "jurisdiction": "United States (Global applicability)",
-    "total_references": 30,
-    "compliance_metrics": {
-      "total_controls": 30,
-      "assessed_controls": 28,
-      "compliant_controls": 24,
-      "compliance_rate": 85.7,
-      "last_assessment": "2024-01-10T12:00:00Z"
+  "total_count": 17,
+  "source": "github_api",
+  "documents": [
+    {
+      "id": "01_model-inversion",
+      "name": "Model Inversion Attacks"
     },
-    "statistics": {
-      "high_severity_controls": 8,
-      "medium_severity_controls": 15,
-      "low_severity_controls": 7,
-      "average_implementation_effort": "medium"
-    }
-  },
-  "references": [
     {
-      "id": "ai-rmf-1.1",
-      "title": "Establish AI Risk Management Culture",
-      "category": "governance",
-      "severity": "high",
-      "compliance_status": "compliant",
-      "content_preview": "Organizations shall establish and maintain a culture of AI risk management...",
-      "implementation_guidance": "Develop organizational policies and procedures...",
-      "related_controls": ["ai-rmf-1.2", "ai-rmf-2.1"],
-      "tags": ["culture", "governance", "risk_management"]
+      "id": "02_data-poisoning",
+      "name": "Data Poisoning"
+    },
+    {
+      "id": "10_prompt-injection",
+      "name": "Prompt Injection"
     }
   ]
 }
 ```
 
-### get_compliance_analysis Response
+**Field Descriptions**:
+- `total_count` (integer): Total number of risk documents available
+- `source` (string): Data source ("github_api" or "static_fallback")
+- `documents` (array): List of risk document objects
+  - `id` (string): Risk identifier for use with get_risk
+  - `name` (string): Human-readable risk name
 
+---
+
+### 5. get_risk Response
+
+Gets complete content of a specific risk document.
+
+**Response Schema**:
 ```json
 {
-  "analysis_summary": {
-    "frameworks_analyzed": 4,
-    "total_requirements": 125,
-    "assessed_requirements": 115,
-    "overall_compliance_rate": 78.5,
-    "critical_gaps": 5,
-    "analysis_date": "2024-01-15T14:30:00Z"
-  },
-  "framework_compliance": [
-    {
-      "framework": "nist_ai_rmf",
-      "framework_name": "NIST AI Risk Management Framework",
-      "compliance_rate": 85.7,
-      "compliant_controls": 24,
-      "non_compliant_controls": 4,
-      "partially_compliant_controls": 2,
-      "total_controls": 30,
-      "status": "good",
-      "gaps": [
-        {
-          "control_id": "ai-rmf-3.2",
-          "title": "Continuous Monitoring",
-          "gap_type": "implementation",
-          "severity": "medium",
-          "description": "Automated monitoring system not fully implemented"
-        }
-      ],
-      "strengths": [
-        "Strong governance framework",
-        "Comprehensive risk assessment procedures"
-      ]
-    }
+  "document_id": "01_model-inversion",
+  "title": "Model Inversion Attacks",
+  "sections": [
+    "Description",
+    "Attack Vectors",
+    "Impact Assessment",
+    "Mitigation Strategies"
   ],
-  "cross_framework_gaps": [
-    {
-      "gap_type": "coverage",
-      "description": "GDPR data protection requirements not fully covered by NIST framework",
-      "affected_frameworks": ["nist_ai_rmf", "gdpr"],
-      "severity": "high",
-      "recommendation": "Implement additional data protection controls"
-    }
-  ],
-  "recommendations": [
-    {
-      "priority": "high",
-      "category": "implementation",
-      "description": "Implement automated compliance monitoring",
-      "affected_frameworks": ["nist_ai_rmf", "eu_ai_act"],
-      "estimated_effort": "medium"
-    }
-  ]
+  "content": "# Model Inversion Attacks\n\n## Description\n\nModel inversion attacks occur when..."
 }
 ```
 
-### get_related_controls Response
+**Field Descriptions**:
+- `document_id` (string): The risk document identifier
+- `title` (string): Risk document title
+- `sections` (array of strings): List of section titles
+- `content` (string): Complete risk document content in markdown format
 
+---
+
+## Risk & Mitigation Tools (4 tools)
+
+### 6. search_risks Response
+
+Searches within risk documentation.
+
+**Response Schema**:
 ```json
 {
-  "source_control": {
-    "id": "ai-rmf-1.1",
-    "framework": "nist_ai_rmf",
-    "title": "Establish AI Risk Management Culture",
-    "description": "Organizations shall establish and maintain a culture of AI risk management",
-    "category": "governance",
-    "severity": "high"
-  },
-  "related_controls": [
-    {
-      "control_id": "art-5",
-      "framework": "eu_ai_act",
-      "framework_name": "EU AI Act",
-      "title": "General-Purpose AI Systems",
-      "relationship_strength": "strong",
-      "relationship_type": "equivalent",
-      "confidence_score": 0.87,
-      "similarity_factors": [
-        "Governance requirements",
-        "Risk management culture",
-        "Organizational responsibility"
-      ]
-    },
-    {
-      "control_id": "llm-gov-01",
-      "framework": "owasp_llm",
-      "framework_name": "OWASP LLM Top 10",
-      "title": "LLM01: Prompt Injection",
-      "relationship_strength": "moderate",
-      "relationship_type": "related",
-      "confidence_score": 0.65,
-      "similarity_factors": [
-        "Risk awareness",
-        "Security governance"
-      ]
-    }
-  ],
-  "mapping_confidence": 0.78,
-  "total_related_controls": 2,
-  "mapping_metadata": {
-    "algorithm_version": "1.2",
-    "last_updated": "2024-01-15T10:00:00Z"
-  }
-}
-```
-
-### export_framework_data Response
-
-```json
-{
-  "export_metadata": {
-    "framework_id": "nist_ai_rmf",
-    "format": "json",
-    "export_date": "2024-01-15T15:45:00Z",
-    "total_records": 30,
-    "file_size_bytes": 245760,
-    "filters_applied": {
-      "categories": ["governance", "risk_management"],
-      "severity": ["high", "medium"]
-    }
-  },
-  "data": {
-    "framework_info": {
-      "id": "nist_ai_rmf",
-      "name": "NIST AI Risk Management Framework",
-      "version": "1.0",
-      "export_timestamp": "2024-01-15T15:45:00Z"
-    },
-    "references": [
-      {
-        "id": "ai-rmf-1.1",
-        "title": "Establish AI Risk Management Culture",
-        "content": "Full content text...",
-        "category": "governance",
-        "severity": "high",
-        "compliance_status": "compliant",
-        "metadata": {
-          "created_date": "2023-01-26",
-          "last_reviewed": "2024-01-10",
-          "tags": ["culture", "governance"]
-        }
-      }
-    ]
-  }
-}
-```
-
-## FINOS Tool Responses
-
-### search_mitigations Response
-
-```json
-{
-  "query": "data privacy",
-  "total_results": 5,
+  "query": "injection",
+  "total_found": 3,
   "results": [
     {
-      "mitigation_id": "mi-1",
-      "title": "Data Leakage Prevention",
-      "description": "Implement comprehensive data leakage prevention measures",
-      "category": "data_protection",
-      "relevance_score": 0.95,
-      "tags": ["data_privacy", "leakage_prevention", "security"]
-    }
-  ],
-  "search_metadata": {
-    "execution_time_ms": 45,
-    "source": "finos_content"
-  }
-}
-```
-
-### get_mitigation_details Response
-
-```json
-{
-  "mitigation": {
-    "id": "mi-1",
-    "title": "Data Leakage Prevention",
-    "description": "Comprehensive data leakage prevention strategy",
-    "category": "data_protection",
-    "severity": "high",
-    "implementation_complexity": "medium",
-    "content": {
-      "overview": "Full mitigation content...",
-      "implementation_steps": [
-        "Step 1: Assess current data flows",
-        "Step 2: Implement monitoring"
-      ],
-      "best_practices": ["Practice 1", "Practice 2"],
-      "tools_required": ["DLP software", "Monitoring tools"]
+      "framework_id": "10_prompt-injection",
+      "section": "Prompt Injection",
+      "content": "...prompt injection attacks allow malicious users to manipulate..."
     },
-    "related_risks": ["ri-1", "ri-3"],
-    "metadata": {
-      "created_date": "2023-06-15",
-      "last_updated": "2024-01-10",
-      "source": "finos_ai_governance"
-    }
-  }
-}
-```
-
-### list_all_mitigations Response
-
-```json
-{
-  "total_mitigations": 25,
-  "categories": [
-    {"name": "data_protection", "count": 8},
-    {"name": "model_security", "count": 7},
-    {"name": "governance", "count": 10}
-  ],
-  "mitigations": [
     {
-      "id": "mi-1",
-      "title": "Data Leakage Prevention",
-      "category": "data_protection",
-      "severity": "high",
-      "description_preview": "Implement comprehensive data leakage prevention measures..."
+      "framework_id": "11_sql-injection",
+      "section": "SQL Injection Risks",
+      "content": "...SQL injection in AI data pipelines can compromise..."
     }
   ]
 }
 ```
 
-## System Tool Responses
+**Field Descriptions**:
+- `query` (string): The search query executed
+- `total_found` (integer): Total number of matching results
+- `results` (array): List of search result objects
+  - `framework_id` (string): Risk ID where match was found
+  - `section` (string): Risk name/title
+  - `content` (string): Content snippet with matching text
 
-### get_service_health Response
+---
 
+### 7. list_mitigations Response
+
+Lists all available mitigation documents.
+
+**Response Schema**:
 ```json
 {
-  "overall_status": "healthy",
-  "uptime_seconds": 3456789,
-  "uptime_human": "40 days, 1 hour, 33 minutes",
-  "last_health_check": "2024-01-15T16:00:00Z",
-  "services": {
-    "content_service": {
-      "status": "healthy",
-      "last_check": "2024-01-15T16:00:00Z",
-      "response_time_ms": 15,
-      "error_count": 0
-    },
-    "framework_service": {
-      "status": "healthy",
-      "last_check": "2024-01-15T16:00:00Z",
-      "response_time_ms": 25,
-      "frameworks_loaded": 7
-    },
-    "cache_service": {
-      "status": "healthy",
-      "last_check": "2024-01-15T16:00:00Z",
-      "hit_rate": 0.96,
-      "memory_usage_mb": 245
-    }
-  },
-  "performance_metrics": {
-    "avg_response_time_ms": 120,
-    "requests_per_minute": 45,
-    "error_rate": 0.002,
-    "memory_usage_mb": 445,
-    "cpu_usage_percent": 12.5
-  },
-  "health_checks": [
+  "total_count": 17,
+  "source": "github_api",
+  "documents": [
     {
-      "name": "database_connectivity",
-      "status": "pass",
-      "duration_ms": 5
+      "id": "01_data-encryption",
+      "name": "Data Encryption"
     },
     {
-      "name": "external_api_connectivity",
-      "status": "pass",
-      "duration_ms": 150
+      "id": "02_access-controls",
+      "name": "Access Controls"
+    },
+    {
+      "id": "10_ai-model-version-pinning",
+      "name": "AI Model Version Pinning"
     }
   ]
 }
 ```
 
-### get_cache_stats Response
+**Field Descriptions**:
+- `total_count` (integer): Total number of mitigation documents available
+- `source` (string): Data source ("github_api" or "static_fallback")
+- `documents` (array): List of mitigation document objects
+  - `id` (string): Mitigation identifier for use with get_mitigation
+  - `name` (string): Human-readable mitigation name
 
+---
+
+### 8. get_mitigation Response
+
+Gets complete content of a specific mitigation document.
+
+**Response Schema**:
 ```json
 {
-  "cache_performance": {
-    "total_requests": 10450,
-    "cache_hits": 9932,
-    "cache_misses": 518,
-    "hit_rate": 0.9504,
-    "avg_lookup_time_ms": 2.3
-  },
-  "memory_usage": {
-    "total_allocated_mb": 245,
-    "used_mb": 198,
-    "available_mb": 47,
-    "utilization_percent": 80.8
-  },
-  "cache_categories": {
-    "framework_data": {
-      "size_mb": 125,
-      "items": 45,
-      "hit_rate": 0.98
-    },
-    "query_results": {
-      "size_mb": 73,
-      "items": 234,
-      "hit_rate": 0.92
-    }
-  },
-  "eviction_stats": {
-    "total_evictions": 15,
-    "eviction_policy": "LRU",
-    "last_eviction": "2024-01-15T14:30:00Z"
-  }
+  "document_id": "01_data-encryption",
+  "title": "Data Encryption",
+  "sections": [
+    "Overview",
+    "Implementation Steps",
+    "Best Practices",
+    "Tools and Technologies"
+  ],
+  "content": "# Data Encryption\n\n## Overview\n\nData encryption is a fundamental mitigation..."
 }
 ```
+
+**Field Descriptions**:
+- `document_id` (string): The mitigation document identifier
+- `title` (string): Mitigation document title
+- `sections` (array of strings): List of section titles
+- `content` (string): Complete mitigation document content in markdown format
+
+---
+
+### 9. search_mitigations Response
+
+Searches within mitigation documentation.
+
+**Response Schema**:
+```json
+{
+  "query": "encryption",
+  "total_found": 5,
+  "results": [
+    {
+      "framework_id": "01_data-encryption",
+      "section": "Data Encryption",
+      "content": "...implement strong encryption algorithms for data at rest..."
+    },
+    {
+      "framework_id": "05_model-encryption",
+      "section": "Model Encryption",
+      "content": "...encrypt AI model weights and parameters during storage..."
+    }
+  ]
+}
+```
+
+**Field Descriptions**:
+- `query` (string): The search query executed
+- `total_found` (integer): Total number of matching results
+- `results` (array): List of search result objects
+  - `framework_id` (string): Mitigation ID where match was found
+  - `section` (string): Mitigation name/title
+  - `content` (string): Content snippet with matching text
+
+---
+
+## System Monitoring Tools (2 tools)
+
+### 10. get_service_health Response
+
+Gets service health status and metrics.
+
+**Response Schema**:
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "uptime_seconds": 345678,
+  "healthy_services": 5,
+  "total_services": 5
+}
+```
+
+**Field Descriptions**:
+- `status` (string): Overall health status ("healthy", "degraded", "unhealthy")
+- `version` (string): MCP server version
+- `uptime_seconds` (number): Server uptime in seconds
+- `healthy_services` (integer): Number of healthy service components
+- `total_services` (integer): Total number of service components
+
+**Status Values**:
+- `healthy`: All services operational
+- `degraded`: Some services have issues but core functionality works
+- `unhealthy`: Critical services are down
+
+**Example**:
+```python
+# Request
+mcp_client.call_tool("get_service_health", {})
+
+# Response
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "uptime_seconds": 3600,
+  "healthy_services": 5,
+  "total_services": 5
+}
+```
+
+---
+
+### 11. get_cache_stats Response
+
+Gets cache performance statistics.
+
+**Response Schema**:
+```json
+{
+  "total_requests": 10450,
+  "cache_hits": 9932,
+  "cache_misses": 518,
+  "hit_rate": 0.9504
+}
+```
+
+**Field Descriptions**:
+- `total_requests` (integer): Total number of cache requests processed
+- `cache_hits` (integer): Number of successful cache hits
+- `cache_misses` (integer): Number of cache misses (data not in cache)
+- `hit_rate` (number): Cache hit rate as decimal (0.0 to 1.0)
+
+**Performance Metrics**:
+- Hit rate > 0.90: Excellent cache performance
+- Hit rate 0.75-0.90: Good cache performance
+- Hit rate < 0.75: Consider reviewing cache strategy
+
+**Example**:
+```python
+# Request
+mcp_client.call_tool("get_cache_stats", {})
+
+# Response
+{
+  "total_requests": 1000,
+  "cache_hits": 950,
+  "cache_misses": 50,
+  "hit_rate": 0.95  # 95% hit rate
+}
+```
+
+---
 
 ## Error Response Examples
 
 ### Validation Error
+
+Returned when input parameters are invalid.
 
 ```json
 {
@@ -481,30 +443,23 @@ All successful tool responses follow the MCP protocol structure:
     "details": {
       "field": "framework_id",
       "value": "invalid_framework",
-      "allowed_values": ["nist_ai_rmf", "eu_ai_act", "owasp_llm", "gdpr"]
+      "expected": "Valid framework ID from list_frameworks"
     }
   }
 }
 ```
 
-### Rate Limit Error
+**Common Validation Errors**:
+- Invalid framework_id in get_framework
+- Invalid risk_id in get_risk
+- Invalid mitigation_id in get_mitigation
+- Invalid limit parameter (must be 1-50)
 
-```json
-{
-  "error": {
-    "code": "RATE_LIMITED",
-    "message": "Request rate limit exceeded",
-    "details": {
-      "limit": 50,
-      "window_seconds": 60,
-      "retry_after": 45,
-      "remaining_requests": 0
-    }
-  }
-}
-```
+---
 
 ### Resource Not Found
+
+Returned when requested resource doesn't exist.
 
 ```json
 {
@@ -520,52 +475,137 @@ All successful tool responses follow the MCP protocol structure:
 }
 ```
 
+**Common Not Found Scenarios**:
+- Framework ID doesn't exist
+- Risk ID doesn't exist
+- Mitigation ID doesn't exist
+
+---
+
 ### Service Unavailable
+
+Returned when service is temporarily unavailable.
 
 ```json
 {
   "error": {
     "code": "SERVICE_UNAVAILABLE",
-    "message": "Framework service temporarily unavailable",
+    "message": "Content service temporarily unavailable",
     "details": {
-      "service": "framework_loader",
+      "service": "github_content_loader",
       "retry_after": 30,
-      "estimated_recovery": "2024-01-15T16:30:00Z"
+      "fallback_available": true
     }
   }
 }
 ```
 
-## Response Headers
+**Recovery Actions**:
+- Wait and retry after specified seconds
+- System may fall back to static content
+- Check get_service_health for status
 
-### Standard Headers
+---
 
-All responses include these headers:
-- `Content-Type: application/json`
-- `X-Request-ID: <correlation_id>`
-- `X-Response-Time: <milliseconds>`
+## Response Patterns
 
-### Rate Limiting Headers
+### Pagination
 
-- `X-RateLimit-Limit: 50`
-- `X-RateLimit-Remaining: 45`
-- `X-RateLimit-Reset: 1642262400`
-- `X-RateLimit-Window: 60`
+Search tools support limit parameter for result pagination:
 
-### Caching Headers
+```python
+# Get first 5 results
+search_frameworks("query", limit=5)
 
-- `X-Cache-Status: hit|miss`
-- `X-Cache-TTL: 3600`
-- `X-Content-Source: cache|live`
+# Get next 5 results (requires offset parameter in future versions)
+search_frameworks("query", limit=5, offset=5)
+```
+
+**Current Limitations**:
+- Offset parameter not yet implemented
+- Maximum limit: 50 results per query
+- Default limit: 5 results
+
+### Content Format
+
+All content is returned in markdown format for easy rendering:
+
+```python
+# Framework content example
+{
+  "content": "# Framework Title\n\n## Section 1\n\nContent here..."
+}
+```
+
+**Markdown Features Used**:
+- Headers (# ## ###)
+- Lists (ordered and unordered)
+- Code blocks
+- Links
+- Emphasis (bold/italic)
+
+### Caching Behavior
+
+The server implements intelligent caching:
+
+- Framework content: Cached for 1 hour
+- Risk/mitigation lists: Cached for 30 minutes
+- Search results: Cached for 15 minutes
+- Health status: Not cached (live data)
+
+**Cache Control**:
+- Client cannot control cache directly
+- Use get_cache_stats to monitor cache performance
+- Cache automatically invalidated on server restart
+
+---
 
 ## Response Size Limits
 
-| Response Type | Maximum Size | Typical Size |
-|---------------|--------------|--------------|
-| Simple Query | 1MB | 50KB |
-| Framework Details | 5MB | 500KB |
-| Export Data | 50MB | 10MB |
-| Health Status | 100KB | 10KB |
-| Error Response | 10KB | 1KB |
+| Tool | Typical Size | Maximum Size |
+|------|-------------|--------------|
+| list_frameworks | 2KB | 10KB |
+| get_framework | 50-500KB | 5MB |
+| search_frameworks | 5-50KB | 500KB |
+| list_risks | 2KB | 10KB |
+| get_risk | 10-100KB | 1MB |
+| search_risks | 5-50KB | 500KB |
+| list_mitigations | 2KB | 10KB |
+| get_mitigation | 10-100KB | 1MB |
+| search_mitigations | 5-50KB | 500KB |
+| get_service_health | 1KB | 5KB |
+| get_cache_stats | 500B | 2KB |
 
-Large responses are automatically paginated or streamed when possible.
+**Note**: Large responses are automatically formatted for optimal display in MCP clients.
+
+---
+
+## Response Performance
+
+### Expected Response Times
+
+| Tool Category | Cached | Uncached (GitHub API) |
+|---------------|--------|----------------------|
+| List operations | <10ms | 100-500ms |
+| Get operations | <50ms | 500-2000ms |
+| Search operations | 10-100ms | 200-1000ms |
+| System operations | <5ms | N/A (not cached) |
+
+**Optimization Tips**:
+- Use list operations before get operations
+- Implement client-side caching for frequently accessed content
+- Monitor cache performance with get_cache_stats
+- Batch related queries when possible
+
+---
+
+## Tool Response Consistency
+
+All 11 tools follow consistent response patterns:
+
+1. **Structured Output**: Pydantic models ensure type safety
+2. **Error Handling**: Consistent error format across all tools
+3. **Content Format**: Markdown for all document content
+4. **Metadata**: Consistent field naming and types
+
+This consistency makes integration easier and more predictable across all MCP clients.
