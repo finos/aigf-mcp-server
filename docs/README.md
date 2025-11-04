@@ -78,59 +78,47 @@ This server works with any MCP-compatible client. See [MCP Client Directory](htt
 
 ## 🛠️ What You Get
 
-**21 Tools** for governance framework access:
+**11 MCP Tools** for AI governance framework access:
 
 | Tool | What it does | Example |
 |------|--------------|---------|
-| **Framework Tools** | | |
-| `search_frameworks` | Cross-framework search | "risk management" |
-| `list_frameworks` | Show supported frameworks | Browse available frameworks |
-| `get_framework_details` | Get framework information | Get "nist-ai-rmf" details |
-| `get_compliance_analysis` | Compliance metrics | Framework coverage analysis |
-| `search_framework_references` | Framework-specific search | "injection" in OWASP |
-| **Cross-Framework Navigation** | | |
-| `get_related_controls` | Find equivalent controls | Map NIST control to EU AI Act |
-| `get_framework_correlations` | Analyze framework relationships | NIST ↔ EU AI Act correlations |
-| `find_compliance_gaps` | Identify compliance gaps | Gap analysis for multiple frameworks |
-| **Advanced Search & Export** | | |
-| `advanced_search_frameworks` | Advanced multi-criteria search | Complex filtering across frameworks |
-| `export_framework_data` | Export framework data | JSON/CSV/Markdown export |
-| `bulk_export_frameworks` | Bulk export operations | Multiple framework datasets |
-| **FINOS Tools** | | |
-| `search_mitigations` | Find governance strategies | "data privacy protection" |
-| `search_risks` | Find AI risks | "prompt injection" |
-| `get_mitigation_details` | Get full mitigation (mi-1 to mi-17) | Get mitigation "mi-1" |
-| `get_risk_details` | Get full risk assessment (ri-1, ri-2, etc.) | Get risk "ri-2" |
-| `list_all_mitigations` | Show all 17 mitigations | Browse all available |
-| `list_all_risks` | Show all 17 risks | Browse all available |
-| **System Tools** | | |
-| `get_service_health` | Check if server is working | Service status |
-| `get_service_metrics` | Performance statistics | How fast is it? |
-| `get_cache_stats` | Cache performance | Memory usage |
-| `reset_service_health` | Reset error counters | Clear errors |
+| **Framework Access Tools (5)** | | |
+| `list_frameworks` | List all available AI governance frameworks | Browse supported frameworks (NIST, EU AI Act, ISO 42001, etc.) |
+| `get_framework` | Get complete content of a specific framework | Retrieve complete framework document |
+| `search_frameworks` | Search for text within framework documents | Find "risk management" across frameworks |
+| `list_risks` | List all available risk documents | Get overview of AI governance risks |
+| `get_risk` | Get complete content of specific risk documents | Retrieve detailed risk documentation |
+| **Risk & Mitigation Tools (4)** | | |
+| `search_risks` | Search within risk documentation | Find specific risks by keyword |
+| `list_mitigations` | List all available mitigation documents | Get overview of mitigation strategies |
+| `get_mitigation` | Get complete content of mitigation documents | Retrieve detailed mitigation strategies |
+| `search_mitigations` | Search within mitigation documentation | Find specific mitigations by keyword |
+| **System Monitoring Tools (2)** | | |
+| `get_service_health` | Get service health status and metrics | Monitor system availability |
+| `get_cache_stats` | Get cache performance statistics | Monitor cache efficiency |
 
 ---
 
 ## 💡 Common Use Cases
 
-### "I need framework compliance guidance"
-1. Ask your AI assistant: *"List all supported governance frameworks"*
-2. Search across frameworks: *"Search frameworks for 'data protection'"*
-3. Get detailed analysis: *"Get compliance analysis for my requirements"*
+### Framework Research
+1. *"List all supported governance frameworks"* → Uses `list_frameworks`
+2. *"Search frameworks for 'risk management'"* → Uses `search_frameworks`
+3. *"Get the EU AI Act framework content"* → Uses `get_framework`
 
-### "I'm researching specific governance areas"
-1. Cross-framework search: *"Search frameworks for 'risk management'"*
-2. Framework-specific: *"Search NIST AI RMF for 'testing'"*
-3. Get framework details: *"Get framework details for eu-ai-act"*
+### Risk Management
+1. *"List all AI governance risks"* → Uses `list_risks`
+2. *"Search risks for 'prompt injection'"* → Uses `search_risks`
+3. *"Get details on model-inversion risk"* → Uses `get_risk`
 
-### "I need legacy FINOS content"
-1. Search mitigations: *"Search for data privacy mitigations"*
-2. Get specific details: *"Show me mitigation mi-1"*
-3. Find related risks: *"Find prompt injection risks"*
+### Mitigation Planning
+1. *"List all available mitigations"* → Uses `list_mitigations`
+2. *"Search for data privacy mitigations"* → Uses `search_mitigations`
+3. *"Get details on data-encryption mitigation"* → Uses `get_mitigation`
 
-### "I need a governance overview"
-1. Browse frameworks: *"List all frameworks and their coverage"*
-2. Analyze compliance: *"Get compliance analysis across all frameworks"*
+### System Monitoring
+1. *"Check service health"* → Uses `get_service_health`
+2. *"Show cache performance"* → Uses `get_cache_stats`
 
 ---
 
@@ -169,7 +157,7 @@ export FINOS_MCP_LOG_LEVEL=INFO
 
 ## 📚 More Information
 
-- **[Tools Reference](tools-reference.md)** - Complete guide to all 15 tools
+- **[Tools Reference](tools-reference.md)** - Complete guide to all 11 tools
 - **[Troubleshooting](troubleshooting.md)** - Fix common issues
 
 ## 🆘 Need Help?
