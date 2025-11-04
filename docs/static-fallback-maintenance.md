@@ -34,7 +34,7 @@ cat static_fallback_lists.py
 ```
 
 Check that:
-- File counts are reasonable (23 risks, 23 mitigations, 7 frameworks)
+- File counts are reasonable (17 risks, 17 mitigations, 5 frameworks)
 - Filenames follow the pattern: `ri-N_description.md`, `mi-N_description.md`, `framework.yml`
 - No suspicious or malicious filenames
 

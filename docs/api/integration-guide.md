@@ -65,7 +65,7 @@ Start with a simple framework listing:
 # Usage
 mcp_client.call_tool("list_frameworks", {})
 
-# Returns: 7 frameworks with IDs, names, descriptions
+# Returns: 5 frameworks with IDs, names, descriptions
 ```
 
 **2. get_framework** - Get complete content of a specific framework

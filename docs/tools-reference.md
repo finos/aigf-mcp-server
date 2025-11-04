@@ -7,7 +7,7 @@ Quick reference for all 11 available MCP tools organized in 3 categories.
 ### `list_frameworks`
 **Purpose**: List all supported AI governance frameworks
 **Usage**: `list_frameworks()`
-**Returns**: Structured list of 7 frameworks with descriptions
+**Returns**: Structured list of 5 frameworks with descriptions
 
 **Supported Frameworks**:
 - NIST AI 600-1 (Artificial Intelligence Risk Management Framework)
@@ -102,8 +102,6 @@ get_framework("owasp-llm-top10")
 - Cache hits and misses
 - Hit rate percentage
 - Performance statistics
-
----
 
 ---
 

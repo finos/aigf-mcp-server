@@ -40,22 +40,32 @@ Lists all available AI governance frameworks.
 **Response Schema**:
 ```json
 {
-  "total_count": 7,
+  "total_count": 5,
   "frameworks": [
     {
       "id": "nist-ai-600-1",
       "name": "NIST AI Risk Management Framework",
-      "description": "NIST's framework for managing AI risks"
+      "description": "US federal AI governance framework"
     },
     {
       "id": "eu-ai-act",
-      "name": "EU Artificial Intelligence Act",
-      "description": "European Union's comprehensive AI regulation"
+      "name": "EU AI Act 2024",
+      "description": "European Union AI regulation"
     },
     {
-      "id": "iso-42001",
-      "name": "ISO 42001 - AI Management Systems",
-      "description": "International standard for AI management systems"
+      "id": "gdpr",
+      "name": "GDPR",
+      "description": "General Data Protection Regulation"
+    },
+    {
+      "id": "owasp-llm",
+      "name": "OWASP LLM Top 10",
+      "description": "AI security best practices"
+    },
+    {
+      "id": "iso-23053",
+      "name": "ISO/IEC 23053",
+      "description": "International AI standards"
     }
   ]
 }

@@ -25,7 +25,7 @@ See what governance frameworks are available:
 
 ```
 Tool: list_frameworks()
-Returns: 7 frameworks (NIST AI 600-1, EU AI Act, ISO 42001, FFIEC, NIST SP 800-53, OWASP LLM Top 10, OWASP ML Top 10)
+Returns: 5 frameworks (NIST AI 600-1, EU AI Act 2024, GDPR, OWASP LLM Top 10, ISO/IEC 23053)
 ```
 
 ### Step 3: Search Across Frameworks
