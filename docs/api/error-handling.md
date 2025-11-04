@@ -140,11 +140,11 @@ All errors follow a consistent JSON structure:
 {
   "error": {
     "code": "UNAUTHORIZED_ACCESS",
-    "message": "Access to administrative tools requires elevated permissions",
+    "message": "Access to administrative operations requires elevated permissions",
     "details": {
       "required_permission": "admin",
       "current_permission": "read_only",
-      "tool": "reset_service_health"
+      "operation": "administrative_operation"
     }
   }
 }
