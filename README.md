@@ -27,15 +27,28 @@ This project provides direct access to AI governance framework documents from FI
 ## 🚀 Quick Start
 
 ```bash
-# Clone and install
+# Clone the repository
 git clone https://github.com/hugo-calderon/finos-mcp-server.git
 cd finos-mcp-server
+
+# Create and activate a virtual environment
+python -m venv venv
+
+# On Windows:
+venv\Scripts\activate
+
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
 pip install -e .
 
 # Test
 finos-mcp --help
 mcp list tools
 ```
+
+> **Note:** Using a virtual environment isolates project dependencies from your system Python, preventing conflicts and keeping your environment clean. This is the recommended approach for Python development.
 
 **→ [Full Setup Guide](docs/README.md)** - Connect to Claude, VS Code, Cursor, etc.
 
