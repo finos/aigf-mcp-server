@@ -3,7 +3,7 @@
 # AI Governance Framework MCP Server
 
 Short blurb about what your project does.
-
+MCP Server Instructions
 ## Installation
 
 OS X & Linux:
