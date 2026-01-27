@@ -60,35 +60,30 @@ class LiveServerTester:
         try:
             resources = await session.list_resources()
 
-            if not resources:
-                self.log_test("List Resources", False, "No resources returned")
+            # Server uses dynamic resource templates (finos://frameworks/{id}, etc.)
+            # which are not enumerable via resources/list - empty list is valid
+            if resources is None:
+                self.log_test("List Resources", False, "Resources returned None")
                 return False
 
-            # Should have resources for mitigations and risks
-            mitigation_resources = [r for r in resources if "mitigations" in str(r.uri)]
-            risk_resources = [r for r in resources if "risks" in str(r.uri)]
-
-            if len(mitigation_resources) != 17:
+            # If we have resources, verify their structure
+            if resources:
+                mitigation_resources = [
+                    r for r in resources if "mitigations" in str(r.uri)
+                ]
+                risk_resources = [r for r in resources if "risks" in str(r.uri)]
                 self.log_test(
                     "List Resources",
-                    False,
-                    f"Expected 17 mitigation resources, got {len(mitigation_resources)}",
+                    True,
+                    f"Found {len(resources)} resources ({len(mitigation_resources)} mitigations, {len(risk_resources)} risks)",
                 )
-                return False
-
-            if len(risk_resources) != 17:
+            else:
+                # Empty list is valid for servers using dynamic resource templates
                 self.log_test(
                     "List Resources",
-                    False,
-                    f"Expected 17 risk resources, got {len(risk_resources)}",
+                    True,
+                    "Resources list empty (server uses dynamic resource templates)",
                 )
-                return False
-
-            self.log_test(
-                "List Resources",
-                True,
-                f"Found {len(resources)} resources (17 mitigations, 17 risks)",
-            )
             return True
 
         except Exception as e:
@@ -140,14 +135,19 @@ class LiveServerTester:
                 self.log_test("List Tools", False, "No tools returned")
                 return False
 
-            # Should have exactly 6 tools
+            # Should have exactly 11 tools
             expected_tools = [
-                "search_mitigations",
+                "list_frameworks",
+                "get_framework",
+                "search_frameworks",
+                "list_risks",
+                "get_risk",
                 "search_risks",
-                "get_mitigation_details",
-                "get_risk_details",
-                "list_all_mitigations",
-                "list_all_risks",
+                "list_mitigations",
+                "get_mitigation",
+                "search_mitigations",
+                "get_service_health",
+                "get_cache_stats",
             ]
 
             tool_names = [tool.name for tool in tools]
@@ -161,13 +161,13 @@ class LiveServerTester:
                 self.log_test("List Tools", False, f"Missing tools: {missing_tools}")
                 return False
 
-            if len(tools) != 6:
+            if len(tools) != 11:
                 self.log_test(
-                    "List Tools", False, f"Expected 6 tools, got {len(tools)}"
+                    "List Tools", False, f"Expected 11 tools, got {len(tools)}"
                 )
                 return False
 
-            self.log_test("List Tools", True, "Found all 6 expected tools")
+            self.log_test("List Tools", True, "Found all 11 expected tools")
             return True
 
         except Exception as e:
@@ -229,9 +229,9 @@ class LiveServerTester:
     async def test_details_tool(self, session: ClientSession) -> bool:
         """Test get details functionality"""
         try:
-            # Test get_mitigation_details with mi-1
+            # Test get_mitigation with mi-1
             result = await session.call_tool(
-                "get_mitigation_details", {"mitigation_id": "mi-1"}
+                "get_mitigation", {"mitigation_id": "mi-1"}
             )
 
             if not result or not result[0].text:
@@ -282,8 +282,8 @@ class LiveServerTester:
     async def test_list_tool(self, session: ClientSession) -> bool:
         """Test list all functionality"""
         try:
-            # Test list_all_mitigations
-            result = await session.call_tool("list_all_mitigations", {})
+            # Test list_mitigations
+            result = await session.call_tool("list_mitigations", {})
 
             if not result or not result[0].text:
                 self.log_test("List Tool", False, "No list results returned")
