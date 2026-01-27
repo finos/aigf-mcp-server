@@ -131,7 +131,7 @@ jobs:
         ## Docker
 
         ```bash
-        docker pull ghcr.io/hugocalderon/finos-ai-governance-mcp-server:${{ steps.version.outputs.version }}
+        docker pull ghcr.io/${{ github.repository_owner }}/finos-ai-governance-mcp-server:${{ steps.version.outputs.version }}
         ```
 
         **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.version }}...HEAD
