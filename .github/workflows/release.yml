@@ -46,7 +46,7 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest tests/ --cov=src/finos_mcp --cov-fail-under=60
+        pytest tests/ --cov=src/finos_mcp --cov-fail-under=65
 
   build:
     name: Build Distribution
