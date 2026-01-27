@@ -112,8 +112,11 @@ jobs:
         python -m pip install pip-audit
 
         # Run comprehensive pip-audit scan with strict settings
+        # Ignored vulnerabilities (no fix available):
+        # - GHSA-7gcm-g887-7qv7: protobuf DoS via JSON recursion (CVE-2026-0994)
+        #   Transitive dep from semgrep->opentelemetry->protobuf. No fix as of 2026-01.
         pip-audit --format json --output dependabot-security-reports/pip-audit-report.json \
-          --require-hashes --ignore-vuln PYSEC-2022-42969 --local || true
+          --require-hashes --ignore-vuln PYSEC-2022-42969 --ignore-vuln GHSA-7gcm-g887-7qv7 --local || true
 
         # Check for vulnerabilities with zero tolerance
         VULNS=$(jq '.dependencies | map(select(.vulns | length > 0)) | length' dependabot-security-reports/pip-audit-report.json)
