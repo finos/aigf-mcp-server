@@ -9,8 +9,8 @@ This independent project provides access to governance frameworks and risk asses
 ### 1. Install
 ```bash
 # Clone and install
-git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
+git clone https://github.com/finos/aigf-mcp-server.git
+cd aigf-mcp-server
 pip install -e .
 ```
 
@@ -162,8 +162,8 @@ export FINOS_MCP_LOG_LEVEL=INFO
 
 ## 🆘 Need Help?
 
-- 🐛 [Report bugs](https://github.com/hugo-calderon/finos-mcp-server/issues)
-- 💬 [Ask questions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
+- 🐛 [Report bugs](https://github.com/finos/aigf-mcp-server/issues)
+- 💬 [Ask questions](https://github.com/finos/aigf-mcp-server/discussions)
 - 🔧 [Troubleshooting guide](troubleshooting.md)
 
 ---
