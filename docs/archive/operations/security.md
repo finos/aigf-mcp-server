@@ -29,7 +29,7 @@ This independent AI Governance MCP Server project takes security seriously and f
 
 ### For Security Vulnerabilities
 
-1. **GitHub Security Advisory**: Create a [Security Advisory](https://github.com/hugo-calderon/finos-mcp-server/security/advisories) for responsible disclosure
+1. **GitHub Security Advisory**: Create a [Security Advisory](https://github.com/finos/aigf-mcp-server/security/advisories) for responsible disclosure
 3. **Include**:
    - Detailed description of the vulnerability
    - Steps to reproduce the issue

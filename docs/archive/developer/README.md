@@ -8,8 +8,8 @@ Get started quickly with our enhanced development tools:
 
 ```bash
 # 🚀 Quick development setup (recommended)
-git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
+git clone https://github.com/finos/aigf-mcp-server.git
+cd aigf-mcp-server
 ./scripts/dev-quick-setup.sh
 
 # ⚡ Fast test mode (70% faster)
@@ -429,10 +429,10 @@ Need development assistance with this independent project?
 <td width="50%">
 
 ### Community Support
-- 💬 **Technical Questions**: [GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
-- 🔒 **Security Issues**: [Security Advisory](https://github.com/hugo-calderon/finos-mcp-server/security/advisories)
-- 📚 **Documentation Issues**: [Documentation Feedback](https://github.com/hugo-calderon/finos-mcp-server/issues)
+- 💬 **Technical Questions**: [GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/finos/aigf-mcp-server/issues)
+- 🔒 **Security Issues**: [Security Advisory](https://github.com/finos/aigf-mcp-server/security/advisories)
+- 📚 **Documentation Issues**: [Documentation Feedback](https://github.com/finos/aigf-mcp-server/issues)
 
 </td>
 <td width="50%">

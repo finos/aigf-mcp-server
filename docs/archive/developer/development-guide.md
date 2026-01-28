@@ -85,8 +85,8 @@ src/finos_mcp/
 ### Quick Setup
 ```bash
 # Clone the repository
-git clone https://github.com/hugo-calderon/finos-mcp-server.git
-cd finos-mcp-server
+git clone https://github.com/finos/aigf-mcp-server.git
+cd aigf-mcp-server
 
 # Create virtual environment and install
 python3 -m venv .venv

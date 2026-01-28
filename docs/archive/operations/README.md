@@ -239,15 +239,15 @@ Need production assistance with this independent project?
 ### Critical Production Support
 - 🚨 **Critical Issues**: Follow multi-tenant incident response procedures
 - 📊 **Performance Issues**: Review enterprise monitoring dashboards first
-- 🔒 **Security Concerns**: [Security Advisories](https://github.com/hugo-calderon/finos-mcp-server/security/advisories)
+- 🔒 **Security Concerns**: [Security Advisories](https://github.com/finos/aigf-mcp-server/security/advisories)
 - 🔌 **Plugin Issues**: Plugin lifecycle management and debugging procedures
 
 </td>
 <td width="50%">
 
 ### Enterprise Community Support
-- 💬 **General Questions**: [GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
+- 💬 **General Questions**: [GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/finos/aigf-mcp-server/issues)
 - 🏢 **Enterprise Configuration**: [Advanced Implementation](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)
 - 📧 **Direct Support**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
 
