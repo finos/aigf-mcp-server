@@ -205,7 +205,7 @@ If you encounter issues with this independent project:
 1. **Check logs**: Run with `FINOS_MCP_LOG_LEVEL=DEBUG` for detailed information
 2. **GitHub Issues**: [Report bugs and issues](https://github.com/finos/aigf-mcp-server/issues)
 3. **GitHub Discussions**: [Ask questions and get help](https://github.com/finos/aigf-mcp-server/discussions)
-4. **Direct Contact**: [hugocalderon@example.com](mailto:hugocalderon@example.com) for urgent issues
+4. **Direct Contact**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com) for urgent issues
 
 ## 🎯 Next Steps
 

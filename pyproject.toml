@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Model Context Protocol server for FINOS AI Governance Framework"
 readme = "README.md"
 authors = [
-    {name = "Hugo Calderon", email = "hugocalderon@example.com"}
+    {name = "Hugo Calderon", email = "calderon.hugo@gmail.com"}
 ]
 license = {text = "Apache-2.0"}
 keywords = ["mcp", "finos", "ai-governance", "model-context-protocol", "ai-risks", "ai-mitigations"]

@@ -17,7 +17,7 @@ try:
 except ImportError:
     __version__ = "unknown"
 __author__ = "Hugo Calderon"
-__email__ = "hugocalderon@example.com"
+__email__ = "calderon.hugo@gmail.com"
 __license__ = "Apache-2.0"
 __description__ = "Model Context Protocol server for FINOS AI Governance Framework"
 

@@ -209,7 +209,7 @@ Need help with this independent project? Here are your options:
 - 🏢 **Enterprise Setup**: [Advanced Implementation](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)
 - 🔌 **Plugin Development**: [Plugin Source Code](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)
 - 📊 **Performance Issues**: [Performance Implementation](../../src/finos_mcp/internal/performance_optimizations.py)
-- 📧 **Direct Support**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
+- 📧 **Direct Support**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com)
 
 </td>
 </tr>

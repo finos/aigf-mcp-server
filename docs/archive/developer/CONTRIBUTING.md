@@ -536,7 +536,7 @@ For detailed release procedures, see [`release-process.md`](../operations/releas
 For urgent issues or security concerns:
 - **Security Issues**: Use GitHub Security Advisories
 - **General Support**: GitHub Issues and Discussions
-- **Direct Contact**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
+- **Direct Contact**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com)
 
 ## 🙏 Recognition
 

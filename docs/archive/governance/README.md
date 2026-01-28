@@ -142,7 +142,7 @@ All significant decisions for this independent project are documented in:
 ### Security Contacts for Independent Project
 - **Security Issues**: [GitHub Security Advisory](https://github.com/finos/aigf-mcp-server/security/advisories)
 - **Security Team**: Independent project maintainers with enterprise security expertise
-- **Enterprise Security**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
+- **Enterprise Security**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com)
 
 ## 📊 Enterprise Project Health Metrics
 
@@ -208,7 +208,7 @@ For governance-related questions about this independent project:
 <td width="50%">
 
 ### Enterprise Governance
-- 🏢 **Enterprise Questions**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
+- 🏢 **Enterprise Questions**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com)
 - 🔧 **Technical Governance**: GitHub Issues for architecture and enterprise feature decisions
 - 🛡️ **Security Governance**: Security advisory process for multi-tenant and plugin security
 

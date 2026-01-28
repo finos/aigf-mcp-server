@@ -441,7 +441,7 @@ Need development assistance with this independent project?
 - 🏢 **Advanced Development**: [Advanced Implementation](../../src/finos_mcp/internal/)
 - 🔌 **Plugin Development**: [Plugin Source](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)
 - 📊 **Performance Issues**: [Performance Source](../../src/finos_mcp/internal/performance_optimizations.py)
-- 📧 **Direct Support**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
+- 📧 **Direct Support**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com)
 
 </td>
 </tr>

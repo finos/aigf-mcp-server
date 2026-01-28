@@ -249,7 +249,7 @@ Need production assistance with this independent project?
 - 💬 **General Questions**: [GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/finos/aigf-mcp-server/issues)
 - 🏢 **Enterprise Configuration**: [Advanced Implementation](../../src/finos_mcp/internal/advanced_mcp_capabilities.py)
-- 📧 **Direct Support**: [hugocalderon@example.com](mailto:hugocalderon@example.com)
+- 📧 **Direct Support**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com)
 
 </td>
 </tr>
