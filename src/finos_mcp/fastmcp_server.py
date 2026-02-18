@@ -22,9 +22,10 @@ Provides structured output and decorator-based tool registration.
 import asyncio
 import inspect
 import time
+from typing import Annotated
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 try:
     # Preferred implementation path (FastMCP package, v2 stable line).
@@ -294,7 +295,15 @@ def _format_yaml_content(yaml_content: str, framework_id: str) -> str:
 
 
 @mcp.tool()
-async def get_framework(framework: str) -> FrameworkContent:
+async def get_framework(
+    framework: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="Framework identifier from list_frameworks() (e.g. nist-ai-600-1).",
+        ),
+    ],
+) -> FrameworkContent:
     """Get the complete content of a specific AI governance framework.
 
     Use this tool to retrieve detailed framework content for compliance analysis,
@@ -482,7 +491,15 @@ async def list_mitigations() -> DocumentList:
 
 
 @mcp.tool()
-async def get_risk(risk_id: str) -> DocumentContent:
+async def get_risk(
+    risk_id: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="Risk document identifier from list_risks().",
+        ),
+    ],
+) -> DocumentContent:
     """Get the complete content of a specific AI governance risk document for detailed threat analysis.
 
     Use this tool to retrieve comprehensive risk information including threat descriptions,
@@ -556,7 +573,15 @@ async def get_risk(risk_id: str) -> DocumentContent:
 
 
 @mcp.tool()
-async def get_mitigation(mitigation_id: str) -> DocumentContent:
+async def get_mitigation(
+    mitigation_id: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="Mitigation document identifier from list_mitigations().",
+        ),
+    ],
+) -> DocumentContent:
     """Get the complete content of a specific AI governance mitigation strategy for risk control implementation.
 
     Use this tool to retrieve detailed mitigation instructions including security controls,
@@ -768,7 +793,23 @@ async def _search_single_framework(
 
 
 @mcp.tool()
-async def search_frameworks(query: str, limit: int = 5) -> SearchResults:
+async def search_frameworks(
+    query: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="Search terms or concepts to find across frameworks.",
+        ),
+    ],
+    limit: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=20,
+            description="Maximum number of results to return (1-20).",
+        ),
+    ] = 5,
+) -> SearchResults:
     """Search for specific text, concepts, or requirements across all AI governance frameworks.
 
     Use this tool to find relevant requirements, controls, or guidance across multiple
@@ -875,7 +916,20 @@ async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[Search
 
 
 @mcp.tool()
-async def search_risks(query: str, limit: int = 5) -> SearchResults:
+async def search_risks(
+    query: Annotated[
+        str,
+        Field(min_length=1, description="Search terms or risk concepts to find."),
+    ],
+    limit: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=20,
+            description="Maximum number of results to return (1-20).",
+        ),
+    ] = 5,
+) -> SearchResults:
     """Search for specific threats, vulnerabilities, or risk concepts across all AI governance risk documents.
 
     Use this tool to find relevant security risks, privacy threats, and compliance vulnerabilities
@@ -979,7 +1033,20 @@ async def _search_single_mitigation(
 
 
 @mcp.tool()
-async def search_mitigations(query: str, limit: int = 5) -> SearchResults:
+async def search_mitigations(
+    query: Annotated[
+        str,
+        Field(min_length=1, description="Search terms or control concepts to find."),
+    ],
+    limit: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=20,
+            description="Maximum number of results to return (1-20).",
+        ),
+    ] = 5,
+) -> SearchResults:
     """Search for specific security controls, safeguards, or mitigation strategies across all AI governance mitigation documents.
 
     Use this tool to find relevant security controls, privacy safeguards, and compliance measures
@@ -1043,8 +1110,18 @@ async def search_mitigations(query: str, limit: int = 5) -> SearchResults:
 # MCP Resources Implementation
 
 
-@mcp.resource("finos://frameworks/{framework_id}")
-async def get_framework_resource(framework_id: str) -> str:
+@mcp.resource(
+    "finos://frameworks/{framework_id}",
+    name="Framework Document",
+    description="Framework content from FINOS AI governance corpus.",
+    mime_type="text/markdown",
+)
+async def get_framework_resource(
+    framework_id: Annotated[
+        str,
+        Field(min_length=1, description="Framework identifier from list_frameworks()."),
+    ],
+) -> str:
     """Get framework content as a resource.
 
     Args:
@@ -1061,8 +1138,18 @@ async def get_framework_resource(framework_id: str) -> str:
         return f"Error loading framework {framework_id}: {e}"
 
 
-@mcp.resource("finos://risks/{risk_id}")
-async def get_risk_resource(risk_id: str) -> str:
+@mcp.resource(
+    "finos://risks/{risk_id}",
+    name="Risk Document",
+    description="Risk documentation from FINOS AI governance corpus.",
+    mime_type="text/markdown",
+)
+async def get_risk_resource(
+    risk_id: Annotated[
+        str,
+        Field(min_length=1, description="Risk identifier from list_risks()."),
+    ],
+) -> str:
     """Get risk document as a resource.
 
     Args:
@@ -1079,8 +1166,18 @@ async def get_risk_resource(risk_id: str) -> str:
         return f"Error loading risk {risk_id}: {e}"
 
 
-@mcp.resource("finos://mitigations/{mitigation_id}")
-async def get_mitigation_resource(mitigation_id: str) -> str:
+@mcp.resource(
+    "finos://mitigations/{mitigation_id}",
+    name="Mitigation Document",
+    description="Mitigation documentation from FINOS AI governance corpus.",
+    mime_type="text/markdown",
+)
+async def get_mitigation_resource(
+    mitigation_id: Annotated[
+        str,
+        Field(min_length=1, description="Mitigation identifier from list_mitigations()."),
+    ],
+) -> str:
     """Get mitigation document as a resource.
 
     Args:
@@ -1101,7 +1198,13 @@ async def get_mitigation_resource(mitigation_id: str) -> str:
 
 
 @mcp.prompt()
-async def analyze_framework_compliance(framework: str, use_case: str) -> str:
+async def analyze_framework_compliance(
+    framework: Annotated[
+        str,
+        Field(min_length=1, description="Framework identifier (e.g., eu-ai-act)."),
+    ],
+    use_case: Annotated[str, Field(min_length=1, description="AI use case to analyze.")],
+) -> str:
     """Analyze compliance requirements for a specific AI use case against a framework.
 
     Args:
@@ -1132,7 +1235,16 @@ Focus on practical, actionable guidance."""
 
 
 @mcp.prompt()
-async def risk_assessment_analysis(risk_category: str, context: str) -> str:
+async def risk_assessment_analysis(
+    risk_category: Annotated[
+        str,
+        Field(min_length=1, description="Risk category to assess."),
+    ],
+    context: Annotated[
+        str,
+        Field(min_length=1, description="Scenario context for risk assessment."),
+    ],
+) -> str:
     """Generate a risk assessment prompt for a specific AI risk category.
 
     Args:
@@ -1168,7 +1280,13 @@ Be specific and actionable in your recommendations."""
 
 
 @mcp.prompt()
-async def mitigation_strategy_prompt(risk_type: str, system_description: str) -> str:
+async def mitigation_strategy_prompt(
+    risk_type: Annotated[str, Field(min_length=1, description="Risk type to mitigate.")],
+    system_description: Annotated[
+        str,
+        Field(min_length=1, description="Description of the AI system."),
+    ],
+) -> str:
     """Generate a mitigation strategy prompt for a specific risk in an AI system.
 
     Args:
