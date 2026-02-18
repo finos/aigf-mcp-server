@@ -25,6 +25,8 @@ beartype==0.22.9
     # via
     #   py-key-value-aio
     #   py-key-value-shared
+bleach==6.3.0
+    # via -r requirements.in
 cachetools==7.0.1
     # via py-key-value-aio
 certifi==2025.8.3
@@ -126,7 +128,9 @@ packaging==25.0
 pathable==0.4.4
     # via jsonschema-path
 pathvalidate==3.3.1
-    # via py-key-value-aio
+    # via
+    #   -r requirements.in
+    #   py-key-value-aio
 platformdirs==4.4.0
     # via fastmcp
 prometheus-client==0.24.1
@@ -168,6 +172,8 @@ python-json-logger==4.0.0
     # via pydocket
 python-multipart==0.0.20
     # via mcp
+python-slugify==8.0.4
+    # via -r requirements.in
 pytz==2025.2
     # via croniter
 pyyaml==6.0.2
@@ -211,6 +217,10 @@ sse-starlette==3.0.2
     # via mcp
 starlette==0.47.2
     # via mcp
+tenacity==9.1.4
+    # via -r requirements.in
+text-unidecode==1.3
+    # via python-slugify
 typer==0.24.0
     # via pydocket
 typing-extensions==4.15.0
@@ -237,6 +247,8 @@ uvicorn==0.35.0
     # via
     #   fastmcp
     #   mcp
+webencodings==0.5.1
+    # via bleach
 websockets==16.0
     # via fastmcp
 zipp==3.23.0
