@@ -22,6 +22,20 @@ from finos_mcp.fastmcp_server import (
 )
 
 
+def _unwrap_tool(tool):
+    """Return callable implementation for both function and FunctionTool exports."""
+    return tool.fn if hasattr(tool, "fn") else tool
+
+
+# FastMCP 2.14+ exposes decorated tools as FunctionTool objects.
+list_risks = _unwrap_tool(list_risks)
+get_risk = _unwrap_tool(get_risk)
+search_risks = _unwrap_tool(search_risks)
+list_mitigations = _unwrap_tool(list_mitigations)
+get_mitigation = _unwrap_tool(get_mitigation)
+search_mitigations = _unwrap_tool(search_mitigations)
+
+
 async def test_risk_id_mapping():
     """Test that risk IDs from search work with get_risk()."""
     print("\n" + "=" * 80)

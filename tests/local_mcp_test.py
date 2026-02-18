@@ -30,6 +30,25 @@ from finos_mcp.fastmcp_server import (
 )
 
 
+def _unwrap_tool(tool):
+    """Return callable implementation for both function and FunctionTool exports."""
+    return tool.fn if hasattr(tool, "fn") else tool
+
+
+# FastMCP 2.14+ exposes decorated tools as FunctionTool objects.
+get_service_health = _unwrap_tool(get_service_health)
+get_cache_stats = _unwrap_tool(get_cache_stats)
+list_frameworks = _unwrap_tool(list_frameworks)
+list_risks = _unwrap_tool(list_risks)
+list_mitigations = _unwrap_tool(list_mitigations)
+search_frameworks = _unwrap_tool(search_frameworks)
+search_risks = _unwrap_tool(search_risks)
+search_mitigations = _unwrap_tool(search_mitigations)
+get_framework = _unwrap_tool(get_framework)
+get_risk = _unwrap_tool(get_risk)
+get_mitigation = _unwrap_tool(get_mitigation)
+
+
 class Colors:
     """ANSI color codes for terminal output."""
 
