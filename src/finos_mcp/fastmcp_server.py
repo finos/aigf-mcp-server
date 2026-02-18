@@ -25,20 +25,22 @@ import time
 from typing import Annotated
 
 import yaml
+from fastmcp import FastMCP
 from pydantic import BaseModel, Field
-
-try:
-    # Preferred implementation path (FastMCP package, v2 stable line).
-    from fastmcp import FastMCP
-except ImportError:  # pragma: no cover - backward compatibility during rollout.
-    # Compatibility fallback for environments still using MCP SDK FastMCP.
-    from mcp.server.fastmcp import FastMCP  # type: ignore[assignment]
 
 from . import __version__
 from .config import validate_settings_on_startup
-from .content.discovery import STATIC_FRAMEWORK_FILES, DiscoveryServiceManager
+from .content.cache import get_cache
+from .content.discovery import (
+    STATIC_FRAMEWORK_FILES,
+    STATIC_MITIGATION_FILES,
+    STATIC_RISK_FILES,
+    DiscoveryServiceManager,
+)
 from .content.service import get_content_service
 from .logging import get_logger
+from .security.error_handler import secure_error_handler
+from .security.request_validator import request_size_validator
 
 # Initialize configuration and logging
 settings = validate_settings_on_startup()
@@ -135,6 +137,46 @@ class CacheStats(BaseModel):
     cache_hits: int
     cache_misses: int
     hit_rate: float
+
+
+def _safe_external_error(error: Exception, fallback_message: str) -> str:
+    """Return a sanitized error message safe for tool/resource responses."""
+    try:
+        return secure_error_handler.create_safe_error_response(str(error))
+    except Exception:
+        return fallback_message
+
+
+def _validate_request_params(**params: object) -> None:
+    """Validate request parameter size limits for DoS protection."""
+    request_size_validator.validate_request_params_size(dict(params))
+
+
+def _safe_resource_content(content: str, resource_id: str) -> str:
+    """Validate resource output size and return safe response on violations."""
+    try:
+        request_size_validator.validate_resource_size(content)
+        return content
+    except ValueError as e:
+        logger.warning("Resource payload exceeded size limit for %s: %s", resource_id, e)
+        return _safe_external_error(
+            e, "Resource payload exceeded allowed size limits. Please narrow your query."
+        )
+
+
+def _safe_document_content(
+    content: str, document_id: str, fallback_message: str
+) -> tuple[str, list[str]]:
+    """Validate large document payloads and return a safe fallback on overflow."""
+    try:
+        request_size_validator.validate_resource_size(content)
+        sections = [
+            line.strip("#").strip() for line in content.split("\n") if line.startswith("#")
+        ]
+        return content, sections
+    except ValueError as e:
+        logger.warning("Document payload too large for %s: %s", document_id, e)
+        return _safe_external_error(e, fallback_message), []
 
 
 # Content Service Integration - Async-Safe Singleton Pattern
@@ -301,6 +343,7 @@ async def get_framework(
         str,
         Field(
             min_length=1,
+            max_length=128,
             description="Framework identifier from list_frameworks() (e.g. nist-ai-600-1).",
         ),
     ],
@@ -327,6 +370,7 @@ async def get_framework(
     """
     service = await get_service()
     try:
+        _validate_request_params(framework=framework)
         # First, discover to find the correct filename
         discovery_manager = DiscoveryServiceManager()
         discovery_service = await discovery_manager.get_discovery_service()
@@ -355,6 +399,16 @@ async def get_framework(
             # Format YAML content for display
             if content.strip():
                 formatted_content = _format_yaml_content(content, framework)
+                try:
+                    request_size_validator.validate_resource_size(formatted_content)
+                except ValueError as e:
+                    logger.warning(
+                        "Framework payload exceeded size limit for %s: %s", framework, e
+                    )
+                    formatted_content = _safe_external_error(
+                        e,
+                        "Framework content exceeded allowed size limits. Please narrow your query.",
+                    )
                 # Count sections by YAML keys
                 sections = len(
                     [
@@ -384,7 +438,9 @@ async def get_framework(
         logger.error("Failed to get framework content: %s", e)
         return FrameworkContent(
             framework_id=framework,
-            content=f"Error loading framework: {e!s}",
+            content=_safe_external_error(
+                e, "Error loading framework. Please retry later."
+            ),
             sections=0,
         )
 
@@ -434,9 +490,25 @@ async def list_risks() -> DocumentList:
         )
     except Exception as e:
         logger.error("Failed to list risks: %s", e)
-        # Return empty list on error
+        # Fall back to static list for offline/network-constrained environments.
+        fallback_docs = []
+        for filename in STATIC_RISK_FILES:
+            doc_id = filename.replace(".md", "").replace("ri-", "")
+            doc_name = filename.replace(".md", "").replace("-", " ").title()
+            fallback_docs.append(
+                DocumentInfo(
+                    id=doc_id,
+                    name=doc_name,
+                    filename=filename,
+                    description=f"Risk document: {doc_name}",
+                    last_modified=None,
+                )
+            )
         return DocumentList(
-            documents=[], total_count=0, document_type="risk", source="error"
+            documents=fallback_docs,
+            total_count=len(fallback_docs),
+            document_type="risk",
+            source="static_fallback",
         )
 
 
@@ -485,9 +557,25 @@ async def list_mitigations() -> DocumentList:
         )
     except Exception as e:
         logger.error("Failed to list mitigations: %s", e)
-        # Return empty list on error
+        # Fall back to static list for offline/network-constrained environments.
+        fallback_docs = []
+        for filename in STATIC_MITIGATION_FILES:
+            doc_id = filename.replace(".md", "").replace("mi-", "")
+            doc_name = filename.replace(".md", "").replace("-", " ").title()
+            fallback_docs.append(
+                DocumentInfo(
+                    id=doc_id,
+                    name=doc_name,
+                    filename=filename,
+                    description=f"Mitigation strategy: {doc_name}",
+                    last_modified=None,
+                )
+            )
         return DocumentList(
-            documents=[], total_count=0, document_type="mitigation", source="error"
+            documents=fallback_docs,
+            total_count=len(fallback_docs),
+            document_type="mitigation",
+            source="static_fallback",
         )
 
 
@@ -497,6 +585,7 @@ async def get_risk(
         str,
         Field(
             min_length=1,
+            max_length=256,
             description="Risk document identifier from list_risks().",
         ),
     ],
@@ -516,6 +605,7 @@ async def get_risk(
         Includes structured content suitable for risk registers and security documentation.
     """
     try:
+        _validate_request_params(risk_id=risk_id)
         service = await get_service()
 
         # First, discover to find the correct filename
@@ -545,12 +635,11 @@ async def get_risk(
         if doc:
             content = doc.get("content", "")
             title = doc.get("title", target_file.filename.replace(".md", ""))
-            # Extract sections from content (simple markdown header parsing)
-            sections = [
-                line.strip("#").strip()
-                for line in content.split("\n")
-                if line.startswith("#") and line.strip()
-            ]
+            content, sections = _safe_document_content(
+                content,
+                f"risk:{risk_id}",
+                "Risk document exceeded allowed size limits. Please narrow your query.",
+            )
 
             return DocumentContent(
                 document_id=risk_id, title=title, content=content, sections=sections
@@ -568,7 +657,9 @@ async def get_risk(
         return DocumentContent(
             document_id=risk_id,
             title=f"Error loading risk {risk_id}",
-            content=f"Error loading risk document: {e!s}",
+            content=_safe_external_error(
+                e, "Error loading risk document. Please retry later."
+            ),
             sections=[],
         )
 
@@ -579,6 +670,7 @@ async def get_mitigation(
         str,
         Field(
             min_length=1,
+            max_length=256,
             description="Mitigation document identifier from list_mitigations().",
         ),
     ],
@@ -598,6 +690,7 @@ async def get_mitigation(
         Includes actionable steps suitable for security implementation and compliance documentation.
     """
     try:
+        _validate_request_params(mitigation_id=mitigation_id)
         service = await get_service()
 
         # First, discover to find the correct filename
@@ -627,12 +720,11 @@ async def get_mitigation(
         if doc:
             content = doc.get("content", "")
             title = doc.get("title", target_file.filename.replace(".md", ""))
-            # Extract sections from content (simple markdown header parsing)
-            sections = [
-                line.strip("#").strip()
-                for line in content.split("\n")
-                if line.startswith("#") and line.strip()
-            ]
+            content, sections = _safe_document_content(
+                content,
+                f"mitigation:{mitigation_id}",
+                "Mitigation document exceeded allowed size limits. Please narrow your query.",
+            )
 
             return DocumentContent(
                 document_id=mitigation_id,
@@ -653,7 +745,9 @@ async def get_mitigation(
         return DocumentContent(
             document_id=mitigation_id,
             title=f"Error loading mitigation {mitigation_id}",
-            content=f"Error loading mitigation document: {e!s}",
+            content=_safe_external_error(
+                e, "Error loading mitigation document. Please retry later."
+            ),
             sections=[],
         )
 
@@ -682,8 +776,20 @@ async def get_cache_stats() -> CacheStats:
     Returns:
         Structured cache performance information.
     """
-    # Get basic stats (simplified for now - could integrate with actual service stats)
-    return CacheStats(total_requests=100, cache_hits=75, cache_misses=25, hit_rate=0.75)
+    try:
+        cache = await get_cache()
+        stats = await cache.get_stats()
+        total_requests = stats.hits + stats.misses
+        hit_rate = (stats.hits / total_requests) if total_requests > 0 else 0.0
+        return CacheStats(
+            total_requests=total_requests,
+            cache_hits=stats.hits,
+            cache_misses=stats.misses,
+            hit_rate=hit_rate,
+        )
+    except Exception as e:
+        logger.warning("Failed to get real cache stats, returning safe defaults: %s", e)
+        return CacheStats(total_requests=0, cache_hits=0, cache_misses=0, hit_rate=0.0)
 
 
 # Simple Search Tools
@@ -723,10 +829,9 @@ def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
     )
 
 
-async def _invoke_tool_function(tool_obj, *args, **kwargs):
-    """Call a decorated tool regardless of function vs FunctionTool representation."""
-    fn = getattr(tool_obj, "fn", tool_obj)
-    result = fn(*args, **kwargs)
+async def _call_registered_tool(tool_obj, *args, **kwargs):
+    """Invoke a registered FastMCP FunctionTool via its wrapped function."""
+    result = tool_obj.fn(*args, **kwargs)
     if inspect.isawaitable(result):
         return await result
     return result
@@ -738,7 +843,7 @@ async def _search_single_framework(
     """Search within a single framework document (helper function for parallel processing)."""
     try:
         # Get framework content
-        content = await _invoke_tool_function(get_framework, framework.id)
+        content = await _call_registered_tool(get_framework, framework.id)
 
         # Search for all occurrences (case insensitive)
         content_lower = content.content.lower()
@@ -799,6 +904,7 @@ async def search_frameworks(
         str,
         Field(
             min_length=1,
+            max_length=512,
             description="Search terms or concepts to find across frameworks.",
         ),
     ],
@@ -835,8 +941,9 @@ async def search_frameworks(
         Each result includes the framework ID, section, and relevant text excerpt.
     """
     try:
+        _validate_request_params(query=query, limit=limit)
         # Get all frameworks first
-        frameworks_list = await _invoke_tool_function(list_frameworks)
+        frameworks_list = await _call_registered_tool(list_frameworks)
 
         total_frameworks = len(frameworks_list.frameworks)
         logger.info(
@@ -920,7 +1027,11 @@ async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[Search
 async def search_risks(
     query: Annotated[
         str,
-        Field(min_length=1, description="Search terms or risk concepts to find."),
+        Field(
+            min_length=1,
+            max_length=512,
+            description="Search terms or risk concepts to find.",
+        ),
     ],
     limit: Annotated[
         int,
@@ -950,8 +1061,9 @@ async def search_risks(
         Essential for threat modeling and security risk assessments.
     """
     try:
+        _validate_request_params(query=query, limit=limit)
         # Get all risks first
-        risks_list = await _invoke_tool_function(list_risks)
+        risks_list = await _call_registered_tool(list_risks)
 
         total_risks = len(risks_list.documents)
         logger.info(
@@ -1037,7 +1149,11 @@ async def _search_single_mitigation(
 async def search_mitigations(
     query: Annotated[
         str,
-        Field(min_length=1, description="Search terms or control concepts to find."),
+        Field(
+            min_length=1,
+            max_length=512,
+            description="Search terms or control concepts to find.",
+        ),
     ],
     limit: Annotated[
         int,
@@ -1067,8 +1183,9 @@ async def search_mitigations(
         Critical for security implementation and compliance remediation planning.
     """
     try:
+        _validate_request_params(query=query, limit=limit)
         # Get all mitigations first
-        mitigations_list = await _invoke_tool_function(list_mitigations)
+        mitigations_list = await _call_registered_tool(list_mitigations)
 
         total_mitigations = len(mitigations_list.documents)
         logger.info(
@@ -1120,7 +1237,11 @@ async def search_mitigations(
 async def get_framework_resource(
     framework_id: Annotated[
         str,
-        Field(min_length=1, description="Framework identifier from list_frameworks()."),
+        Field(
+            min_length=1,
+            max_length=128,
+            description="Framework identifier from list_frameworks().",
+        ),
     ],
 ) -> str:
     """Get framework content as a resource.
@@ -1132,11 +1253,12 @@ async def get_framework_resource(
         Framework content as text.
     """
     try:
-        content = await _invoke_tool_function(get_framework, framework_id)
-        return content.content
+        _validate_request_params(framework_id=framework_id)
+        content = await _call_registered_tool(get_framework, framework_id)
+        return _safe_resource_content(content.content, f"framework:{framework_id}")
     except Exception as e:
         logger.error("Failed to get framework resource %s: %s", framework_id, e)
-        return f"Error loading framework {framework_id}: {e}"
+        return _safe_external_error(e, "Error loading framework resource.")
 
 
 @mcp.resource(
@@ -1148,7 +1270,7 @@ async def get_framework_resource(
 async def get_risk_resource(
     risk_id: Annotated[
         str,
-        Field(min_length=1, description="Risk identifier from list_risks()."),
+        Field(min_length=1, max_length=256, description="Risk identifier from list_risks()."),
     ],
 ) -> str:
     """Get risk document as a resource.
@@ -1160,11 +1282,12 @@ async def get_risk_resource(
         Risk document content as text.
     """
     try:
-        content = await _invoke_tool_function(get_risk, risk_id)
-        return content.content
+        _validate_request_params(risk_id=risk_id)
+        content = await _call_registered_tool(get_risk, risk_id)
+        return _safe_resource_content(content.content, f"risk:{risk_id}")
     except Exception as e:
         logger.error("Failed to get risk resource %s: %s", risk_id, e)
-        return f"Error loading risk {risk_id}: {e}"
+        return _safe_external_error(e, "Error loading risk resource.")
 
 
 @mcp.resource(
@@ -1176,7 +1299,11 @@ async def get_risk_resource(
 async def get_mitigation_resource(
     mitigation_id: Annotated[
         str,
-        Field(min_length=1, description="Mitigation identifier from list_mitigations()."),
+        Field(
+            min_length=1,
+            max_length=256,
+            description="Mitigation identifier from list_mitigations().",
+        ),
     ],
 ) -> str:
     """Get mitigation document as a resource.
@@ -1188,11 +1315,12 @@ async def get_mitigation_resource(
         Mitigation document content as text.
     """
     try:
-        content = await _invoke_tool_function(get_mitigation, mitigation_id)
-        return content.content
+        _validate_request_params(mitigation_id=mitigation_id)
+        content = await _call_registered_tool(get_mitigation, mitigation_id)
+        return _safe_resource_content(content.content, f"mitigation:{mitigation_id}")
     except Exception as e:
         logger.error("Failed to get mitigation resource %s: %s", mitigation_id, e)
-        return f"Error loading mitigation {mitigation_id}: {e}"
+        return _safe_external_error(e, "Error loading mitigation resource.")
 
 
 # MCP Prompts Implementation
@@ -1202,9 +1330,16 @@ async def get_mitigation_resource(
 async def analyze_framework_compliance(
     framework: Annotated[
         str,
-        Field(min_length=1, description="Framework identifier (e.g., eu-ai-act)."),
+        Field(
+            min_length=1,
+            max_length=128,
+            description="Framework identifier (e.g., eu-ai-act).",
+        ),
     ],
-    use_case: Annotated[str, Field(min_length=1, description="AI use case to analyze.")],
+    use_case: Annotated[
+        str,
+        Field(min_length=1, max_length=4000, description="AI use case to analyze."),
+    ],
 ) -> str:
     """Analyze compliance requirements for a specific AI use case against a framework.
 
@@ -1215,7 +1350,8 @@ async def analyze_framework_compliance(
     Returns:
         Prompt for analyzing compliance requirements.
     """
-    framework_content = await _invoke_tool_function(get_framework, framework)
+    _validate_request_params(framework=framework, use_case=use_case)
+    framework_content = await _call_registered_tool(get_framework, framework)
 
     return f"""You are an AI governance expert. Analyze the following AI use case for compliance with the {framework} framework.
 
@@ -1239,11 +1375,15 @@ Focus on practical, actionable guidance."""
 async def risk_assessment_analysis(
     risk_category: Annotated[
         str,
-        Field(min_length=1, description="Risk category to assess."),
+        Field(min_length=1, max_length=128, description="Risk category to assess."),
     ],
     context: Annotated[
         str,
-        Field(min_length=1, description="Scenario context for risk assessment."),
+        Field(
+            min_length=1,
+            max_length=4000,
+            description="Scenario context for risk assessment.",
+        ),
     ],
 ) -> str:
     """Generate a risk assessment prompt for a specific AI risk category.
@@ -1255,8 +1395,9 @@ async def risk_assessment_analysis(
     Returns:
         Prompt for conducting risk assessment.
     """
+    _validate_request_params(risk_category=risk_category, context=context)
     # Search for relevant risk documents
-    search_results = await _invoke_tool_function(search_risks, risk_category, limit=3)
+    search_results = await _call_registered_tool(search_risks, risk_category, limit=3)
 
     risk_info = ""
     for result in search_results.results:
@@ -1282,10 +1423,12 @@ Be specific and actionable in your recommendations."""
 
 @mcp.prompt()
 async def mitigation_strategy_prompt(
-    risk_type: Annotated[str, Field(min_length=1, description="Risk type to mitigate.")],
+    risk_type: Annotated[
+        str, Field(min_length=1, max_length=128, description="Risk type to mitigate.")
+    ],
     system_description: Annotated[
         str,
-        Field(min_length=1, description="Description of the AI system."),
+        Field(min_length=1, max_length=4000, description="Description of the AI system."),
     ],
 ) -> str:
     """Generate a mitigation strategy prompt for a specific risk in an AI system.
@@ -1297,8 +1440,9 @@ async def mitigation_strategy_prompt(
     Returns:
         Prompt for developing mitigation strategies.
     """
+    _validate_request_params(risk_type=risk_type, system_description=system_description)
     # Search for relevant mitigation strategies
-    mitigation_results = await _invoke_tool_function(
+    mitigation_results = await _call_registered_tool(
         search_mitigations, risk_type, limit=3
     )
 
