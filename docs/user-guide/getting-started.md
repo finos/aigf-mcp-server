@@ -65,8 +65,8 @@ Returns: Risks related to injection attacks
 Get risk details:
 
 ```
-Tool: get_risk("01_model-inversion")
-Returns: Complete model inversion risk documentation
+Tool: get_risk("10_prompt-injection")
+Returns: Complete prompt injection risk documentation
 ```
 
 ## Common Use Cases
@@ -79,12 +79,12 @@ Returns: Complete model inversion risk documentation
 ### Risk Assessment
 1. `list_risks()` - Browse all risks
 2. `search_risks("model bias")` - Find specific risks
-3. `get_risk("01_model-inversion")` - Get risk details
+3. `get_risk("10_prompt-injection")` - Get risk details
 
 ### Mitigation Planning
 1. `list_mitigations()` - Browse all mitigations
 2. `search_mitigations("encryption")` - Find relevant mitigations
-3. `get_mitigation("01_data-encryption")` - Get mitigation details
+3. `get_mitigation("1_ai-data-leakage-prevention-and-detection")` - Get mitigation details
 
 ### System Monitoring
 1. `get_service_health()` - Check system status

@@ -69,12 +69,12 @@ Returns: Risks related to injection attacks
 ### Risk Assessment
 1. List all risks: `list_risks()`
 2. Search for specific risks: `search_risks("model bias")`
-3. Get risk details: `get_risk("01_model-inversion")`
+3. Get risk details: `get_risk("10_prompt-injection")`
 
 ### Mitigation Planning
 1. List all mitigations: `list_mitigations()`
 2. Search for mitigations: `search_mitigations("encryption")`
-3. Get mitigation details: `get_mitigation("01_data-encryption")`
+3. Get mitigation details: `get_mitigation("1_ai-data-leakage-prevention-and-detection")`
 
 ## Supported Frameworks
 

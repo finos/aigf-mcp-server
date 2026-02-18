@@ -42,11 +42,11 @@ All errors follow a consistent JSON structure:
 {
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "Invalid framework_id parameter",
+    "message": "Invalid framework parameter",
     "details": {
-      "field": "framework_id",
+      "field": "framework",
       "value": "invalid_framework",
-      "allowed_values": ["nist_ai_rmf", "eu_ai_act", "owasp_llm", "gdpr", "ccpa", "iso_27001", "soc_2"],
+      "allowed_values": ["nist-ai-600-1", "eu-ai-act", "iso-42001", "owasp-llm", "owasp-ml"],
       "validation_rule": "Must be one of the supported framework identifiers"
     }
   }
@@ -93,8 +93,8 @@ All errors follow a consistent JSON structure:
       "parameter": "limit",
       "value": 500,
       "min_value": 1,
-      "max_value": 100,
-      "default_value": 20
+      "max_value": 20,
+      "default_value": 5
     }
   }
 }

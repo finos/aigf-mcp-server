@@ -12,7 +12,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class CacheDataType(str, Enum):
@@ -36,16 +36,18 @@ class CacheEntryMetadata(BaseModel):
     compression_used: bool = Field(default=False, description="Was compression applied")
     integrity_hash: str | None = Field(None, description="Data integrity hash")
 
-    @validator("data_size")
-    def validate_data_size(cls, v):
+    @field_validator("data_size")
+    @classmethod
+    def validate_data_size(cls, v: int) -> int:
         """Validate data size limits for security."""
         max_size = 1024 * 1024  # 1MB limit for security
         if v > max_size:
             raise ValueError(f"Data size {v} exceeds maximum allowed {max_size} bytes")
         return v
 
-    @validator("integrity_hash")
-    def validate_integrity_hash(cls, v):
+    @field_validator("integrity_hash")
+    @classmethod
+    def validate_integrity_hash(cls, v: str | None) -> str | None:
         """Validate integrity hash format."""
         if v is not None and (not isinstance(v, str) or len(v) != 64):
             raise ValueError("Integrity hash must be a 64-character SHA-256 hex string")
@@ -63,8 +65,9 @@ class SecureCacheEntry(BaseModel):
     ttl: int = Field(..., ge=0, description="Time-to-live in seconds")
     created_timestamp: float = Field(..., description="Creation timestamp")
 
-    @validator("key")
-    def validate_key_format(cls, v):
+    @field_validator("key")
+    @classmethod
+    def validate_key_format(cls, v: str) -> str:
         """Validate cache key format for security."""
         if not v or not isinstance(v, str):
             raise ValueError("Cache key must be a non-empty string")
@@ -78,8 +81,11 @@ class SecureCacheEntry(BaseModel):
 
         return v.strip()
 
-    @validator("data")
-    def validate_data_security(cls, v):
+    @field_validator("data")
+    @classmethod
+    def validate_data_security(
+        cls, v: str | int | float | bool | list[Any] | dict[str, Any] | None
+    ) -> str | int | float | bool | list[Any] | dict[str, Any] | None:
         """Validate data for security and JSON serializability."""
         # Check if data is JSON-serializable
         try:
@@ -104,8 +110,9 @@ class SecureCacheEntry(BaseModel):
 
         return v
 
-    @validator("ttl")
-    def validate_ttl_range(cls, v):
+    @field_validator("ttl")
+    @classmethod
+    def validate_ttl_range(cls, v: int) -> int:
         """Validate TTL is within reasonable bounds."""
         max_ttl = 86400 * 30  # 30 days max
         if v > max_ttl:
@@ -241,8 +248,9 @@ class CacheSecurityConfig(BaseModel):
         default=True, description="Enable integrity checking"
     )
 
-    @validator("secret_key")
-    def validate_secret_key(cls, v):
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
         """Validate secret key strength."""
         if len(v) < 32:
             raise ValueError("Secret key must be at least 32 characters")

@@ -46,7 +46,7 @@ List all available AI governance frameworks.
 **Example**:
 ```
 list_frameworks()
-→ Returns 5 frameworks: NIST AI 600-1, EU AI Act 2024, GDPR, OWASP LLM Top 10, ISO/IEC 23053
+→ Returns the currently available framework catalog from FINOS
 ```
 
 ---
@@ -64,12 +64,12 @@ Get complete content of a specific framework.
 {
   "type": "object",
   "properties": {
-    "framework_id": {
+    "framework": {
       "type": "string",
       "description": "Framework identifier (e.g., 'nist-ai-600-1', 'eu-ai-act')"
     }
   },
-  "required": ["framework_id"]
+  "required": ["framework"]
 }
 ```
 
@@ -110,7 +110,7 @@ Search for text within framework documents.
     "limit": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 50,
+      "maximum": 20,
       "default": 5,
       "description": "Maximum number of results to return"
     }
@@ -175,7 +175,7 @@ List all available risk documents.
 **Example**:
 ```
 list_risks()
-→ Returns 17 risk documents from FINOS AI Governance Framework
+→ Returns risk documents from FINOS AI Governance Framework
 ```
 
 ---
@@ -195,7 +195,7 @@ Get complete content of a specific risk document.
   "properties": {
     "risk_id": {
       "type": "string",
-      "description": "Risk identifier (e.g., '01_model-inversion', '02_data-poisoning')"
+      "description": "Risk identifier (e.g., '10_prompt-injection', '1_information-leaked-to-hosted-model')"
     }
   },
   "required": ["risk_id"]
@@ -214,8 +214,8 @@ Get complete content of a specific risk document.
 
 **Example**:
 ```
-get_risk("01_model-inversion")
-→ Returns complete model inversion risk documentation
+get_risk("10_prompt-injection")
+→ Returns complete prompt injection risk documentation
 ```
 
 ---
@@ -242,7 +242,7 @@ Search within risk documentation.
     "limit": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 50,
+      "maximum": 20,
       "default": 5,
       "description": "Maximum number of results to return"
     }
@@ -258,7 +258,7 @@ Search within risk documentation.
   "total_found": "integer",
   "results": [
     {
-      "framework_id": "string (risk ID)",
+      "framework_id": "string (prefixed risk ID, e.g., 'risk-10_prompt-injection')",
       "section": "string (risk name)",
       "content": "string (matching content snippet)"
     }
@@ -307,7 +307,7 @@ List all available mitigation documents.
 **Example**:
 ```
 list_mitigations()
-→ Returns 17 mitigation documents from FINOS AI Governance Framework
+→ Returns mitigation documents from FINOS AI Governance Framework
 ```
 
 ---
@@ -327,7 +327,7 @@ Get complete content of a specific mitigation document.
   "properties": {
     "mitigation_id": {
       "type": "string",
-      "description": "Mitigation identifier (e.g., '01_data-encryption', '02_access-controls')"
+      "description": "Mitigation identifier (e.g., '1_ai-data-leakage-prevention-and-detection', '10_ai-model-version-pinning')"
     }
   },
   "required": ["mitigation_id"]
@@ -346,8 +346,8 @@ Get complete content of a specific mitigation document.
 
 **Example**:
 ```
-get_mitigation("01_data-encryption")
-→ Returns complete data encryption mitigation documentation
+get_mitigation("1_ai-data-leakage-prevention-and-detection")
+→ Returns complete mitigation documentation
 ```
 
 ---
@@ -372,7 +372,7 @@ Search within mitigation documentation.
     "limit": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 50,
+      "maximum": 20,
       "default": 5,
       "description": "Maximum number of results to return"
     }
@@ -388,7 +388,7 @@ Search within mitigation documentation.
   "total_found": "integer",
   "results": [
     {
-      "framework_id": "string (mitigation ID)",
+      "framework_id": "string (prefixed mitigation ID, e.g., 'mitigation-1_ai-data-leakage-prevention-and-detection')",
       "section": "string (mitigation name)",
       "content": "string (matching content snippet)"
     }

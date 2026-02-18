@@ -143,8 +143,8 @@ export FINOS_MCP_LOG_LEVEL=INFO
 - **Total**: 200+ governance references across multiple frameworks
 
 **FINOS Content:**
-- **17 AI Governance Mitigations** (mi-1 through mi-17)
-- **17 AI Risk Assessments** (ri-1, ri-2, ri-3, ri-5-ri-16, ri-19, ri-23)
+- **23 AI Governance Mitigations** (current repository snapshot; may grow over time)
+- **23 AI Risk Assessments** (current repository snapshot; may grow over time)
 - Content from [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework)
 - Licensed under CC BY 4.0
 

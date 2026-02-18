@@ -106,7 +106,7 @@ Gets complete content of a specific framework.
 **Example**:
 ```python
 # Request
-mcp_client.call_tool("get_framework", {"framework_id": "nist-ai-600-1"})
+mcp_client.call_tool("get_framework", {"framework": "nist-ai-600-1"})
 
 # Response includes full framework content with all sections
 ```
@@ -165,16 +165,16 @@ Lists all available risk documents.
 **Response Schema**:
 ```json
 {
-  "total_count": 17,
+  "total_count": 23,
   "source": "github_api",
   "documents": [
     {
-      "id": "01_model-inversion",
-      "name": "Model Inversion Attacks"
+      "id": "1_information-leaked-to-hosted-model",
+      "name": "Ri 1 Information Leaked To Hosted Model"
     },
     {
-      "id": "02_data-poisoning",
-      "name": "Data Poisoning"
+      "id": "9_data-poisoning",
+      "name": "Ri 9 Data Poisoning"
     },
     {
       "id": "10_prompt-injection",
@@ -200,8 +200,8 @@ Gets complete content of a specific risk document.
 **Response Schema**:
 ```json
 {
-  "document_id": "01_model-inversion",
-  "title": "Model Inversion Attacks",
+  "document_id": "10_prompt-injection",
+  "title": "Ri 10 Prompt Injection",
   "sections": [
     "Description",
     "Attack Vectors",
@@ -233,14 +233,14 @@ Searches within risk documentation.
   "total_found": 3,
   "results": [
     {
-      "framework_id": "10_prompt-injection",
+      "framework_id": "risk-10_prompt-injection",
       "section": "Prompt Injection",
       "content": "...prompt injection attacks allow malicious users to manipulate..."
     },
     {
-      "framework_id": "11_sql-injection",
-      "section": "SQL Injection Risks",
-      "content": "...SQL injection in AI data pipelines can compromise..."
+      "framework_id": "risk-9_data-poisoning",
+      "section": "Ri 9 Data Poisoning",
+      "content": "...training data poisoning can compromise model behavior..."
     }
   ]
 }
@@ -250,7 +250,7 @@ Searches within risk documentation.
 - `query` (string): The search query executed
 - `total_found` (integer): Total number of matching results
 - `results` (array): List of search result objects
-  - `framework_id` (string): Risk ID where match was found
+  - `framework_id` (string): Prefixed risk ID where match was found (`risk-{id}`)
   - `section` (string): Risk name/title
   - `content` (string): Content snippet with matching text
 
@@ -263,16 +263,16 @@ Lists all available mitigation documents.
 **Response Schema**:
 ```json
 {
-  "total_count": 17,
+  "total_count": 23,
   "source": "github_api",
   "documents": [
     {
-      "id": "01_data-encryption",
-      "name": "Data Encryption"
+      "id": "1_ai-data-leakage-prevention-and-detection",
+      "name": "Mi 1 Ai Data Leakage Prevention And Detection"
     },
     {
-      "id": "02_access-controls",
-      "name": "Access Controls"
+      "id": "12_role-based-access-control-for-ai-data",
+      "name": "Mi 12 Role Based Access Control For Ai Data"
     },
     {
       "id": "10_ai-model-version-pinning",
@@ -298,8 +298,8 @@ Gets complete content of a specific mitigation document.
 **Response Schema**:
 ```json
 {
-  "document_id": "01_data-encryption",
-  "title": "Data Encryption",
+  "document_id": "1_ai-data-leakage-prevention-and-detection",
+  "title": "Mi 1 Ai Data Leakage Prevention And Detection",
   "sections": [
     "Overview",
     "Implementation Steps",
@@ -329,14 +329,14 @@ Searches within mitigation documentation.
   "total_found": 5,
   "results": [
     {
-      "framework_id": "01_data-encryption",
-      "section": "Data Encryption",
+      "framework_id": "mitigation-1_ai-data-leakage-prevention-and-detection",
+      "section": "Mi 1 Ai Data Leakage Prevention And Detection",
       "content": "...implement strong encryption algorithms for data at rest..."
     },
     {
-      "framework_id": "05_model-encryption",
-      "section": "Model Encryption",
-      "content": "...encrypt AI model weights and parameters during storage..."
+      "framework_id": "mitigation-14_encryption-of-ai-data-at-rest",
+      "section": "Mi 14 Encryption Of Ai Data At Rest",
+      "content": "...implement strong encryption controls for AI data at rest..."
     }
   ]
 }
@@ -346,7 +346,7 @@ Searches within mitigation documentation.
 - `query` (string): The search query executed
 - `total_found` (integer): Total number of matching results
 - `results` (array): List of search result objects
-  - `framework_id` (string): Mitigation ID where match was found
+  - `framework_id` (string): Prefixed mitigation ID where match was found (`mitigation-{id}`)
   - `section` (string): Mitigation name/title
   - `content` (string): Content snippet with matching text
 
@@ -451,7 +451,7 @@ Returned when input parameters are invalid.
     "code": "VALIDATION_ERROR",
     "message": "Invalid input parameters",
     "details": {
-      "field": "framework_id",
+      "field": "framework",
       "value": "invalid_framework",
       "expected": "Valid framework ID from list_frameworks"
     }
@@ -460,10 +460,10 @@ Returned when input parameters are invalid.
 ```
 
 **Common Validation Errors**:
-- Invalid framework_id in get_framework
+- Invalid framework in get_framework
 - Invalid risk_id in get_risk
 - Invalid mitigation_id in get_mitigation
-- Invalid limit parameter (must be 1-50)
+- Invalid limit parameter (must be 1-20)
 
 ---
 

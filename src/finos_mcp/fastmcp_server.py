@@ -46,6 +46,7 @@ logger = get_logger("fastmcp_server")
 
 # Create FastMCP server instance
 mcp = FastMCP("finos-ai-governance")
+_SERVER_START_TIME = time.monotonic()
 
 
 # Structured output models
@@ -667,7 +668,7 @@ async def get_service_health() -> ServiceHealth:
 
     return ServiceHealth(
         status="healthy",
-        uptime_seconds=time.time(),
+        uptime_seconds=time.monotonic() - _SERVER_START_TIME,
         version=__version__,
         healthy_services=4,
         total_services=4,

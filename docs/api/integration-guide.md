@@ -65,14 +65,14 @@ Start with a simple framework listing:
 # Usage
 mcp_client.call_tool("list_frameworks", {})
 
-# Returns: 5 frameworks with IDs, names, descriptions
+# Returns: Available frameworks with IDs, names, descriptions
 ```
 
 **2. get_framework** - Get complete content of a specific framework
 ```python
 # Usage
 mcp_client.call_tool("get_framework", {
-    "framework_id": "nist-ai-600-1"
+    "framework": "nist-ai-600-1"
 })
 
 # Returns: Complete framework content with sections
@@ -94,14 +94,14 @@ mcp_client.call_tool("search_frameworks", {
 # Usage
 mcp_client.call_tool("list_risks", {})
 
-# Returns: 17 risk documents from FINOS repository
+# Returns: Risk documents from FINOS repository
 ```
 
 **5. get_risk** - Get complete content of specific risk documents
 ```python
 # Usage
 mcp_client.call_tool("get_risk", {
-    "risk_id": "01_model-inversion"
+    "risk_id": "10_prompt-injection"
 })
 
 # Returns: Complete risk document content
@@ -125,14 +125,14 @@ mcp_client.call_tool("search_risks", {
 # Usage
 mcp_client.call_tool("list_mitigations", {})
 
-# Returns: 17 mitigation documents from FINOS repository
+# Returns: Mitigation documents from FINOS repository
 ```
 
 **8. get_mitigation** - Get complete content of mitigation documents
 ```python
 # Usage
 mcp_client.call_tool("get_mitigation", {
-    "mitigation_id": "01_data-encryption"
+    "mitigation_id": "1_ai-data-leakage-prevention-and-detection"
 })
 
 # Returns: Complete mitigation document content
@@ -201,7 +201,7 @@ class FrameworkResearcher:
 
         return await self.mcp_client.call_tool(
             "get_framework",
-            {"framework_id": framework_id}
+            {"framework": framework_id}
         )
 ```
 
@@ -431,7 +431,7 @@ class GracefulFrameworkClient:
             # Try primary method
             return await self.mcp_client.call_tool(
                 "get_framework",
-                {"framework_id": framework_id}
+                {"framework": framework_id}
             )
 
         except Exception:

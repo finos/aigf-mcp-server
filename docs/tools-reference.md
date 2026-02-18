@@ -7,7 +7,7 @@ Quick reference for all 11 available MCP tools organized in 3 categories.
 ### `list_frameworks`
 **Purpose**: List all supported AI governance frameworks
 **Usage**: `list_frameworks()`
-**Returns**: Structured list of 5 frameworks with descriptions
+**Returns**: Structured list of available frameworks with descriptions
 
 **Supported Frameworks**:
 - NIST AI 600-1 (Artificial Intelligence Risk Management Framework)
@@ -21,14 +21,14 @@ Quick reference for all 11 available MCP tools organized in 3 categories.
 ### `get_framework`
 **Purpose**: Get complete content of a specific framework
 **Usage**: `get_framework("nist-ai-600-1")`
-**Parameters**: framework_id (string) - Framework ID from list_frameworks
+**Parameters**: framework (string) - Framework ID from list_frameworks
 **Returns**: Framework content with metadata and section count
 
 **Example Usage**:
 ```
 get_framework("eu-ai-act")
 get_framework("iso-42001")
-get_framework("owasp-llm-top10")
+get_framework("owasp-llm")
 ```
 
 ### `search_frameworks`
@@ -42,11 +42,11 @@ get_framework("owasp-llm-top10")
 ### `list_risks`
 **Purpose**: List available risk documents
 **Usage**: `list_risks()`
-**Returns**: Structured list of 17 risk documents from GitHub repository
+**Returns**: Structured list of risk documents from GitHub repository
 
 ### `get_risk`
 **Purpose**: Get complete content of a specific risk document
-**Usage**: `get_risk("01_model-inversion")`
+**Usage**: `get_risk("10_prompt-injection")`
 **Parameters**: risk_id (string) - Risk ID from list_risks
 **Returns**: Full risk document content with metadata and sections
 
@@ -63,11 +63,11 @@ get_framework("owasp-llm-top10")
 ### `list_mitigations`
 **Purpose**: List available mitigation documents
 **Usage**: `list_mitigations()`
-**Returns**: Structured list of 17 mitigation documents from GitHub repository
+**Returns**: Structured list of mitigation documents from GitHub repository
 
 ### `get_mitigation`
 **Purpose**: Get complete content of a specific mitigation document
-**Usage**: `get_mitigation("01_data-encryption")`
+**Usage**: `get_mitigation("1_ai-data-leakage-prevention-and-detection")`
 **Parameters**: mitigation_id (string) - Mitigation ID from list_mitigations
 **Returns**: Full mitigation document content with metadata and sections
 
@@ -141,14 +141,14 @@ get_framework("owasp-llm-top10")
 **Purpose**: URI-based access to risk documents
 **Usage**: Direct resource access via MCP resource protocol
 **Examples**:
-- `finos://risks/01_model-inversion`
 - `finos://risks/10_prompt-injection`
+- `finos://risks/9_data-poisoning`
 
 ### `finos://mitigations/{id}`
 **Purpose**: URI-based access to mitigation documents
 **Usage**: Direct resource access via MCP resource protocol
 **Examples**:
-- `finos://mitigations/01_data-encryption`
+- `finos://mitigations/1_ai-data-leakage-prevention-and-detection`
 - `finos://mitigations/10_ai-model-version-pinning`
 
 ---
