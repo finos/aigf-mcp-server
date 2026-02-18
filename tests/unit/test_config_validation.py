@@ -182,13 +182,18 @@ class TestSettingsValidation:
     def test_auth_enabled_with_jwks(self, clean_env):
         """Test auth-enabled configuration with JWKS URI."""
         os.environ["FINOS_MCP_MCP_AUTH_ENABLED"] = "true"
-        os.environ["FINOS_MCP_MCP_AUTH_JWKS_URI"] = "https://auth.example.com/.well-known/jwks.json"
+        os.environ["FINOS_MCP_MCP_AUTH_JWKS_URI"] = (
+            "https://auth.example.com/.well-known/jwks.json"
+        )
         os.environ["FINOS_MCP_MCP_AUTH_ISSUER"] = "https://auth.example.com"
         os.environ["FINOS_MCP_MCP_AUTH_AUDIENCE"] = "finos-mcp-server"
 
         settings = Settings()
         assert settings.mcp_auth_enabled is True
-        assert settings.mcp_auth_jwks_uri == "https://auth.example.com/.well-known/jwks.json"
+        assert (
+            settings.mcp_auth_jwks_uri
+            == "https://auth.example.com/.well-known/jwks.json"
+        )
         assert settings.mcp_auth_issuer == "https://auth.example.com"
         assert settings.mcp_auth_audience == "finos-mcp-server"
 
@@ -196,7 +201,9 @@ class TestSettingsValidation:
         """Test startup validation rejects conflicting verifier config."""
         os.environ["FINOS_MCP_MCP_AUTH_ENABLED"] = "true"
         os.environ["FINOS_MCP_MCP_AUTH_JWKS_URI"] = "https://auth.example.com/jwks"
-        os.environ["FINOS_MCP_MCP_AUTH_PUBLIC_KEY"] = "-----BEGIN PUBLIC KEY-----\\nabc\\n-----END PUBLIC KEY-----"
+        os.environ["FINOS_MCP_MCP_AUTH_PUBLIC_KEY"] = (
+            "-----BEGIN PUBLIC KEY-----\\nabc\\n-----END PUBLIC KEY-----"
+        )
         os.environ["FINOS_MCP_MCP_AUTH_ISSUER"] = "https://auth.example.com"
         os.environ["FINOS_MCP_MCP_AUTH_AUDIENCE"] = "finos-mcp-server"
 

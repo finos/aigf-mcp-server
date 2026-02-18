@@ -51,7 +51,9 @@ logger = get_logger("fastmcp_server")
 def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
     """Build the MCP auth provider from validated application settings."""
     if not app_settings.mcp_auth_enabled:
-        logger.info("MCP auth disabled; server will run without boundary authentication")
+        logger.info(
+            "MCP auth disabled; server will run without boundary authentication"
+        )
         return None
 
     if app_settings.mcp_auth_jwks_uri:
@@ -184,9 +186,12 @@ def _safe_resource_content(content: str, resource_id: str) -> str:
         request_size_validator.validate_resource_size(content)
         return content
     except ValueError as e:
-        logger.warning("Resource payload exceeded size limit for %s: %s", resource_id, e)
+        logger.warning(
+            "Resource payload exceeded size limit for %s: %s", resource_id, e
+        )
         return _safe_external_error(
-            e, "Resource payload exceeded allowed size limits. Please narrow your query."
+            e,
+            "Resource payload exceeded allowed size limits. Please narrow your query.",
         )
 
 
@@ -197,7 +202,9 @@ def _safe_document_content(
     try:
         request_size_validator.validate_resource_size(content)
         sections = [
-            line.strip("#").strip() for line in content.split("\n") if line.startswith("#")
+            line.strip("#").strip()
+            for line in content.split("\n")
+            if line.startswith("#")
         ]
         return content, sections
     except ValueError as e:
@@ -1296,7 +1303,11 @@ async def get_framework_resource(
 async def get_risk_resource(
     risk_id: Annotated[
         str,
-        Field(min_length=1, max_length=256, description="Risk identifier from list_risks()."),
+        Field(
+            min_length=1,
+            max_length=256,
+            description="Risk identifier from list_risks().",
+        ),
     ],
 ) -> str:
     """Get risk document as a resource.
@@ -1454,7 +1465,9 @@ async def mitigation_strategy_prompt(
     ],
     system_description: Annotated[
         str,
-        Field(min_length=1, max_length=4000, description="Description of the AI system."),
+        Field(
+            min_length=1, max_length=4000, description="Description of the AI system."
+        ),
     ],
 ) -> str:
     """Generate a mitigation strategy prompt for a specific risk in an AI system.

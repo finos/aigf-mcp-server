@@ -256,7 +256,11 @@ class Settings(BaseSettings):
         """Return auth required scopes as a normalized list."""
         if not self.mcp_auth_required_scopes:
             return []
-        return [scope.strip() for scope in self.mcp_auth_required_scopes.split(",") if scope.strip()]
+        return [
+            scope.strip()
+            for scope in self.mcp_auth_required_scopes.split(",")
+            if scope.strip()
+        ]
 
     @property
     def logging_config(self) -> dict[str, str | int | None]:
@@ -317,9 +321,7 @@ class Settings(BaseSettings):
 
         if self.mcp_transport != "stdio":
             if not self.mcp_host:
-                errors.append(
-                    "mcp_host is required when mcp_transport is not stdio"
-                )
+                errors.append("mcp_host is required when mcp_transport is not stdio")
             if self.mcp_port < 1 or self.mcp_port > 65535:
                 errors.append(
                     "mcp_port must be between 1 and 65535 for non-stdio transports"
@@ -329,7 +331,9 @@ class Settings(BaseSettings):
             if not self.mcp_auth_issuer:
                 errors.append("mcp_auth_issuer is required when mcp_auth_enabled=true")
             if not self.mcp_auth_audience:
-                errors.append("mcp_auth_audience is required when mcp_auth_enabled=true")
+                errors.append(
+                    "mcp_auth_audience is required when mcp_auth_enabled=true"
+                )
             if not self.mcp_auth_jwks_uri and not self.mcp_auth_public_key:
                 errors.append(
                     "Either mcp_auth_jwks_uri or mcp_auth_public_key is required when mcp_auth_enabled=true"
@@ -423,12 +427,20 @@ def validate_settings_on_startup() -> Settings:
         logger.debug("Cache enabled: %s", app_settings.enable_cache)
         logger.info("MCP transport: %s", app_settings.mcp_transport)
         if app_settings.mcp_transport != "stdio":
-            logger.info("MCP bind address: %s:%s", app_settings.mcp_host, app_settings.mcp_port)
+            logger.info(
+                "MCP bind address: %s:%s", app_settings.mcp_host, app_settings.mcp_port
+            )
         logger.info("MCP auth enabled: %s", app_settings.mcp_auth_enabled)
         if app_settings.mcp_auth_enabled:
-            logger.info("MCP auth issuer configured: %s", bool(app_settings.mcp_auth_issuer))
-            logger.info("MCP auth audience configured: %s", bool(app_settings.mcp_auth_audience))
-            logger.info("MCP auth required scopes: %s", app_settings.mcp_auth_scopes_list)
+            logger.info(
+                "MCP auth issuer configured: %s", bool(app_settings.mcp_auth_issuer)
+            )
+            logger.info(
+                "MCP auth audience configured: %s", bool(app_settings.mcp_auth_audience)
+            )
+            logger.info(
+                "MCP auth required scopes: %s", app_settings.mcp_auth_scopes_list
+            )
 
         # Security status logging
         if app_settings.github_token:

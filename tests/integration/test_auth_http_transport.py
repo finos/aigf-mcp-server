@@ -47,7 +47,9 @@ def _wait_for_port(host: str, port: int, timeout_seconds: float = 15.0) -> None:
         if _is_port_open(host, port):
             return
         time.sleep(0.2)
-    raise TimeoutError(f"Server did not start on {host}:{port} within {timeout_seconds}s")
+    raise TimeoutError(
+        f"Server did not start on {host}:{port} within {timeout_seconds}s"
+    )
 
 
 def _generate_rsa_keys() -> tuple[str, bytes]:
