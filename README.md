@@ -24,7 +24,7 @@ This project provides direct access to AI governance framework documents from FI
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Clone the repository
@@ -54,7 +54,7 @@ mcp list tools
 
 ---
 
-## 🛠️ Available MCP Tools
+## Available MCP Tools
 
 ### Framework Access Tools (5)
 | Tool Name | Description | Use Case |
@@ -81,7 +81,7 @@ mcp list tools
 
 ---
 
-## 📋 Supported Content
+## Supported Content
 
 ### AI Governance Frameworks
 | Framework | Description | Focus Area |
@@ -96,7 +96,7 @@ mcp list tools
 
 ---
 
-## 🎯 Risk and Mitigation Categories
+## Risk and Mitigation Categories
 
 ### Risk Categories
 | Risk Type | Description | Example Risks |
@@ -115,7 +115,7 @@ mcp list tools
 
 ---
 
-## 📊 Common Use Cases
+## Common Use Cases
 
 ### Framework Research
 - **List Available Frameworks**: Use `list_frameworks` to see all supported governance frameworks
@@ -138,7 +138,7 @@ mcp list tools
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Components
 
@@ -169,7 +169,7 @@ mcp list tools
 
 ---
 
-## 🚀 Development
+## Development
 
 ### Setup
 
@@ -211,7 +211,7 @@ The FastMCP architecture makes adding tools simple:
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 Environment variables and configuration:
 - Content loaded from GitHub repositories dynamically
@@ -309,7 +309,7 @@ Includes:
 
 ---
 
-## 🔍 Content Sources
+## Content Sources
 
 ### Content Coverage
 - **Framework Data**: Direct access to governance framework documents
@@ -324,7 +324,7 @@ Includes:
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 ### Getting Started
 - **[Setup Guide](docs/README.md)** - Connect to your editor (5 minutes)
@@ -341,7 +341,7 @@ Includes:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -352,11 +352,11 @@ Includes:
 
 ---
 
-## 🆘 Need Help?
+## Need Help
 
-- 🐛 [Report Issues](https://github.com/finos/aigf-mcp-server/issues)
-- 💬 [Ask Questions](https://github.com/finos/aigf-mcp-server/discussions)
-- 📖 [Full Documentation](docs/README.md)
+- [Report Issues](https://github.com/finos/aigf-mcp-server/issues)
+- [Ask Questions](https://github.com/finos/aigf-mcp-server/discussions)
+- [Full Documentation](docs/README.md)
 
 ---
 

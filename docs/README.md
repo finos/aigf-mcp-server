@@ -1,10 +1,10 @@
-# 🔍 Governance Framework Reference System
+# Governance Framework Reference System
 
 **Comprehensive governance framework reference system for your development tools.**
 
 This independent project provides access to governance frameworks and risk assessments through the Model Context Protocol (MCP), making them available in Claude, VS Code, Cursor, and other supported tools.
 
-## 🚀 Quick Start (5 minutes)
+## Quick Start (5 minutes)
 
 ### 1. Install
 ```bash
@@ -18,7 +18,7 @@ pip install -e .
 ```bash
 finos-mcp --help
 ```
-✅ You should see the help message.
+You should see the help message.
 
 ### 3. Connect to your editor
 Choose your tool:
@@ -29,10 +29,10 @@ Choose your tool:
 
 ---
 
-## 🔧 Client Setup
+## Client Setup
 
 ### Claude Desktop
-1. Open Claude Desktop settings (⚙️ icon)
+1. Open Claude Desktop settings
 2. Add this configuration:
 ```json
 {
@@ -45,7 +45,7 @@ Choose your tool:
 }
 ```
 3. Restart Claude Desktop
-4. ✅ Test: Ask "List all supported governance frameworks" or "Search frameworks for risk management"
+4. Test: Ask "List all supported governance frameworks" or "Search frameworks for risk management"
 
 ### VS Code
 1. Install the [Continue.dev extension](https://marketplace.visualstudio.com/items?itemName=Continue.continue)
@@ -61,7 +61,7 @@ Choose your tool:
   ]
 }
 ```
-4. ✅ Test: Use Continue chat to search framework content and AI governance risks
+4. Test: Use Continue chat to search framework content and AI governance risks
 
 ### Cursor
 1. Open Cursor settings
@@ -69,14 +69,14 @@ Choose your tool:
 3. Add new server:
    - **Name**: `finos-ai-governance`
    - **Command**: `finos-mcp`
-4. ✅ Test: Use @ to access framework and governance tools
+4. Test: Use @ to access framework and governance tools
 
 ### Other Clients
 This server works with any MCP-compatible client. See [MCP Client Directory](https://modelcontextprotocol.io/clients) for more options.
 
 ---
 
-## 🛠️ What You Get
+## What You Get
 
 **11 MCP Tools** for AI governance framework access:
 
@@ -99,7 +99,7 @@ This server works with any MCP-compatible client. See [MCP Client Directory](htt
 
 ---
 
-## 💡 Common Use Cases
+## Common Use Cases
 
 ### Framework Research
 1. *"List all supported governance frameworks"* → Uses `list_frameworks`
@@ -122,7 +122,7 @@ This server works with any MCP-compatible client. See [MCP Client Directory](htt
 
 ---
 
-## ⚙️ Configuration (Optional)
+## Configuration (Optional)
 
 Set environment variables for better performance:
 
@@ -152,7 +152,7 @@ For full production-grade settings (auth, transport, cache, timeouts, logging), 
 
 ---
 
-## 🔍 Content Details
+## Content Details
 
 **Framework Support:**
 - **NIST AI Risk Management Framework** (6 references, 4 sections)
@@ -173,17 +173,17 @@ For full production-grade settings (auth, transport, cache, timeouts, logging), 
 
 ---
 
-## 📚 More Information
+## More Information
 
 - **[Tools Reference](tools-reference.md)** - Complete guide to all 11 tools
 - **[Troubleshooting](troubleshooting.md)** - Fix common issues
 
-## 🆘 Need Help?
+## Need Help
 
-- 🐛 [Report bugs](https://github.com/finos/aigf-mcp-server/issues)
-- 💬 [Ask questions](https://github.com/finos/aigf-mcp-server/discussions)
-- 🔧 [Troubleshooting guide](troubleshooting.md)
+- [Report bugs](https://github.com/finos/aigf-mcp-server/issues)
+- [Ask questions](https://github.com/finos/aigf-mcp-server/discussions)
+- [Troubleshooting guide](troubleshooting.md)
 
 ---
 
-**Ready to start?** Pick your editor above and follow the setup! 🚀
+**Ready to start?** Pick your editor above and follow the setup.

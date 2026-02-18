@@ -104,19 +104,19 @@ This update closes implementation/documentation gaps around MCP boundary securit
 
 ## Issues Fixed
 
-### 1. ✅ Tool Count Discrepancies
+### 1. Tool Count Discrepancies
 - **README.md**: No explicit count (acceptable)
 - **docs/api/README.md**: 21 tools → 11 tools
 - **docs/README.md**: 21 tools → 11 tools
 - **docs/tools-reference.md**: Fixed categorization
 - **All files now**: Consistently reference 11 tools
 
-### 2. ✅ Incorrect Tool Names
+### 2. Incorrect Tool Names
 - **README.md**: `get_framework_content` → `get_framework` (2 occurrences)
 - **docs/tools-reference.md**: `get_framework_content` → `get_framework`
 - **All files verified**: No more `get_framework_content` references
 
-### 3. ✅ Non-Existent Tools Removed
+### 3. Non-Existent Tools Removed
 
 Removed from ALL documentation:
 - `get_compliance_analysis` (compliance analysis tool - never implemented)
@@ -135,7 +135,7 @@ Removed from ALL documentation:
 - `reset_service_health` (admin tool - never implemented)
 - `advanced_search_frameworks` (never implemented)
 
-### 4. ✅ Tool Category Corrections
+### 4. Tool Category Corrections
 
 **Old (incorrect)**:
 - Framework Tools: 11 tools
@@ -149,7 +149,7 @@ Removed from ALL documentation:
 - System Monitoring Tools: 2 tools
 - Total: 11 tools (5+4+2=11 ✓)
 
-### 5. ✅ Obsolete Files Removed
+### 5. Obsolete Files Removed
 
 **Deleted 4 files** that documented only non-existent features:
 - `docs/user-guide/compliance-analysis.md` (68 lines)
@@ -159,7 +159,7 @@ Removed from ALL documentation:
 
 **Total removed**: 479 lines of misleading documentation
 
-### 6. ✅ Content Synchronization
+### 6. Content Synchronization
 
 **Files Completely Rewritten**:
 - `docs/README.md` (180 lines → 172 lines)
@@ -255,7 +255,7 @@ ACTUAL_TOOL_COUNT=$(grep "@mcp.tool()" src/finos_mcp/fastmcp_server.py -A1 | gre
 EXPECTED_TOOL_COUNT=11
 
 if [ "$ACTUAL_TOOL_COUNT" != "$EXPECTED_TOOL_COUNT" ]; then
-    echo "❌ Tool count mismatch: Found $ACTUAL_TOOL_COUNT, expected $EXPECTED_TOOL_COUNT"
+    echo "ERROR: Tool count mismatch: Found $ACTUAL_TOOL_COUNT, expected $EXPECTED_TOOL_COUNT"
     exit 1
 fi
 
@@ -274,7 +274,7 @@ NON_EXISTENT_TOOLS=(
 
 for tool in "${NON_EXISTENT_TOOLS[@]}"; do
     if grep -r "$tool" docs --include="*.md" | grep -v "docs/archive/" > /dev/null; then
-        echo "❌ Found reference to non-existent tool: $tool"
+        echo "ERROR: Found reference to non-existent tool: $tool"
         exit 1
     fi
 done
@@ -302,6 +302,6 @@ Add to `.pre-commit-config.yaml`:
 4. **Verification is Essential**: Manual cross-checks are necessary during documentation updates
 5. **Clean Up Old Content**: Don't leave misleading documentation "just in case"
 
-## Status: COMPLETE ✅
+## Status: COMPLETE
 
 All public documentation has been synchronized with actual codebase implementation. The server now has accurate documentation for all 11 MCP tools with no references to non-existent features.

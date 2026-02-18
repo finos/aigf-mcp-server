@@ -50,15 +50,17 @@ This directory contains comprehensive API documentation for the FINOS AI Governa
 
 ## Framework Support
 
-The server provides access to 5 governance frameworks:
+The server provides access to 7 governance frameworks:
 
 | Framework | Type | Status | Description |
 |-----------|------|--------|-------------|
 | **NIST AI 600-1** | Active | Production | US federal AI governance framework |
-| **EU AI Act 2024** | Active | Production | European Union AI regulation |
-| **GDPR** | Active | Dynamic Loading | General Data Protection Regulation |
-| **OWASP LLM Top 10** | Active | Production | AI security best practices |
-| **ISO/IEC 23053** | Active | Production | International AI standards |
+| **EU AI Act** | Active | Production | European Union AI regulation |
+| **ISO 42001** | Active | Production | AI management systems standard |
+| **FFIEC IT Booklets** | Active | Production | Financial services IT guidance |
+| **NIST SP 800-53r5** | Active | Production | Security and privacy control catalog |
+| **OWASP LLM Top 10** | Active | Production | AI/LLM security best practices |
+| **OWASP ML Top 10** | Active | Production | ML security and operational risks |
 
 ## Performance Characteristics
 
