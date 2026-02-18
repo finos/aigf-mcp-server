@@ -807,13 +807,30 @@ class CacheManager:
 
     _instance: Optional["CacheManager"] = None
     _cache: TTLCache[str, Any] | None = None
-    _lock: asyncio.Lock
+    _lock: asyncio.Lock | None
+    _loop: asyncio.AbstractEventLoop | None
 
     def __new__(cls) -> "CacheManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._lock = asyncio.Lock()
+            cls._instance._lock = None
+            cls._instance._loop = None
         return cls._instance
+
+    async def _ensure_loop_context(self) -> asyncio.Lock:
+        """Ensure cache lock/resources are bound to the active event loop."""
+        current_loop = asyncio.get_running_loop()
+        if (
+            self._loop is None
+            or self._loop.is_closed()
+            or self._loop is not current_loop
+        ):
+            self._cache = None
+            self._loop = current_loop
+            self._lock = asyncio.Lock()
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def get_cache(self) -> TTLCache[str, Any]:
         """Get or create global cache instance.
@@ -822,8 +839,9 @@ class CacheManager:
             Global TTL cache instance configured with application settings
 
         """
+        lock = await self._ensure_loop_context()
         if self._cache is None:
-            async with self._lock:
+            async with lock:
                 # Double-check pattern to prevent race conditions
                 if self._cache is None:
                     settings = get_settings()
@@ -857,9 +875,11 @@ class CacheManager:
 
     async def close_cache(self) -> None:
         """Close and cleanup global cache."""
+        await self._ensure_loop_context()
         if self._cache is not None:
             await self._cache.close()
             self._cache = None
+            self._loop = None
             logger.info("Global cache closed")
 
 

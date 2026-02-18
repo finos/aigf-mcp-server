@@ -218,12 +218,29 @@ class AsyncServiceManager:
 
     def __init__(self):
         self._service = None
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    async def _ensure_loop_context(self) -> asyncio.Lock:
+        """Ensure service lock/resources are bound to the active event loop."""
+        current_loop = asyncio.get_running_loop()
+        if (
+            self._loop is None
+            or self._loop.is_closed()
+            or self._loop is not current_loop
+        ):
+            self._service = None
+            self._loop = current_loop
+            self._lock = asyncio.Lock()
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def get_service(self):
         """Get content service instance with double-checked locking pattern."""
+        lock = await self._ensure_loop_context()
         if self._service is None:
-            async with self._lock:
+            async with lock:
                 if self._service is None:
                     logger.debug("Initializing content service")
                     self._service = await get_content_service()
@@ -232,8 +249,9 @@ class AsyncServiceManager:
 
     async def close_service(self):
         """Close and cleanup service resources."""
+        lock = await self._ensure_loop_context()
         if self._service is not None:
-            async with self._lock:
+            async with lock:
                 if self._service is not None:
                     logger.debug("Closing content service")
                     # If the service has a close method, call it
@@ -401,23 +419,34 @@ async def get_framework(
         FrameworkContent: Complete framework content with sections count and metadata.
         Content is formatted for easy parsing and includes both structured data and raw text.
     """
-    service = await get_service()
     try:
         _validate_request_params(framework=framework)
-        # First, discover to find the correct filename
+        service = await get_service()
+
+        # First, discover to find the correct filename.
         discovery_manager = DiscoveryServiceManager()
         discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
+        try:
+            discovery_result = await discovery_service.discover_content()
+            framework_filenames = [
+                file_info.filename for file_info in discovery_result.framework_files
+            ]
+        except Exception as discovery_error:
+            logger.warning(
+                "Framework discovery failed, using static fallback list: %s",
+                discovery_error,
+            )
+            framework_filenames = list(STATIC_FRAMEWORK_FILES)
 
         # Find the framework file by ID
-        target_file = None
-        for file_info in discovery_result.framework_files:
-            file_id = file_info.filename.replace(".yml", "").replace(".yaml", "")
+        target_filename = None
+        for filename in framework_filenames:
+            file_id = filename.replace(".yml", "").replace(".yaml", "")
             if file_id == framework:
-                target_file = file_info
+                target_filename = filename
                 break
 
-        if not target_file:
+        if not target_filename:
             return FrameworkContent(
                 framework_id=framework,
                 content=f"Framework '{framework}' was not found in the repository.",
@@ -425,7 +454,7 @@ async def get_framework(
             )
 
         # Get the document content
-        doc = await service.get_document("framework", target_file.filename)
+        doc = await service.get_document("framework", target_filename)
 
         if doc:
             content = doc.get("content", "")

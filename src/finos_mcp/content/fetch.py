@@ -590,6 +590,7 @@ class HTTPClientManager:
 
     _instance: Optional["HTTPClientManager"] = None
     _http_client: HTTPClient | None = None
+    _loop: asyncio.AbstractEventLoop | None = None
 
     def __new__(cls) -> "HTTPClientManager":
         if cls._instance is None:
@@ -606,6 +607,15 @@ class HTTPClientManager:
             Shared HTTP client instance
 
         """
+        current_loop = asyncio.get_running_loop()
+        if (
+            self._loop is None
+            or self._loop.is_closed()
+            or self._loop is not current_loop
+        ):
+            self._http_client = None
+            self._loop = current_loop
+
         if self._http_client is None:
             self._http_client = HTTPClient(settings)
 
@@ -616,6 +626,7 @@ class HTTPClientManager:
         if self._http_client is not None:
             await self._http_client.close()
             self._http_client = None
+            self._loop = None
 
 
 # Global HTTP client manager instance

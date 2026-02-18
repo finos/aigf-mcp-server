@@ -25,8 +25,15 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
 fi
 
 step "Gate 1: Ensure development-only folders are not tracked"
-if git ls-files | rg -q "^(\\.claude/|skills/|venv/|\\.venv/|\\.cache/)"; then
-  git ls-files | rg "^(\\.claude/|skills/|venv/|\\.venv/|\\.cache/)"
+DEV_ONLY_PATTERN='^(\.claude/|skills/|venv/|\.venv/|\.cache/)'
+if command -v rg >/dev/null 2>&1; then
+  HAS_DEV_ONLY_TRACKED=$(git ls-files | rg "$DEV_ONLY_PATTERN" || true)
+else
+  HAS_DEV_ONLY_TRACKED=$(git ls-files | grep -E "$DEV_ONLY_PATTERN" || true)
+fi
+
+if [[ -n "$HAS_DEV_ONLY_TRACKED" ]]; then
+  printf "%s\n" "$HAS_DEV_ONLY_TRACKED"
   fail "Development-only folders are tracked in git"
 fi
 pass "No development-only tracked folders detected"
@@ -64,10 +71,32 @@ step "Gate 7: Live HTTP auth boundary test"
 pass "Live HTTP auth boundary test passed"
 
 step "Gate 8: Dependency vulnerability scan"
-"$PYTHON_BIN" -m pip_audit \
-  --ignore-vuln GHSA-7gcm-g887-7qv7 \
-  --ignore-vuln GHSA-w8v5-vhqr-4h9v
-pass "pip-audit passed"
+PIP_AUDIT_LOG="$(mktemp)"
+PIP_AUDIT_MAX_RETRIES=3
+PIP_AUDIT_ATTEMPT=1
+while [[ "$PIP_AUDIT_ATTEMPT" -le "$PIP_AUDIT_MAX_RETRIES" ]]; do
+  if "$PYTHON_BIN" -m pip_audit \
+    --ignore-vuln GHSA-7gcm-g887-7qv7 \
+    --ignore-vuln GHSA-w8v5-vhqr-4h9v >"$PIP_AUDIT_LOG" 2>&1; then
+    pass "pip-audit passed"
+    rm -f "$PIP_AUDIT_LOG"
+    break
+  fi
+
+  if rg -q "(ConnectionError|Connection aborted|Connection reset|Max retries exceeded|Failed to resolve|NameResolutionError)" "$PIP_AUDIT_LOG" 2>/dev/null || \
+     grep -Eq "(ConnectionError|Connection aborted|Connection reset|Max retries exceeded|Failed to resolve|NameResolutionError)" "$PIP_AUDIT_LOG"; then
+    if [[ "$PIP_AUDIT_ATTEMPT" -lt "$PIP_AUDIT_MAX_RETRIES" ]]; then
+      echo "[WARN] pip-audit network failure on attempt $PIP_AUDIT_ATTEMPT/$PIP_AUDIT_MAX_RETRIES; retrying..."
+      sleep 3
+      PIP_AUDIT_ATTEMPT=$((PIP_AUDIT_ATTEMPT + 1))
+      continue
+    fi
+  fi
+
+  cat "$PIP_AUDIT_LOG"
+  rm -f "$PIP_AUDIT_LOG"
+  fail "pip-audit failed"
+done
 
 step "Manual infrastructure gates (must be validated outside this script)"
 echo "- TLS termination and certificate policy at ingress"
