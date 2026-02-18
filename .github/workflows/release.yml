@@ -41,7 +41,7 @@ jobs:
     - name: Run security checks
       run: |
         bandit -c config/security/bandit.yml -r src/
-        semgrep --config config/security/semgrep.yml src/
+        ./scripts/semgrep-isolated.sh --config config/security/semgrep.yml src/
         pylint src/finos_mcp --fail-under=8.0
 
     - name: Run tests

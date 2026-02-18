@@ -177,7 +177,7 @@ jobs:
       id: semgrep-strict
       run: |
         echo "🔍 Running Semgrep static analysis in strict mode..."
-        semgrep --config config/security/semgrep.yml src/ \
+        ./scripts/semgrep-isolated.sh --config config/security/semgrep.yml src/ \
           --json \
           --output dependabot-security-reports/semgrep-report.json \
           --metrics=off

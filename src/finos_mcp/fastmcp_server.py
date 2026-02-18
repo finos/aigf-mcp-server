@@ -20,15 +20,22 @@ Provides structured output and decorator-based tool registration.
 """
 
 import asyncio
+import inspect
 import time
 
 import yaml
-from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel
+
+try:
+    # Preferred implementation path (FastMCP package, v2 stable line).
+    from fastmcp import FastMCP
+except ImportError:  # pragma: no cover - backward compatibility during rollout.
+    # Compatibility fallback for environments still using MCP SDK FastMCP.
+    from mcp.server.fastmcp import FastMCP  # type: ignore[assignment]
 
 from . import __version__
 from .config import validate_settings_on_startup
-from .content.discovery import DiscoveryServiceManager
+from .content.discovery import STATIC_FRAMEWORK_FILES, DiscoveryServiceManager
 from .content.service import get_content_service
 from .logging import get_logger
 
@@ -219,8 +226,22 @@ async def list_frameworks() -> FrameworkList:
         return FrameworkList(frameworks=frameworks, total_count=len(frameworks))
     except Exception as e:
         logger.error("Failed to list frameworks: %s", e)
-        # Return empty list on error
-        return FrameworkList(frameworks=[], total_count=0)
+        # Fall back to static framework list for offline/network-constrained environments.
+        fallback_frameworks = []
+        for filename in STATIC_FRAMEWORK_FILES:
+            framework_id = filename.replace(".yml", "").replace(".yaml", "")
+            framework_name = _format_framework_name(framework_id)
+            fallback_frameworks.append(
+                Framework(
+                    id=framework_id,
+                    name=framework_name,
+                    description=f"Framework definition: {framework_name}",
+                )
+            )
+
+        return FrameworkList(
+            frameworks=fallback_frameworks, total_count=len(fallback_frameworks)
+        )
 
 
 def _format_framework_name(framework_id: str) -> str:
@@ -676,13 +697,22 @@ def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
     )
 
 
+async def _invoke_tool_function(tool_obj, *args, **kwargs):
+    """Call a decorated tool regardless of function vs FunctionTool representation."""
+    fn = getattr(tool_obj, "fn", tool_obj)
+    result = fn(*args, **kwargs)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
 async def _search_single_framework(
     framework: Framework, query: str
 ) -> list[SearchResult]:
     """Search within a single framework document (helper function for parallel processing)."""
     try:
         # Get framework content
-        content = await get_framework(framework.id)
+        content = await _invoke_tool_function(get_framework, framework.id)
 
         # Search for all occurrences (case insensitive)
         content_lower = content.content.lower()
@@ -764,7 +794,7 @@ async def search_frameworks(query: str, limit: int = 5) -> SearchResults:
     """
     try:
         # Get all frameworks first
-        frameworks_list = await list_frameworks()
+        frameworks_list = await _invoke_tool_function(list_frameworks)
 
         total_frameworks = len(frameworks_list.frameworks)
         logger.info(
@@ -866,7 +896,7 @@ async def search_risks(query: str, limit: int = 5) -> SearchResults:
     """
     try:
         # Get all risks first
-        risks_list = await list_risks()
+        risks_list = await _invoke_tool_function(list_risks)
 
         total_risks = len(risks_list.documents)
         logger.info(
@@ -970,7 +1000,7 @@ async def search_mitigations(query: str, limit: int = 5) -> SearchResults:
     """
     try:
         # Get all mitigations first
-        mitigations_list = await list_mitigations()
+        mitigations_list = await _invoke_tool_function(list_mitigations)
 
         total_mitigations = len(mitigations_list.documents)
         logger.info(
@@ -1024,7 +1054,7 @@ async def get_framework_resource(framework_id: str) -> str:
         Framework content as text.
     """
     try:
-        content = await get_framework(framework_id)
+        content = await _invoke_tool_function(get_framework, framework_id)
         return content.content
     except Exception as e:
         logger.error("Failed to get framework resource %s: %s", framework_id, e)
@@ -1042,7 +1072,7 @@ async def get_risk_resource(risk_id: str) -> str:
         Risk document content as text.
     """
     try:
-        content = await get_risk(risk_id)
+        content = await _invoke_tool_function(get_risk, risk_id)
         return content.content
     except Exception as e:
         logger.error("Failed to get risk resource %s: %s", risk_id, e)
@@ -1060,7 +1090,7 @@ async def get_mitigation_resource(mitigation_id: str) -> str:
         Mitigation document content as text.
     """
     try:
-        content = await get_mitigation(mitigation_id)
+        content = await _invoke_tool_function(get_mitigation, mitigation_id)
         return content.content
     except Exception as e:
         logger.error("Failed to get mitigation resource %s: %s", mitigation_id, e)
@@ -1081,7 +1111,7 @@ async def analyze_framework_compliance(framework: str, use_case: str) -> str:
     Returns:
         Prompt for analyzing compliance requirements.
     """
-    framework_content = await get_framework(framework)
+    framework_content = await _invoke_tool_function(get_framework, framework)
 
     return f"""You are an AI governance expert. Analyze the following AI use case for compliance with the {framework} framework.
 
@@ -1113,7 +1143,7 @@ async def risk_assessment_analysis(risk_category: str, context: str) -> str:
         Prompt for conducting risk assessment.
     """
     # Search for relevant risk documents
-    search_results = await search_risks(risk_category, limit=3)
+    search_results = await _invoke_tool_function(search_risks, risk_category, limit=3)
 
     risk_info = ""
     for result in search_results.results:
@@ -1149,7 +1179,9 @@ async def mitigation_strategy_prompt(risk_type: str, system_description: str) ->
         Prompt for developing mitigation strategies.
     """
     # Search for relevant mitigation strategies
-    mitigation_results = await search_mitigations(risk_type, limit=3)
+    mitigation_results = await _invoke_tool_function(
+        search_mitigations, risk_type, limit=3
+    )
 
     mitigation_info = ""
     for result in mitigation_results.results:

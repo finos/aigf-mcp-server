@@ -86,8 +86,12 @@ async def main_async() -> None:
     setup_signal_handlers()
 
     try:
-        # Use FastMCP's built-in stdio server
-        await mcp.run_stdio_async()
+        # Prefer async stdio runner when available (MCP SDK FastMCP and some FastMCP versions).
+        if hasattr(mcp, "run_stdio_async"):
+            await mcp.run_stdio_async()
+        else:
+            # Fallback for FastMCP variants that expose only blocking run().
+            await asyncio.to_thread(mcp.run)
 
     except KeyboardInterrupt:
         logger.info("Shutdown signal received")

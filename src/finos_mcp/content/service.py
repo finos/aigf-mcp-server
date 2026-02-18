@@ -49,7 +49,7 @@ from ..logging import get_logger, set_correlation_id
 from .cache import TTLCache, close_cache, get_cache
 
 # Updated imports for new error handling
-from .fetch import HTTPClient, get_http_client
+from .fetch import HTTPClient, close_http_client, get_http_client
 from .parse import get_parser_stats, parse_frontmatter
 
 logger = get_logger("content_service")
@@ -918,10 +918,11 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             except Exception as e:
                 self.logger.warning("Error closing cache: %s", e)
 
-        # Close HTTP client if initialized
+        # Close HTTP client through manager so singleton state is reset.
         if self._http_client:
             try:
-                await self._http_client.close()
+                await close_http_client()
+                self._http_client = None
                 self.logger.debug("HTTP client closed successfully")
             except Exception as e:
                 self.logger.warning("Error closing HTTP client: %s", e)

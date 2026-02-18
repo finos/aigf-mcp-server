@@ -17,7 +17,7 @@ import httpx
 from ..config import get_settings
 from ..health import get_health_monitor
 from ..logging import get_logger
-from .fetch import HTTPClient, get_http_client
+from .fetch import CircuitBreakerError, HTTPClient, get_http_client
 
 # Removed security rate limiting - using simple HTTP requests
 
@@ -224,6 +224,7 @@ class GitHubDiscoveryService:
             httpx.HTTPError,
             httpx.TimeoutException,
             asyncio.TimeoutError,
+            CircuitBreakerError,
             OSError,
             ValueError,
             KeyError,
@@ -295,6 +296,7 @@ class GitHubDiscoveryService:
             httpx.HTTPError,
             httpx.TimeoutException,
             asyncio.TimeoutError,
+            CircuitBreakerError,
             ValueError,
             TypeError,
             KeyError,

@@ -1,0 +1,4 @@
+interface:
+  display_name: "FastMCP Python Servers"
+  short_description: "Build FastMCP servers in Python safely and fast."
+  default_prompt: "Build or update a FastMCP server with robust tools/resources/prompts, deployment-safe structure, and version-aware guidance."

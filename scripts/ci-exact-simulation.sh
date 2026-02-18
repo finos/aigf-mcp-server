@@ -132,7 +132,7 @@ echo "🔍 PHASE 2: Semgrep Static Analysis (EXACT CI COMMAND)"
 echo "-----------------------------------------------------"
 
 echo "Running Semgrep static analysis..."
-semgrep --config config/security/semgrep.yml src/ \
+./scripts/semgrep-isolated.sh --config config/security/semgrep.yml src/ \
   --json \
   --output security-reports/semgrep-report.json \
   --metrics=off

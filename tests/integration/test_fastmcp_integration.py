@@ -12,6 +12,23 @@ import pytest
 from finos_mcp.fastmcp_server import mcp
 
 
+async def _list_tools_compat():
+    """List tools across MCP SDK FastMCP and standalone FastMCP."""
+    if hasattr(mcp, "list_tools"):
+        return await mcp.list_tools()
+    tools = await mcp.get_tools()
+    return list(tools.values())
+
+
+async def _call_tool_compat(name: str, arguments: dict):
+    """Call tools across MCP SDK FastMCP and standalone FastMCP."""
+    if hasattr(mcp, "call_tool"):
+        return await mcp.call_tool(name, arguments)
+    tools = await mcp.get_tools()
+    result = await tools[name].run(arguments)
+    return result.content, result.structured_content
+
+
 @pytest.mark.integration
 class TestFastMCPProtocolCompliance:
     """Test FastMCP server protocol compliance and real-world integration."""
@@ -24,7 +41,7 @@ class TestFastMCPProtocolCompliance:
         assert mcp.name == "finos-ai-governance"
 
         # Test tools are properly registered
-        tools = await mcp.list_tools()
+        tools = await _list_tools_compat()
         assert len(tools) >= 11  # Our expected total tools
 
         # Verify tool names
@@ -48,7 +65,7 @@ class TestFastMCPProtocolCompliance:
     async def test_structured_output_consistency(self):
         """Test that all tools return consistent structured output."""
         # Test list_frameworks
-        result = await mcp.call_tool("list_frameworks", {})
+        result = await _call_tool_compat("list_frameworks", {})
         text_content, structured_data = result
 
         assert isinstance(structured_data, dict)
@@ -58,7 +75,7 @@ class TestFastMCPProtocolCompliance:
         assert structured_data["total_count"] == len(structured_data["frameworks"])
 
         # Test get_service_health
-        result = await mcp.call_tool("get_service_health", {})
+        result = await _call_tool_compat("get_service_health", {})
         text_content, structured_data = result
 
         assert isinstance(structured_data, dict)
@@ -75,7 +92,7 @@ class TestFastMCPProtocolCompliance:
     async def test_error_handling_consistency(self):
         """Test that errors are handled consistently across all tools."""
         # Test invalid framework request
-        result = await mcp.call_tool(
+        result = await _call_tool_compat(
             "get_framework", {"framework": "invalid-framework-id"}
         )
         text_content, structured_data = result
@@ -90,12 +107,12 @@ class TestFastMCPProtocolCompliance:
         """Test that multiple concurrent tool calls work correctly."""
         # Create multiple concurrent calls
         tasks = [
-            mcp.call_tool("list_frameworks", {}),
-            mcp.call_tool("list_risks", {}),
-            mcp.call_tool("list_mitigations", {}),
-            mcp.call_tool("get_service_health", {}),
-            mcp.call_tool("search_frameworks", {"query": "risk", "limit": 3}),
-            mcp.call_tool("search_risks", {"query": "privacy", "limit": 3}),
+            _call_tool_compat("list_frameworks", {}),
+            _call_tool_compat("list_risks", {}),
+            _call_tool_compat("list_mitigations", {}),
+            _call_tool_compat("get_service_health", {}),
+            _call_tool_compat("search_frameworks", {"query": "risk", "limit": 3}),
+            _call_tool_compat("search_risks", {"query": "privacy", "limit": 3}),
         ]
 
         # Execute concurrently
@@ -133,7 +150,7 @@ class TestRealWorldScenarios:
     async def test_framework_workflow(self):
         """Test complete framework exploration workflow."""
         # Step 1: List available frameworks
-        result = await mcp.call_tool("list_frameworks", {})
+        result = await _call_tool_compat("list_frameworks", {})
         text_content, frameworks_data = result
 
         assert frameworks_data["total_count"] > 0
@@ -141,7 +158,7 @@ class TestRealWorldScenarios:
         framework_id = first_framework["id"]
 
         # Step 2: Get detailed framework content
-        result = await mcp.call_tool("get_framework", {"framework": framework_id})
+        result = await _call_tool_compat("get_framework", {"framework": framework_id})
         text_content, content_data = result
 
         assert content_data["framework_id"] == framework_id
@@ -152,14 +169,14 @@ class TestRealWorldScenarios:
     async def test_risk_and_mitigation_workflow(self):
         """Test risk and mitigation exploration workflow."""
         # Step 1: List risks
-        result = await mcp.call_tool("list_risks", {})
+        result = await _call_tool_compat("list_risks", {})
         text_content, risks_data = result
 
         assert risks_data["document_type"] == "risk"
         assert risks_data["total_count"] > 0
 
         # Step 2: List mitigations
-        result = await mcp.call_tool("list_mitigations", {})
+        result = await _call_tool_compat("list_mitigations", {})
         text_content, mitigations_data = result
 
         assert mitigations_data["document_type"] == "mitigation"
@@ -173,14 +190,14 @@ class TestRealWorldScenarios:
     async def test_system_monitoring_workflow(self):
         """Test system monitoring and observability."""
         # Check service health
-        result = await mcp.call_tool("get_service_health", {})
+        result = await _call_tool_compat("get_service_health", {})
         text_content, health_data = result
 
         assert health_data["status"] == "healthy"
         assert health_data["healthy_services"] == health_data["total_services"]
 
         # Check cache statistics
-        result = await mcp.call_tool("get_cache_stats", {})
+        result = await _call_tool_compat("get_cache_stats", {})
         text_content, cache_data = result
 
         assert cache_data["total_requests"] > 0
@@ -202,14 +219,14 @@ class TestPerformanceCharacteristics:
 
         # Test list operations (should be fast)
         start_time = time.time()
-        await mcp.call_tool("list_frameworks", {})
+        await _call_tool_compat("list_frameworks", {})
         list_time = time.time() - start_time
 
         assert list_time < 1.0, f"List frameworks took {list_time:.2f}s (expected < 1s)"
 
         # Test health check (should be very fast)
         start_time = time.time()
-        await mcp.call_tool("get_service_health", {})
+        await _call_tool_compat("get_service_health", {})
         health_time = time.time() - start_time
 
         assert health_time < 0.5, (
@@ -223,8 +240,8 @@ class TestPerformanceCharacteristics:
 
         # Perform many tool calls to test stability
         for _ in range(50):  # Reduced count for CI stability
-            await mcp.call_tool("list_frameworks", {})
-            await mcp.call_tool("get_service_health", {})
+            await _call_tool_compat("list_frameworks", {})
+            await _call_tool_compat("get_service_health", {})
 
         # Force garbage collection
         gc.collect()

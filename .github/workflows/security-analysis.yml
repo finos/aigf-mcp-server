@@ -88,7 +88,7 @@ jobs:
       id: semgrep
       run: |
         echo "Running Semgrep static analysis..."
-        semgrep --config config/security/semgrep.yml src/ \
+        ./scripts/semgrep-isolated.sh --config config/security/semgrep.yml src/ \
           --json \
           --output security-reports/semgrep-report.json \
           --metrics=off

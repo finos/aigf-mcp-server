@@ -26,6 +26,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "fastmcp>=2.14.5,<3",
     "mcp>=1.14.0",
     "httpx>=0.28.0",
     "PyYAML>=6.0.0",
@@ -50,7 +51,6 @@ dev = [
     "pre-commit>=3.0.0",
 ]
 security = [
-    "semgrep>=1.0.0",
     "bandit>=1.7.0",
     "pylint>=3.0.0",
     "safety>=3.0.0",

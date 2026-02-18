@@ -2,7 +2,8 @@
 # Run `pip-compile requirements.in` to generate requirements-lock.txt
 
 # MCP Protocol Implementation
-mcp>=1.0.0
+fastmcp>=2.14.5,<3
+mcp>=1.14.0
 
 # HTTP Client for FINOS Repository
 httpx>=0.25.0

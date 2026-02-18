@@ -4,6 +4,8 @@ Test suite for FastMCP server implementation.
 Tests the modern FastMCP-based server with structured output and decorator-based tools.
 """
 
+import inspect
+
 import pytest
 from pydantic import ValidationError
 
@@ -24,6 +26,35 @@ from finos_mcp.fastmcp_server import (
 )
 
 
+async def _list_tools_compat():
+    """List tools across MCP SDK FastMCP and standalone FastMCP."""
+    if hasattr(mcp, "list_tools"):
+        return await mcp.list_tools()
+    tools = await mcp.get_tools()
+    return list(tools.values())
+
+
+async def _call_tool_compat(name: str, arguments: dict):
+    """Call tools across MCP SDK FastMCP and standalone FastMCP."""
+    if hasattr(mcp, "call_tool"):
+        return await mcp.call_tool(name, arguments)
+    tools = await mcp.get_tools()
+    result = await tools[name].run(arguments)
+    return result.content, result.structured_content
+
+
+async def _invoke_direct_tool(tool_obj, *args, **kwargs):
+    """Invoke decorated tools across function and FunctionTool representations."""
+    if hasattr(tool_obj, "fn"):
+        result = tool_obj.fn(*args, **kwargs)
+    else:
+        result = tool_obj(*args, **kwargs)
+
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
 @pytest.mark.unit
 class TestFastMCPServer:
     """Test FastMCP server instance and configuration."""
@@ -36,7 +67,7 @@ class TestFastMCPServer:
     @pytest.mark.asyncio
     async def test_server_tools_registration(self):
         """Test that tools are properly registered with FastMCP."""
-        tools = await mcp.list_tools()
+        tools = await _list_tools_compat()
 
         # Expected tools from our FastMCP server
         expected_tools = {
@@ -146,7 +177,7 @@ class TestFastMCPTools:
     @pytest.mark.asyncio
     async def test_list_frameworks(self):
         """Test list_frameworks tool returns structured FrameworkList."""
-        result = await list_frameworks()
+        result = await _invoke_direct_tool(list_frameworks)
 
         assert isinstance(result, FrameworkList)
         assert result.total_count > 0
@@ -162,7 +193,7 @@ class TestFastMCPTools:
     @pytest.mark.asyncio
     async def test_get_framework_valid_framework(self):
         """Test get_framework with valid framework ID."""
-        result = await get_framework("nist-ai-rmf")
+        result = await _invoke_direct_tool(get_framework, "nist-ai-rmf")
 
         assert isinstance(result, FrameworkContent)
         assert result.framework_id == "nist-ai-rmf"
@@ -172,7 +203,7 @@ class TestFastMCPTools:
     @pytest.mark.asyncio
     async def test_get_framework_invalid_framework(self):
         """Test get_framework with invalid framework ID."""
-        result = await get_framework("invalid-framework")
+        result = await _invoke_direct_tool(get_framework, "invalid-framework")
 
         assert isinstance(result, FrameworkContent)
         assert result.framework_id == "invalid-framework"
@@ -182,7 +213,7 @@ class TestFastMCPTools:
     @pytest.mark.asyncio
     async def test_list_risks(self):
         """Test list_risks tool returns structured DocumentList."""
-        result = await list_risks()
+        result = await _invoke_direct_tool(list_risks)
 
         assert isinstance(result, DocumentList)
         assert result.document_type == "risk"
@@ -198,7 +229,7 @@ class TestFastMCPTools:
     @pytest.mark.asyncio
     async def test_list_mitigations(self):
         """Test list_mitigations tool returns structured DocumentList."""
-        result = await list_mitigations()
+        result = await _invoke_direct_tool(list_mitigations)
 
         assert isinstance(result, DocumentList)
         assert result.document_type == "mitigation"
@@ -208,7 +239,7 @@ class TestFastMCPTools:
     @pytest.mark.asyncio
     async def test_get_service_health(self):
         """Test get_service_health tool returns structured ServiceHealth."""
-        result = await get_service_health()
+        result = await _invoke_direct_tool(get_service_health)
 
         assert isinstance(result, ServiceHealth)
         assert result.status == "healthy"
@@ -220,7 +251,7 @@ class TestFastMCPTools:
     @pytest.mark.asyncio
     async def test_get_cache_stats(self):
         """Test get_cache_stats tool returns structured CacheStats."""
-        result = await get_cache_stats()
+        result = await _invoke_direct_tool(get_cache_stats)
 
         assert isinstance(result, CacheStats)
         assert result.total_requests > 0
@@ -236,7 +267,7 @@ class TestFastMCPIntegration:
     @pytest.mark.asyncio
     async def test_mcp_call_tool_list_frameworks(self):
         """Test calling list_frameworks through FastMCP server."""
-        result = await mcp.call_tool("list_frameworks", {})
+        result = await _call_tool_compat("list_frameworks", {})
 
         # FastMCP returns tuple: (TextContent, structured_data)
         text_content, structured_data = result
@@ -250,7 +281,7 @@ class TestFastMCPIntegration:
     @pytest.mark.asyncio
     async def test_mcp_call_tool_get_service_health(self):
         """Test calling get_service_health through FastMCP server."""
-        result = await mcp.call_tool("get_service_health", {})
+        result = await _call_tool_compat("get_service_health", {})
 
         text_content, structured_data = result
 
@@ -262,7 +293,7 @@ class TestFastMCPIntegration:
     @pytest.mark.asyncio
     async def test_mcp_call_tool_with_parameters(self):
         """Test calling tool with parameters through FastMCP server."""
-        result = await mcp.call_tool("get_framework", {"framework": "gdpr"})
+        result = await _call_tool_compat("get_framework", {"framework": "gdpr"})
 
         text_content, structured_data = result
 
@@ -275,7 +306,7 @@ class TestFastMCPIntegration:
     async def test_mcp_invalid_tool_call(self):
         """Test calling non-existent tool raises appropriate error."""
         with pytest.raises(Exception):  # FastMCP will raise an exception
-            await mcp.call_tool("nonexistent_tool", {})
+            await _call_tool_compat("nonexistent_tool", {})
 
 
 @pytest.mark.unit
@@ -285,7 +316,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_framework_content_error_handling(self):
         """Test that framework content errors are handled gracefully."""
-        result = await get_framework("nonexistent-framework")
+        result = await _invoke_direct_tool(get_framework, "nonexistent-framework")
 
         assert isinstance(result, FrameworkContent)
         assert "not found" in result.content.lower()
