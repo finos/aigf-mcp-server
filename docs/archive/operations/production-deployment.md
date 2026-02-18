@@ -565,7 +565,7 @@ sudo cp -r /backup/finos-mcp/secrets/* /opt/finos-mcp/secrets/
 # Install application
 cd /opt/finos-mcp
 sudo -u finos-mcp python3 -m venv venv
-sudo -u finos-mcp ./venv/bin/pip install git+https://github.com/finos/aigf-mcp-server.git
+sudo -u finos-mcp ./venv/bin/pip install git+https://github.com/<OWNER>/<REPO>.git
 
 # Restore systemd service
 sudo cp /backup/finos-mcp/finos-mcp.service /etc/systemd/system/
@@ -599,7 +599,7 @@ python3 -m venv test-venv
 source test-venv/bin/activate
 
 # Test installation
-pip install git+https://github.com/finos/aigf-mcp-server.git
+pip install git+https://github.com/<OWNER>/<REPO>.git
 
 # Verify import
 python -c "import finos_mcp; print('Recovery test: Import PASSED')"
@@ -776,6 +776,6 @@ asyncio.run(check())
 
 ---
 
-> **Need Support?** For production deployment assistance, check our [Operations Documentation](README.md) or open a [GitHub Issue](https://github.com/finos/aigf-mcp-server/issues).
+> **Need Support?** For production deployment assistance, check our [Operations Documentation](README.md) or open a [GitHub Issue](https://github.com/<OWNER>/<REPO>/issues).
 
 > **This is an independent community project** providing access to FINOS AI governance content (used under CC BY 4.0 license). Not affiliated with FINOS organization.

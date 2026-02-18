@@ -76,6 +76,6 @@ CMD ["finos-mcp"]
 # Labels for better container management
 LABEL org.opencontainers.image.title="FINOS AI Governance MCP Server"
 LABEL org.opencontainers.image.description="Model Context Protocol server for FINOS AI Governance Framework"
-LABEL org.opencontainers.image.source="https://github.com/finos/aigf-mcp-server"
+LABEL org.opencontainers.image.source="https://github.com/<OWNER>/<REPO>"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.vendor="FINOS"

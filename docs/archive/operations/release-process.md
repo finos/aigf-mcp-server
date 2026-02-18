@@ -141,7 +141,7 @@ After release, verify:
 2. **PyPI Package**: Verify package is available
 3. **Installation Test**: Test fresh installation
    ```bash
-   pip install git+https://github.com/finos/aigf-mcp-server.git@vX.Y.Z
+   pip install git+https://github.com/<OWNER>/<REPO>.git@vX.Y.Z
    finos-mcp --help
    ```
 

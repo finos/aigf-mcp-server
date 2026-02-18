@@ -8,7 +8,7 @@ Get started quickly with our enhanced development tools:
 
 ```bash
 # 🚀 Quick development setup (recommended)
-git clone https://github.com/finos/aigf-mcp-server.git
+git clone https://github.com/<OWNER>/<REPO>.git
 cd aigf-mcp-server
 ./scripts/dev-quick-setup.sh
 
@@ -429,10 +429,10 @@ Need development assistance with this independent project?
 <td width="50%">
 
 ### Community Support
-- 💬 **Technical Questions**: [GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/finos/aigf-mcp-server/issues)
-- 🔒 **Security Issues**: [Security Advisory](https://github.com/finos/aigf-mcp-server/security/advisories)
-- 📚 **Documentation Issues**: [Documentation Feedback](https://github.com/finos/aigf-mcp-server/issues)
+- 💬 **Technical Questions**: [GitHub Discussions](https://github.com/<OWNER>/<REPO>/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/<OWNER>/<REPO>/issues)
+- 🔒 **Security Issues**: [Security Advisory](https://github.com/<OWNER>/<REPO>/security/advisories)
+- 📚 **Documentation Issues**: [Documentation Feedback](https://github.com/<OWNER>/<REPO>/issues)
 
 </td>
 <td width="50%">

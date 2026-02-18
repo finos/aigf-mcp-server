@@ -85,7 +85,7 @@ src/finos_mcp/
 ### Quick Setup
 ```bash
 # Clone the repository
-git clone https://github.com/finos/aigf-mcp-server.git
+git clone https://github.com/<OWNER>/<REPO>.git
 cd aigf-mcp-server
 
 # Create virtual environment and install

@@ -7,7 +7,7 @@
 ![Status](https://img.shields.io/badge/status-stable-brightgreen)
 
 <!-- Quality & CI Badges -->
-![GitHub Actions](https://img.shields.io/github/actions/workflow/status/finos/aigf-mcp-server/security-analysis.yml?branch=main&label=CI)
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/<OWNER>/<REPO>/security-analysis.yml?branch=main&label=CI)
 ![Security](https://img.shields.io/badge/security-passing-brightgreen)
 ![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
 ![MyPy](https://img.shields.io/badge/mypy-passing-blue)
@@ -28,7 +28,7 @@ This project provides direct access to AI governance framework documents from FI
 
 ```bash
 # Clone the repository
-git clone https://github.com/finos/aigf-mcp-server.git
+git clone https://github.com/<OWNER>/<REPO>.git
 cd aigf-mcp-server
 
 # Create and activate a virtual environment
@@ -337,7 +337,7 @@ Includes:
 ### Support & Troubleshooting
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 - **[Tools Reference](docs/tools-reference.md)** - Complete guide to all 11 MCP tools
-- **[GitHub Repository](https://github.com/finos/aigf-mcp-server)** - Source code and issues
+- **[GitHub Repository](https://github.com/<OWNER>/<REPO>)** - Source code and issues
 
 ---
 
@@ -354,8 +354,8 @@ Includes:
 
 ## Need Help
 
-- [Report Issues](https://github.com/finos/aigf-mcp-server/issues)
-- [Ask Questions](https://github.com/finos/aigf-mcp-server/discussions)
+- [Report Issues](https://github.com/<OWNER>/<REPO>/issues)
+- [Ask Questions](https://github.com/<OWNER>/<REPO>/discussions)
 - [Full Documentation](docs/README.md)
 
 ---

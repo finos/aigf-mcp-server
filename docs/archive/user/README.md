@@ -197,10 +197,10 @@ Need help with this independent project? Here are your options:
 <td width="50%">
 
 ### Community Support
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/finos/aigf-mcp-server/issues)
-- 💬 **Questions**: [GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)
-- 📖 **Documentation Issues**: [Documentation Feedback](https://github.com/finos/aigf-mcp-server/issues)
-- 🔒 **Security Issues**: [Security Advisories](https://github.com/finos/aigf-mcp-server/security/advisories)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/<OWNER>/<REPO>/issues)
+- 💬 **Questions**: [GitHub Discussions](https://github.com/<OWNER>/<REPO>/discussions)
+- 📖 **Documentation Issues**: [Documentation Feedback](https://github.com/<OWNER>/<REPO>/issues)
+- 🔒 **Security Issues**: [Security Advisories](https://github.com/<OWNER>/<REPO>/security/advisories)
 
 </td>
 <td width="50%">

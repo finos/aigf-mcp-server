@@ -17,7 +17,7 @@ The FINOS MCP Server provides 11 MCP tools for accessing AI governance framework
 
 **Installation**:
 ```bash
-git clone https://github.com/finos/aigf-mcp-server.git
+git clone https://github.com/<OWNER>/<REPO>.git
 cd aigf-mcp-server
 pip install -e .
 ```
