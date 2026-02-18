@@ -256,10 +256,17 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
 
     def _start_cleanup_task(self) -> None:
         """Start background cleanup task."""
+        cleanup_coro = self._background_cleanup()
         try:
             if self._cleanup_task is None or self._cleanup_task.done():
-                self._cleanup_task = asyncio.create_task(self._background_cleanup())
+                created_task = asyncio.create_task(cleanup_coro)
+                # Test doubles may replace create_task and not consume the coroutine.
+                if isinstance(created_task, asyncio.Task):
+                    self._cleanup_task = created_task
+                else:
+                    cleanup_coro.close()
         except RuntimeError as e:
+            cleanup_coro.close()
             if "no running event loop" in str(e):
                 logger.debug("Cannot start cache cleanup: no event loop running")
                 # Cleanup will be started when cache is accessed in async context

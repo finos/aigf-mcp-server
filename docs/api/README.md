@@ -42,7 +42,7 @@ This directory contains comprehensive API documentation for the FINOS AI Governa
 
 ### Authentication & Rate Limiting
 
-- **Authentication**: No authentication required for read-only operations
+- **Authentication**: Optional JWT boundary auth via `FINOS_MCP_MCP_AUTH_*` environment variables (recommended for production)
 - **Rate Limiting**:
   - Tool calls: 50 requests/minute
   - Resource access: 200 requests/minute

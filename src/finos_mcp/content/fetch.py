@@ -26,7 +26,6 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -41,77 +40,9 @@ from tenacity import (
 )
 
 from ..config import Settings, get_settings
+from ..error_boundary import CircuitBreaker
+from ..exceptions import CircuitBreakerError
 from ..logging import get_logger, log_http_request
-
-
-class CircuitBreakerState(Enum):
-    """Circuit breaker states."""
-
-    CLOSED = "closed"  # Normal operation
-    OPEN = "open"  # Failing, rejecting requests
-    HALF_OPEN = "half_open"  # Testing if service recovered
-
-
-class CircuitBreakerError(Exception):
-    """Raised when circuit breaker is open."""
-
-
-class CircuitBreaker:
-    """Circuit breaker implementation for HTTP requests.
-
-    Protects against cascading failures by opening the circuit
-    when failure rate exceeds threshold.
-    """
-
-    def __init__(
-        self,
-        failure_threshold: int = 5,
-        recovery_timeout: float = 60.0,
-        expected_exception: type = httpx.RequestError,
-    ):
-        """Initialize circuit breaker.
-
-        Args:
-            failure_threshold: Number of failures before opening circuit
-            recovery_timeout: Seconds to wait before trying again
-            expected_exception: Exception type that counts as failure
-
-        """
-        self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout
-        self.expected_exception = expected_exception
-
-        self.failure_count = 0
-        self.last_failure_time = 0.0
-        self.state = CircuitBreakerState.CLOSED
-
-    def can_execute(self) -> bool:
-        """Check if request can be executed."""
-        if self.state == CircuitBreakerState.CLOSED:
-            return True
-
-        if self.state == CircuitBreakerState.OPEN:
-            # Check if recovery timeout has passed
-            if time.time() - self.last_failure_time >= self.recovery_timeout:
-                self.state = CircuitBreakerState.HALF_OPEN
-                return True
-            return False
-
-        # HALF_OPEN state - allow one request to test
-        return True
-
-    def on_success(self) -> None:
-        """Handle successful request."""
-        self.failure_count = 0
-        self.state = CircuitBreakerState.CLOSED
-
-    def on_failure(self) -> None:
-        """Handle failed request."""
-        self.failure_count += 1
-        self.last_failure_time = time.time()
-
-        if self.failure_count >= self.failure_threshold:
-            self.state = CircuitBreakerState.OPEN
 
 
 @dataclass
@@ -348,9 +279,11 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
 
         # Check circuit breaker
         if not circuit_breaker.can_execute():
+            host = urlparse(url).netloc
             raise CircuitBreakerError(
-                f"Circuit breaker is open for {urlparse(url).netloc}. "
-                f"Requests blocked for {circuit_breaker.recovery_timeout} seconds."
+                service_name=host,
+                failure_count=circuit_breaker.failure_count,
+                retry_after=int(circuit_breaker.recovery_timeout),
             )
 
         start_time = time.time()
@@ -371,7 +304,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                 response_time=elapsed,
                 extra_data={
                     "content_length": len(response.content) if response.content else 0,
-                    "circuit_breaker_state": circuit_breaker.state.value,
+                    "circuit_breaker_state": circuit_breaker.state,
                     "pool_max_connections": self._current_max_connections,
                     "pool_utilization": self._pool_stats.pool_utilization,
                 },
@@ -393,7 +326,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
         ) as e:
             # Circuit breaker failure
             if isinstance(e, httpx.RequestError | httpx.HTTPStatusError):
-                circuit_breaker.on_failure()
+                circuit_breaker.on_failure(e)
 
             # Log failed request
             elapsed = time.time() - start_time
@@ -410,7 +343,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                 extra_data={
                     "error": str(e),
                     "error_type": type(e).__name__,
-                    "circuit_breaker_state": circuit_breaker.state.value,
+                    "circuit_breaker_state": circuit_breaker.state,
                     "pool_max_connections": self._current_max_connections,
                     "pool_utilization": self._pool_stats.pool_utilization,
                 },
@@ -541,7 +474,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
         circuit_breaker = self._get_circuit_breaker(url)
 
         return {
-            "state": circuit_breaker.state.value,
+            "state": circuit_breaker.state,
             "failure_count": circuit_breaker.failure_count,
             "last_failure_time": circuit_breaker.last_failure_time,
             "can_execute": circuit_breaker.can_execute(),
@@ -549,9 +482,9 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                 max(
                     0,
                     circuit_breaker.recovery_timeout
-                    - (time.time() - circuit_breaker.last_failure_time),
+                    - (time.time() - (circuit_breaker.last_failure_time or 0)),
                 )
-                if circuit_breaker.state == CircuitBreakerState.OPEN
+                if circuit_breaker.state == "open"
                 else 0
             ),
         }

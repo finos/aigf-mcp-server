@@ -26,7 +26,7 @@ import sys
 from .content.cache import close_cache
 from .content.fetch import close_http_client
 from .content.service import close_content_service
-from .fastmcp_server import mcp
+from .fastmcp_server import mcp, settings
 from .logging import get_logger
 
 logger = get_logger("fastmcp_main")
@@ -81,13 +81,21 @@ async def main_async() -> None:
     global _shutdown_event
 
     logger.info("Starting FINOS AI Governance MCP Server (FastMCP)")
+    logger.info("Configured transport: %s", settings.mcp_transport)
 
     # Set up signal handlers
     setup_signal_handlers()
 
     try:
-        # Use the canonical FastMCP stdio run entrypoint.
-        await asyncio.to_thread(mcp.run)
+        if settings.mcp_transport == "stdio":
+            await asyncio.to_thread(mcp.run, transport="stdio")
+        else:
+            await asyncio.to_thread(
+                mcp.run,
+                transport=settings.mcp_transport,
+                host=settings.mcp_host,
+                port=settings.mcp_port,
+            )
 
     except KeyboardInterrupt:
         logger.info("Shutdown signal received")

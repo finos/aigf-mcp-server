@@ -148,6 +148,7 @@ mcp list tools
 - **MCP Resources**: 3 resource types with finos:// URI scheme for structured access
 - **Content Management** (`src/finos_mcp/content/`): Dynamic content loading and caching
 - **Security Layer** (`src/finos_mcp/security/`): Request validation and protection
+- **Runtime Guardrails** (`src/finos_mcp/fastmcp_server.py`): Middleware-based rate limiting, safe error responses, and payload size enforcement
 
 ### Design Principles
 
@@ -156,6 +157,15 @@ mcp list tools
 - **Modular Tool System**: Easy addition and removal of tools
 - **Security First**: All requests validated and protected
 - **Performance Optimized**: Intelligent caching and async operations
+
+### Runtime Security Controls
+
+- **Middleware Order**: Error handling -> timing -> logging -> rate limiting
+- **Input Limits**: Tool, prompt, and resource parameters enforce max lengths and request-size checks
+- **Output Limits**: Resource/document payloads are size-validated before returning to clients
+- **Error Disclosure Control**: External errors are sanitized and correlation-tagged
+- **Fallback Strategy**: Dynamic GitHub discovery with static fallback lists for risk/mitigation/framework catalogs
+- **Boundary Authentication (Optional)**: JWT validation at MCP boundary with issuer/audience/scope enforcement
 
 ---
 
@@ -207,6 +217,37 @@ Environment variables and configuration:
 - Content loaded from GitHub repositories dynamically
 - Cache configuration in `src/finos_mcp/content/cache.py`
 - Security settings in `src/finos_mcp/security/`
+
+### MCP Auth Configuration
+
+Use JWT validation (FastMCP `JWTVerifier`) to protect the MCP boundary in production.
+
+```bash
+export FINOS_MCP_MCP_AUTH_ENABLED=true
+export FINOS_MCP_MCP_AUTH_ISSUER=https://auth.example.com
+export FINOS_MCP_MCP_AUTH_AUDIENCE=finos-mcp-server
+export FINOS_MCP_MCP_AUTH_JWKS_URI=https://auth.example.com/.well-known/jwks.json
+export FINOS_MCP_MCP_AUTH_REQUIRED_SCOPES=governance:read,governance:write
+```
+
+Notes:
+- Set exactly one of `FINOS_MCP_MCP_AUTH_JWKS_URI` or `FINOS_MCP_MCP_AUTH_PUBLIC_KEY`.
+- When auth is enabled, missing issuer/audience/verifier settings fail startup.
+- Clients must send `Authorization: Bearer <JWT>`.
+
+### MCP Transport Configuration
+
+Transport and network binding are config-driven (no hardcoded host/port in runtime code):
+
+```bash
+# Local MCP client default
+export FINOS_MCP_MCP_TRANSPORT=stdio
+
+# HTTP exposure example
+export FINOS_MCP_MCP_TRANSPORT=http
+export FINOS_MCP_MCP_HOST=127.0.0.1
+export FINOS_MCP_MCP_PORT=8000
+```
 
 ---
 

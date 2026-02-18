@@ -6,7 +6,7 @@ Provides safe error responses while maintaining internal debugging capabilities.
 
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, ClassVar
 
 from ..logging import get_logger
@@ -143,7 +143,7 @@ class SecureErrorHandler:
             f"Internal error details [{correlation_id}] - {original_error}",
             extra={
                 "correlation_id": correlation_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 **context,
             },
         )

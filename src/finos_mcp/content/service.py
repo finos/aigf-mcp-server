@@ -46,6 +46,7 @@ from ..exceptions import (
 )
 from ..health import get_health_monitor
 from ..logging import get_logger, set_correlation_id
+from ..security.content_filter import content_security_validator
 from .cache import TTLCache, close_cache, get_cache
 
 # Updated imports for new error handling
@@ -231,6 +232,16 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                 content_bytes = base64.b64decode(content_base64)
                 content = content_bytes.decode("utf-8")
 
+                # Security validation for fetched content.
+                if not content_security_validator.validate_content_size(content):
+                    raise ContentValidationError(
+                        "content_too_large", "GitHub API content exceeds safety limits"
+                    )
+                if not content_security_validator.validate_content_safety(content):
+                    raise ContentValidationError(
+                        "unsafe_content", "GitHub API content failed safety validation"
+                    )
+
                 self.logger.debug(
                     "Content fetched via GitHub API: %s characters",
                     len(content),
@@ -288,6 +299,16 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                 if not content.strip():
                     raise ContentValidationError(
                         "empty_content", "Retrieved content is empty"
+                    )
+
+                # Security validation for fetched content.
+                if not content_security_validator.validate_content_size(content):
+                    raise ContentValidationError(
+                        "content_too_large", "Fetched content exceeds safety limits"
+                    )
+                if not content_security_validator.validate_content_safety(content):
+                    raise ContentValidationError(
+                        "unsafe_content", "Fetched content failed safety validation"
                     )
 
                 self.logger.debug(

@@ -52,16 +52,12 @@ class CircuitBreaker:
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> T:
-            if self.state == "open":
-                if self._should_attempt_reset():
-                    self.state = "half-open"
-                    logger.info(f"Circuit breaker half-open for {func.__name__}")
-                else:
-                    raise CircuitBreakerError(
-                        service_name=func.__name__,
-                        failure_count=self.failure_count,
-                        retry_after=self.recovery_timeout,
-                    )
+            if not self.can_execute():
+                raise CircuitBreakerError(
+                    service_name=func.__name__,
+                    failure_count=self.failure_count,
+                    retry_after=self.recovery_timeout,
+                )
 
             try:
                 result = await func(*args, **kwargs)
@@ -80,12 +76,31 @@ class CircuitBreaker:
             return True
         return time.time() - self.last_failure_time >= self.recovery_timeout
 
+    def can_execute(self) -> bool:
+        """Check whether operation execution is currently allowed."""
+        if self.state == "closed":
+            return True
+        if self.state == "open":
+            if self._should_attempt_reset():
+                self.state = "half-open"
+                return True
+            return False
+        # half-open
+        return True
+
     def _on_success(self) -> None:
         """Handle successful operation."""
-        if self.state == "half-open":
-            self.state = "closed"
-            self.failure_count = 0
+        was_half_open = self.state == "half-open"
+        # Reset on any success to avoid stale failure accumulation.
+        self.state = "closed"
+        self.failure_count = 0
+        self.last_failure_time = None
+        if was_half_open:
             logger.info("Circuit breaker closed after successful recovery")
+
+    def on_success(self) -> None:
+        """Public success hook for non-decorator call paths."""
+        self._on_success()
 
     def _on_failure(self, exception: Exception) -> None:
         """Handle failed operation."""
@@ -98,6 +113,10 @@ class CircuitBreaker:
                 f"Circuit breaker opened after {self.failure_count} failures",
                 extra={"exception": str(exception)},
             )
+
+    def on_failure(self, exception: Exception) -> None:
+        """Public failure hook for non-decorator call paths."""
+        self._on_failure(exception)
 
 
 def with_retry(

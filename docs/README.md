@@ -130,6 +130,11 @@ Set environment variables for better performance:
 # Faster responses (optional)
 export FINOS_MCP_CACHE_MAX_SIZE=2000
 export FINOS_MCP_LOG_LEVEL=INFO
+# Transport/network binding (config-driven)
+export FINOS_MCP_MCP_TRANSPORT=stdio
+# export FINOS_MCP_MCP_TRANSPORT=http
+# export FINOS_MCP_MCP_HOST=127.0.0.1
+# export FINOS_MCP_MCP_PORT=8000
 ```
 
 ---

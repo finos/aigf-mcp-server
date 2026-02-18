@@ -59,6 +59,11 @@ class TestSettingsValidation:
         assert settings.debug_mode is False
         assert settings.server_name == "finos-ai-governance"
         assert settings.server_version == __version__
+        assert settings.mcp_transport == "stdio"
+        assert settings.mcp_host == "127.0.0.1"
+        assert settings.mcp_port == 8000
+        assert settings.mcp_auth_enabled is False
+        assert settings.mcp_auth_scopes_list == []
         # config_file field removed from Settings model
 
     def test_environment_variable_override(self, clean_env):
@@ -67,6 +72,9 @@ class TestSettingsValidation:
         os.environ["FINOS_MCP_HTTP_TIMEOUT"] = "60"
         os.environ["FINOS_MCP_ENABLE_CACHE"] = "false"
         os.environ["FINOS_MCP_DEBUG_MODE"] = "true"
+        os.environ["FINOS_MCP_MCP_TRANSPORT"] = "http"
+        os.environ["FINOS_MCP_MCP_HOST"] = "127.0.0.2"
+        os.environ["FINOS_MCP_MCP_PORT"] = "18000"
 
         settings = Settings()
 
@@ -74,6 +82,21 @@ class TestSettingsValidation:
         assert settings.http_timeout == 60
         assert settings.enable_cache is False
         assert settings.debug_mode is True
+        assert settings.mcp_transport == "http"
+        assert settings.mcp_host == "127.0.0.2"
+        assert settings.mcp_port == 18000
+
+    def test_transport_validation_invalid_value(self, clean_env):
+        """Test invalid MCP transport value is rejected."""
+        os.environ["FINOS_MCP_MCP_TRANSPORT"] = "grpc"
+        with pytest.raises(ValidationError):
+            Settings()
+
+    def test_mcp_host_validation_invalid_empty(self, clean_env):
+        """Test empty MCP host is rejected."""
+        os.environ["FINOS_MCP_MCP_HOST"] = "   "
+        with pytest.raises(ValidationError):
+            Settings()
 
     def test_log_level_validation_valid(self, clean_env):
         """Test valid log levels."""
@@ -140,6 +163,45 @@ class TestSettingsValidation:
         os.environ["FINOS_MCP_BASE_URL"] = "https://example.com/"
         settings = Settings()
         assert settings.base_url == "https://example.com"
+
+    def test_auth_scope_list_normalization(self, clean_env):
+        """Test MCP auth scope normalization and parsing."""
+        os.environ["FINOS_MCP_MCP_AUTH_REQUIRED_SCOPES"] = (
+            " governance:read, governance:write ,, "
+        )
+        settings = Settings()
+        assert settings.mcp_auth_required_scopes == "governance:read,governance:write"
+        assert settings.mcp_auth_scopes_list == ["governance:read", "governance:write"]
+
+    def test_auth_enabled_requires_required_fields(self, clean_env):
+        """Test auth-enabled startup validation fails without required settings."""
+        os.environ["FINOS_MCP_MCP_AUTH_ENABLED"] = "true"
+        with pytest.raises(SystemExit):
+            validate_settings_on_startup()
+
+    def test_auth_enabled_with_jwks(self, clean_env):
+        """Test auth-enabled configuration with JWKS URI."""
+        os.environ["FINOS_MCP_MCP_AUTH_ENABLED"] = "true"
+        os.environ["FINOS_MCP_MCP_AUTH_JWKS_URI"] = "https://auth.example.com/.well-known/jwks.json"
+        os.environ["FINOS_MCP_MCP_AUTH_ISSUER"] = "https://auth.example.com"
+        os.environ["FINOS_MCP_MCP_AUTH_AUDIENCE"] = "finos-mcp-server"
+
+        settings = Settings()
+        assert settings.mcp_auth_enabled is True
+        assert settings.mcp_auth_jwks_uri == "https://auth.example.com/.well-known/jwks.json"
+        assert settings.mcp_auth_issuer == "https://auth.example.com"
+        assert settings.mcp_auth_audience == "finos-mcp-server"
+
+    def test_auth_enabled_rejects_jwks_and_public_key_together(self, clean_env):
+        """Test startup validation rejects conflicting verifier config."""
+        os.environ["FINOS_MCP_MCP_AUTH_ENABLED"] = "true"
+        os.environ["FINOS_MCP_MCP_AUTH_JWKS_URI"] = "https://auth.example.com/jwks"
+        os.environ["FINOS_MCP_MCP_AUTH_PUBLIC_KEY"] = "-----BEGIN PUBLIC KEY-----\\nabc\\n-----END PUBLIC KEY-----"
+        os.environ["FINOS_MCP_MCP_AUTH_ISSUER"] = "https://auth.example.com"
+        os.environ["FINOS_MCP_MCP_AUTH_AUDIENCE"] = "finos-mcp-server"
+
+        with pytest.raises(SystemExit):
+            validate_settings_on_startup()
 
     def test_http_timeout_validation(self, clean_env):
         """Test HTTP timeout validation."""

@@ -20,7 +20,7 @@ support and validation. Settings are loaded from environment variables with opti
 """
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import urlparse
 
 from pydantic import Field, field_validator
@@ -98,6 +98,46 @@ class Settings(BaseSettings):
         default=__version__,
         description="MCP server version",
     )
+    mcp_transport: Literal["stdio", "http", "streamable-http", "sse"] = Field(
+        default="stdio",
+        description="MCP server transport mode",
+    )
+    mcp_host: str = Field(
+        default="127.0.0.1",
+        description="Host binding for HTTP/SSE transports",
+    )
+    mcp_port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        description="Port binding for HTTP/SSE transports (1-65535)",
+    )
+
+    # MCP Authentication Configuration
+    mcp_auth_enabled: bool = Field(
+        default=False,
+        description="Enable JWT authentication at the MCP server boundary",
+    )
+    mcp_auth_jwks_uri: str | None = Field(
+        default=None,
+        description="JWKS endpoint for JWT signature validation",
+    )
+    mcp_auth_public_key: str | None = Field(
+        default=None,
+        description="PEM-encoded public key for JWT validation (use instead of JWKS URI)",
+    )
+    mcp_auth_issuer: str | None = Field(
+        default=None,
+        description="Expected JWT issuer claim (iss)",
+    )
+    mcp_auth_audience: str | None = Field(
+        default=None,
+        description="Expected JWT audience claim (aud)",
+    )
+    mcp_auth_required_scopes: str | None = Field(
+        default=None,
+        description="Comma-separated required OAuth scopes (e.g. governance:read,governance:write)",
+    )
 
     # GitHub API Configuration
     github_token: str | None = Field(
@@ -165,6 +205,37 @@ class Settings(BaseSettings):
             raise ValueError("Base URL must include a domain")
         return v.rstrip("/")
 
+    @field_validator("mcp_auth_jwks_uri")
+    @classmethod
+    def validate_mcp_auth_jwks_uri(cls, v: str | None) -> str | None:
+        """Validate optional JWKS URL when provided."""
+        if v is None or v.strip() == "":
+            return None
+        parsed = urlparse(v.strip())
+        if not parsed.scheme or parsed.scheme not in ["http", "https"]:
+            raise ValueError("MCP auth JWKS URI must be a valid HTTP or HTTPS URL")
+        if not parsed.netloc:
+            raise ValueError("MCP auth JWKS URI must include a domain")
+        return v.strip().rstrip("/")
+
+    @field_validator("mcp_auth_required_scopes")
+    @classmethod
+    def validate_mcp_auth_required_scopes(cls, v: str | None) -> str | None:
+        """Normalize optional comma-separated scope list."""
+        if v is None:
+            return None
+        normalized = ",".join(scope.strip() for scope in v.split(",") if scope.strip())
+        return normalized or None
+
+    @field_validator("mcp_host")
+    @classmethod
+    def validate_mcp_host(cls, v: str) -> str:
+        """Validate optional MCP host setting."""
+        host = v.strip()
+        if not host:
+            raise ValueError("MCP host cannot be empty")
+        return host
+
     @property
     def mitigations_url(self) -> str:
         """Get the full URL for mitigations directory."""
@@ -179,6 +250,13 @@ class Settings(BaseSettings):
     def frameworks_url(self) -> str:
         """Get the full URL for frameworks directory."""
         return f"{self.base_url}/_data"
+
+    @property
+    def mcp_auth_scopes_list(self) -> list[str]:
+        """Return auth required scopes as a normalized list."""
+        if not self.mcp_auth_required_scopes:
+            return []
+        return [scope.strip() for scope in self.mcp_auth_required_scopes.split(",") if scope.strip()]
 
     @property
     def logging_config(self) -> dict[str, str | int | None]:
@@ -236,6 +314,30 @@ class Settings(BaseSettings):
 
         if self.github_api_timeout < 5:
             errors.append("github_api_timeout too small (minimum 5 seconds)")
+
+        if self.mcp_transport != "stdio":
+            if not self.mcp_host:
+                errors.append(
+                    "mcp_host is required when mcp_transport is not stdio"
+                )
+            if self.mcp_port < 1 or self.mcp_port > 65535:
+                errors.append(
+                    "mcp_port must be between 1 and 65535 for non-stdio transports"
+                )
+
+        if self.mcp_auth_enabled:
+            if not self.mcp_auth_issuer:
+                errors.append("mcp_auth_issuer is required when mcp_auth_enabled=true")
+            if not self.mcp_auth_audience:
+                errors.append("mcp_auth_audience is required when mcp_auth_enabled=true")
+            if not self.mcp_auth_jwks_uri and not self.mcp_auth_public_key:
+                errors.append(
+                    "Either mcp_auth_jwks_uri or mcp_auth_public_key is required when mcp_auth_enabled=true"
+                )
+            if self.mcp_auth_jwks_uri and self.mcp_auth_public_key:
+                errors.append(
+                    "Configure only one of mcp_auth_jwks_uri or mcp_auth_public_key (not both)"
+                )
 
         if errors:
             error_msg = "Configuration validation failed:\n" + "\n".join(
@@ -319,6 +421,14 @@ def validate_settings_on_startup() -> Settings:
         logger.debug("Base URL: %s", app_settings.base_url)
         logger.debug("HTTP timeout: %ss", app_settings.http_timeout)
         logger.debug("Cache enabled: %s", app_settings.enable_cache)
+        logger.info("MCP transport: %s", app_settings.mcp_transport)
+        if app_settings.mcp_transport != "stdio":
+            logger.info("MCP bind address: %s:%s", app_settings.mcp_host, app_settings.mcp_port)
+        logger.info("MCP auth enabled: %s", app_settings.mcp_auth_enabled)
+        if app_settings.mcp_auth_enabled:
+            logger.info("MCP auth issuer configured: %s", bool(app_settings.mcp_auth_issuer))
+            logger.info("MCP auth audience configured: %s", bool(app_settings.mcp_auth_audience))
+            logger.info("MCP auth required scopes: %s", app_settings.mcp_auth_scopes_list)
 
         # Security status logging
         if app_settings.github_token:

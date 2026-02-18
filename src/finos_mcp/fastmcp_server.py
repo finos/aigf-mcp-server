@@ -26,10 +26,11 @@ from typing import Annotated
 
 import yaml
 from fastmcp import FastMCP
+from fastmcp.server.auth import JWTVerifier
 from pydantic import BaseModel, Field
 
 from . import __version__
-from .config import validate_settings_on_startup
+from .config import Settings, validate_settings_on_startup
 from .content.cache import get_cache
 from .content.discovery import (
     STATIC_FRAMEWORK_FILES,
@@ -46,8 +47,33 @@ from .security.request_validator import request_size_validator
 settings = validate_settings_on_startup()
 logger = get_logger("fastmcp_server")
 
+
+def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
+    """Build the MCP auth provider from validated application settings."""
+    if not app_settings.mcp_auth_enabled:
+        logger.info("MCP auth disabled; server will run without boundary authentication")
+        return None
+
+    if app_settings.mcp_auth_jwks_uri:
+        logger.info("MCP auth enabled using JWKS verifier")
+        return JWTVerifier(
+            jwks_uri=app_settings.mcp_auth_jwks_uri,
+            issuer=app_settings.mcp_auth_issuer,
+            audience=app_settings.mcp_auth_audience,
+            required_scopes=app_settings.mcp_auth_scopes_list or None,
+        )
+    else:
+        logger.info("MCP auth enabled using static public key verifier")
+        return JWTVerifier(
+            public_key=app_settings.mcp_auth_public_key,
+            issuer=app_settings.mcp_auth_issuer,
+            audience=app_settings.mcp_auth_audience,
+            required_scopes=app_settings.mcp_auth_scopes_list or None,
+        )
+
+
 # Create FastMCP server instance
-mcp = FastMCP("finos-ai-governance")
+mcp = FastMCP(settings.server_name, auth=_build_auth_provider(settings))
 _SERVER_START_TIME = time.monotonic()
 
 
