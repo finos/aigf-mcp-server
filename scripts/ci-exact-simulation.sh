@@ -298,7 +298,12 @@ pip freeze > security-reports/requirements.txt
 python -m pip install pip-audit
 
 # Run pip-audit scan - fail on any known vulnerabilities
-pip-audit --format json --output security-reports/pip-audit-report.json
+# Ignored vulnerabilities (no fix available):
+# - GHSA-7gcm-g887-7qv7: protobuf DoS via JSON recursion (CVE-2026-0994)
+# - GHSA-w8v5-vhqr-4h9v: diskcache vulnerability with no patched release available
+pip-audit --format json --output security-reports/pip-audit-report.json \
+  --ignore-vuln GHSA-7gcm-g887-7qv7 \
+  --ignore-vuln GHSA-w8v5-vhqr-4h9v
 
 # Check for vulnerabilities - handle both old and new pip-audit output formats (EXACT CI LOGIC)
 VULNS=$(jq 'if type == "array" then map(select(.vulns? | length? > 0)) | length elif .dependencies then .dependencies | map(select(.vulns | length > 0)) | length else 0 end' security-reports/pip-audit-report.json)
