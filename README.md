@@ -249,6 +249,64 @@ export FINOS_MCP_MCP_HOST=127.0.0.1
 export FINOS_MCP_MCP_PORT=8000
 ```
 
+### Live Transport Tests
+
+```bash
+# End-to-end stdio MCP test
+FINOS_RUN_LIVE_MCP_TEST=1 ./venv/bin/pytest -q tests/integration/test_live_mcp_server.py
+
+# End-to-end HTTP MCP test (starts server + probes /mcp)
+./scripts/test-http-transport.sh
+
+# End-to-end HTTP auth boundary test (unauthorized/forbidden/authorized)
+./scripts/test-auth-http-transport.sh
+```
+
+### Advanced Configuration Reference
+
+Use `.env.example` as the canonical source and override by environment in production.
+
+| Variable | Default | Required | Purpose / Guidance |
+|---|---|---|---|
+| `FINOS_MCP_MCP_TRANSPORT` | `stdio` | No | Runtime transport. Use `stdio` for local clients; use `http` or `streamable-http` for network exposure. |
+| `FINOS_MCP_MCP_HOST` | `127.0.0.1` | For non-stdio | Bind host for network transports. Keep loopback unless behind controlled ingress. |
+| `FINOS_MCP_MCP_PORT` | `8000` | For non-stdio | Bind port for network transports. |
+| `FINOS_MCP_MCP_AUTH_ENABLED` | `false` | No | Enables JWT boundary authentication. Set `true` for production. |
+| `FINOS_MCP_MCP_AUTH_ISSUER` | _(none)_ | If auth enabled | Expected JWT `iss` claim. |
+| `FINOS_MCP_MCP_AUTH_AUDIENCE` | _(none)_ | If auth enabled | Expected JWT `aud` claim. |
+| `FINOS_MCP_MCP_AUTH_JWKS_URI` | _(none)_ | One of verifier pair | Recommended verifier source (supports key rotation). |
+| `FINOS_MCP_MCP_AUTH_PUBLIC_KEY` | _(none)_ | One of verifier pair | Static PEM verifier source. Do not set with `JWKS_URI`. |
+| `FINOS_MCP_MCP_AUTH_REQUIRED_SCOPES` | _(none)_ | No | Comma-separated required scopes for all requests. |
+| `FINOS_MCP_HTTP_TIMEOUT` | `30` | No | Outbound request timeout in seconds. |
+| `FINOS_MCP_ENABLE_CACHE` | `true` | No | In-memory content cache toggle. |
+| `FINOS_MCP_CACHE_MAX_SIZE` | `1000` | No | Max entries in cache. Increase carefully with memory limits. |
+| `FINOS_MCP_CACHE_TTL_SECONDS` | `3600` | No | Cache TTL in seconds. |
+| `FINOS_MCP_GITHUB_TOKEN` | _(none)_ | Recommended | Raises GitHub API limits and stability for dynamic content sync. |
+| `FINOS_MCP_LOG_LEVEL` | `INFO` | No | Runtime log verbosity. |
+| `FINOS_MCP_DEBUG_MODE` | `false` | No | Enables verbose diagnostics; avoid in production unless troubleshooting. |
+
+Production baseline:
+- `FINOS_MCP_MCP_AUTH_ENABLED=true`
+- `FINOS_MCP_MCP_TRANSPORT=http` (or `streamable-http`) behind TLS ingress
+- `FINOS_MCP_MCP_HOST=127.0.0.1` when fronted by reverse proxy
+- Configure `FINOS_MCP_MCP_AUTH_JWKS_URI`, `FINOS_MCP_MCP_AUTH_ISSUER`, `FINOS_MCP_MCP_AUTH_AUDIENCE`
+
+### Go-Live Approval Gate
+
+Run full automated release gates:
+
+```bash
+./scripts/go-live-gate.sh
+```
+
+Includes:
+- tracked-folder hygiene checks
+- clean working tree enforcement
+- linting and type checks
+- regression tests
+- live stdio/HTTP/auth transport checks
+- dependency vulnerability scan
+
 ---
 
 ## 🔍 Content Sources

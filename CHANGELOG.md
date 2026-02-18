@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MCP boundary authentication support using `JWTVerifier` with environment-driven configuration (`FINOS_MCP_MCP_AUTH_*`)
+- New HTTP transport live validation script: `scripts/test-http-transport.sh`
+- New HTTP auth boundary validation script: `scripts/test-auth-http-transport.sh`
+- New go-live gate script: `scripts/go-live-gate.sh`
+- New live integration test for HTTP auth boundary enforcement (no token / bad scope / valid scope)
 - **Phase 3 Complete**: Framework Integration & Testing successfully completed
 - **Framework Tools**: 5 new framework tools for governance reference access
   - `search_frameworks` - Cross-framework search with filtering
@@ -26,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production-ready containerization
 
 ### Changed
+- FastMCP runtime transport is now configuration-driven:
+  - Default remains `stdio`
+  - Optional `http` / `streamable-http` / `sse` via `FINOS_MCP_MCP_TRANSPORT`
+  - Host/port configured via `FINOS_MCP_MCP_HOST` and `FINOS_MCP_MCP_PORT`
+- Startup validation now fails fast when auth is enabled with missing or conflicting verifier settings
+- Documentation updated for auth enablement, transport configuration, and live HTTP transport testing
 - **Project Scope**: Evolved from "AI Governance MCP Server" to "Governance Framework Reference System"
 - **Tool Count**: Expanded from 10 to 15 total tools
 - **Content Focus**: From AI-specific to comprehensive governance framework coverage
@@ -38,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Data Loading**: Concurrent framework loading for improved startup time
 
 ### Security
+- Optional JWT boundary auth for MCP requests, including issuer/audience/scope validation
+- Added live auth enforcement verification over HTTP transport for release validation
 - Zero-tolerance security policy with automated scanning
 - No high severity issues allowed in releases
 - Comprehensive vulnerability detection and prevention

@@ -137,6 +137,19 @@ export FINOS_MCP_MCP_TRANSPORT=stdio
 # export FINOS_MCP_MCP_PORT=8000
 ```
 
+Validate live transport paths:
+
+```bash
+FINOS_RUN_LIVE_MCP_TEST=1 ./venv/bin/pytest -q tests/integration/test_live_mcp_server.py
+./scripts/test-http-transport.sh
+./scripts/test-auth-http-transport.sh
+./scripts/go-live-gate.sh
+```
+
+For full production-grade settings (auth, transport, cache, timeouts, logging), see:
+- `README.md` → **Advanced Configuration Reference**
+- `.env.example` for complete variable definitions and comments
+
 ---
 
 ## 🔍 Content Details

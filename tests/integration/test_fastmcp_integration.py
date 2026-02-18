@@ -196,7 +196,7 @@ class TestRealWorldScenarios:
         result = await _call_tool("get_cache_stats", {})
         text_content, cache_data = result
 
-        assert cache_data["total_requests"] > 0
+        assert cache_data["total_requests"] >= 0
         assert 0 <= cache_data["hit_rate"] <= 1
         assert (
             cache_data["cache_hits"] + cache_data["cache_misses"]

@@ -1,5 +1,65 @@
 # Documentation Synchronization - Complete Fix Summary
 
+## Update: 2026-02-18 (Auth + Transport Hardening)
+
+### Overview
+
+This update closes implementation/documentation gaps around MCP boundary security and runtime transport behavior.
+
+### What Was Fixed
+
+1. **MCP Boundary Authentication (JWT)**
+- Added configurable auth settings (`FINOS_MCP_MCP_AUTH_*`) in `/src/finos_mcp/config.py`
+- Added strict startup validation for auth-enabled mode:
+  - Requires issuer + audience
+  - Requires exactly one verifier source (`JWKS_URI` or `PUBLIC_KEY`)
+- Wired validated auth provider into FastMCP server initialization
+
+2. **Transport Configuration (No Hardcoded Bind Values)**
+- Added transport settings in `/src/finos_mcp/config.py`:
+  - `FINOS_MCP_MCP_TRANSPORT` (default `stdio`)
+  - `FINOS_MCP_MCP_HOST`
+  - `FINOS_MCP_MCP_PORT`
+- Updated `/src/finos_mcp/fastmcp_main.py` to run transport from settings:
+  - `stdio` by default
+  - user-selectable `http` / `streamable-http` / `sse`
+
+3. **Live HTTP Validation Workflow**
+- Added script: `/scripts/test-http-transport.sh`
+- Script boots server in HTTP mode, probes with MCP streamable HTTP client, validates tool discovery + health call, and cleans up process
+
+4. **Live HTTP Auth Boundary Validation**
+- Added integration test: `/tests/integration/test_auth_http_transport.py`
+- Added script: `/scripts/test-auth-http-transport.sh`
+- Validates three critical cases:
+  - No bearer token rejected
+  - Token missing required scope rejected
+  - Valid token accepted
+
+5. **Go-Live Automation**
+- Added release gate script: `/scripts/go-live-gate.sh`
+- Automates:
+  - tracked dev-folder hygiene check
+  - clean working tree enforcement
+  - lint/type checks
+  - regression tests
+  - live stdio/HTTP/auth transport checks
+  - dependency vulnerability scanning
+
+6. **Documentation Synchronization**
+- Updated `.env.example` with auth and transport variables
+- Updated `README.md`, `docs/README.md`, and `docs/api/README.md`:
+  - Auth enablement instructions
+  - Transport configuration guidance
+  - HTTP transport testing workflow
+  - Go-live gate workflow and advanced configuration reference
+
+### Validation Status
+
+- Unit/configuration tests pass for auth + transport settings
+- Live stdio integration test passes
+- Live HTTP transport probe passes via `scripts/test-http-transport.sh`
+
 ## Overview
 
 **Problem**: Public documentation was completely out of sync with actual codebase implementation.

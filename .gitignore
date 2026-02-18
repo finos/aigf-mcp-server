@@ -133,6 +133,7 @@ DEVELOPMENT.md
 ARCHITECTURE.md
 .claude/
 .cache/
+skills/
 .playwright-mcp/
 security-reports/
 coverage-reports/
