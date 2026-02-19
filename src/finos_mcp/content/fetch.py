@@ -43,6 +43,7 @@ from ..config import Settings, get_settings
 from ..error_boundary import CircuitBreaker
 from ..exceptions import CircuitBreakerError
 from ..logging import get_logger, log_http_request
+from ..security.content_filter import content_security_validator
 
 
 @dataclass
@@ -117,7 +118,10 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                 max_connections=self._current_max_connections,
                 keepalive_expiry=30.0,
             ),
-            follow_redirects=True,
+            # Redirects are followed manually in _make_request after the
+            # redirect target passes is_safe_url() validation, preventing
+            # SSRF via redirect chains to internal infrastructure.
+            follow_redirects=False,
             headers={"User-Agent": f"finos-mcp/{self.settings.server_version}"},
         )
 
@@ -241,7 +245,7 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                 max_connections=self._current_max_connections,
                 keepalive_expiry=30.0,
             ),
-            follow_redirects=True,
+            follow_redirects=False,
             headers=old_client.headers,
         )
 
@@ -266,6 +270,12 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
         self, method: str, url: str, **kwargs: Any
     ) -> httpx.Response:
         """Make HTTP request with retry logic and dynamic pool management."""
+        # SSRF / redirect-chain protection: validate before every HTTP call so
+        # that manipulated URLs (e.g. from a compromised upstream response) cannot
+        # reach internal infrastructure even through redirect chains.
+        if not content_security_validator.is_safe_url(url):
+            raise ValueError(f"Blocked unsafe URL: {url}")
+
         circuit_breaker = self._get_circuit_breaker(url)
 
         # Track active request for pool scaling
