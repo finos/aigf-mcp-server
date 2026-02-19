@@ -93,7 +93,7 @@ async def main():
     print("\nTo apply the update:")
     print("1. Review the generated code above")
     print("2. Replace lines 27-67 in src/finos_mcp/content/discovery.py")
-    print("3. Or run: python scripts/apply-static-fallback-update.py")
+    print("3. Manually replace the static lists in src/finos_mcp/content/discovery.py")
 
     return 0
 

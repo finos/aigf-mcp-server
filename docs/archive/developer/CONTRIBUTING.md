@@ -32,7 +32,7 @@ This project adheres to our [Contributor Code of Conduct](../governance/code-of-
    # Fork the repository on GitHub first, then:
    git clone https://github.com/YOUR_USERNAME/finos-mcp-server.git
    cd finos-mcp-server
-   git remote add upstream https://github.com/<OWNER>/<REPO>.git
+   git remote add upstream https://github.com/hugo-calderon/finos-mcp-server.git
    ```
 
 2. **Create Development Environment**
@@ -393,7 +393,7 @@ async with httpx.AsyncClient(timeout=30.0) as client:
 
 **Do not** report security vulnerabilities through public GitHub issues. Instead:
 
-1. Create a [Security Advisory](https://github.com/<OWNER>/<REPO>/security/advisories) for responsible disclosure
+1. Create a [Security Advisory](https://github.com/hugo-calderon/finos-mcp-server/security/advisories) for responsible disclosure
 2. Allow 90 days for response before public disclosure
 3. Include reproduction steps and impact assessment
 

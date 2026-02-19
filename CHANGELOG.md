@@ -64,5 +64,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FINOS AI Governance Framework integration
 - Risk and mitigation content serving
 
-[Unreleased]: https://github.com/<OWNER>/<REPO>/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/<OWNER>/<REPO>/releases/tag/v0.1.0
+[Unreleased]: https://github.com/hugo-calderon/finos-mcp-server/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/hugo-calderon/finos-mcp-server/releases/tag/v0.1.0

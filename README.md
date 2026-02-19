@@ -28,7 +28,7 @@ This project provides direct access to AI governance framework documents from FI
 
 ```bash
 # Clone the repository
-git clone https://github.com/<OWNER>/<REPO>.git
+git clone https://github.com/hugo-calderon/finos-mcp-server.git
 cd aigf-mcp-server
 
 # Create and activate a virtual environment
@@ -337,7 +337,7 @@ Includes:
 ### Support & Troubleshooting
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 - **[Tools Reference](docs/tools-reference.md)** - Complete guide to all 11 MCP tools
-- **[GitHub Repository](https://github.com/<OWNER>/<REPO>)** - Source code and issues
+- **[GitHub Repository](https://github.com/hugo-calderon/finos-mcp-server)** - Source code and issues
 
 ---
 
@@ -354,8 +354,8 @@ Includes:
 
 ## Need Help
 
-- [Report Issues](https://github.com/<OWNER>/<REPO>/issues)
-- [Ask Questions](https://github.com/<OWNER>/<REPO>/discussions)
+- [Report Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
+- [Ask Questions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
 - [Full Documentation](docs/README.md)
 
 ---
