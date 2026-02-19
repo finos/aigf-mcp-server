@@ -76,8 +76,13 @@ jobs:
           exit 1
         fi
 
-        if [ "$MEDIUM_ISSUES" -gt 3 ]; then
-          echo "❌ FAILURE: Bandit found $MEDIUM_ISSUES medium severity issues (threshold: 3)"
+        # Threshold is 0: every accepted false positive must be suppressed with
+        # an inline '# nosec BXXX' comment that documents the rationale, rather
+        # than relying on a numerical tolerance that can silently accumulate.
+        if [ "$MEDIUM_ISSUES" -gt 0 ]; then
+          echo "❌ FAILURE: Bandit found $MEDIUM_ISSUES medium severity issues (threshold: 0)"
+          echo "  Suppress accepted false positives with '# nosec BXXX' and a rationale comment."
+          jq '.results[] | select(.issue_severity == "MEDIUM")' security-reports/bandit-report.json
           exit 1
         fi
 
