@@ -151,6 +151,15 @@ class Settings(BaseSettings):
         description="GitHub API request timeout in seconds",
     )
 
+    # Cache Security
+    cache_secret: str | None = Field(
+        default=None,
+        description=(
+            "HMAC secret key for cache integrity verification (required in production). "
+            "Generate with: python -c 'import secrets; print(secrets.token_hex(32))'"
+        ),
+    )
+
     # SHA-based Version Tracking
     enable_sha_validation: bool = Field(
         default=True,
@@ -318,6 +327,20 @@ class Settings(BaseSettings):
 
         if self.github_api_timeout < 5:
             errors.append("github_api_timeout too small (minimum 5 seconds)")
+
+        # Cache secret is required for HMAC integrity; validate at startup so
+        # operators discover misconfigurations immediately rather than on first
+        # cache operation.
+        if not self.cache_secret:
+            errors.append(
+                "FINOS_MCP_CACHE_SECRET is required. "
+                "Generate with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+        elif len(self.cache_secret) < 32:
+            errors.append(
+                "FINOS_MCP_CACHE_SECRET must be at least 32 characters. "
+                f"Current length: {len(self.cache_secret)}"
+            )
 
         if self.mcp_transport != "stdio":
             if not self.mcp_host:

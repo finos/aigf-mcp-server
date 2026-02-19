@@ -549,24 +549,35 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
     def _get_cache_security_key(self) -> str:
         """Get security key for HMAC operations.
 
+        Reads from the Settings singleton first (validated at startup) and falls
+        back to the raw environment variable for test/offline contexts that bypass
+        the Settings validation path.
+
         Raises:
-            ValueError: If FINOS_MCP_CACHE_SECRET environment variable is not set
-                       or does not meet minimum security requirements
+            ValueError: If the key is absent or shorter than 32 characters.
         """
-        security_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
+        # Prefer the settings-managed field so misconfiguration is caught at
+        # startup (via validate_startup) rather than on the first cache call.
+        try:
+            security_key = get_settings().cache_secret
+        except Exception:
+            security_key = None
+
+        if not security_key:
+            # Backward-compatible fallback for contexts that set the env var
+            # directly without going through Settings (e.g., some test harnesses).
+            security_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
 
         if not security_key:
             raise ValueError(
-                "FINOS_MCP_CACHE_SECRET environment variable must be set. "
+                "FINOS_MCP_CACHE_SECRET is not configured. "
                 "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
             )
 
-        # Ensure minimum key length for security (32 chars minimum)
         if len(security_key) < 32:
             raise ValueError(
                 f"Cache security key must be at least 32 characters. "
-                f"Current length: {len(security_key)}. "
-                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+                f"Current length: {len(security_key)}."
             )
 
         return security_key
