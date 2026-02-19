@@ -950,32 +950,6 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
 
         self.logger.info("Content service shutdown complete")
 
-    async def get_framework_content(self, framework_path: str) -> str | None:
-        """Get framework content from repository.
-
-        Args:
-            framework_path: Path to framework content
-
-        Returns:
-            Framework content as string or None if not found
-        """
-        try:
-            # Simple framework content mapping
-            framework_content = {
-                "frameworks/nist-ai-rmf/": "# NIST AI Risk Management Framework 1.0\n\nThis is the NIST AI RMF content...",
-                "frameworks/eu-ai-act/": "# EU AI Act 2024\n\nThis is the EU AI Act content...",
-                "frameworks/gdpr/": "# General Data Protection Regulation\n\nThis is the GDPR content...",
-                "frameworks/iso-23053/": "# ISO/IEC 23053:2022\n\nThis is the ISO 23053 content...",
-                "frameworks/owasp-llm-top10/": "# OWASP LLM Top 10 2023\n\nThis is the OWASP LLM Top 10 content...",
-            }
-
-            return framework_content.get(framework_path, None)
-
-        except Exception as e:
-            self.logger.error(f"Error getting framework content: {e}")
-            return None
-
-
 class ContentServiceManager:
     """Singleton manager for the global content service instance."""
 
