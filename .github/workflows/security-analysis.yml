@@ -206,12 +206,14 @@ jobs:
         python -m pip install pip-audit
 
         # Run pip-audit scan - fail on any known vulnerabilities
-        # Ignored vulnerabilities (no fix available):
+        # Ignored vulnerabilities (no fix available — re-review each quarter):
         # - GHSA-7gcm-g887-7qv7: protobuf DoS via JSON recursion (CVE-2026-0994)
         #   Transitive dep from semgrep->opentelemetry->protobuf. No fix as of 2026-01.
         #   Low risk: affects ParseDict() for untrusted JSON, not used by this server.
+        #   REVIEW-BY: 2026-04-01. Remove suppression once protobuf >= patched version.
         # - GHSA-w8v5-vhqr-4h9v: diskcache vulnerability with no patched release available.
         #   Transitive dep from fastmcp->py-key-value-aio. Tracked until upstream ships a fix.
+        #   REVIEW-BY: 2026-04-01. Remove suppression once diskcache ships a patched release.
         pip-audit --format json --output security-reports/pip-audit-report.json \
           --ignore-vuln GHSA-7gcm-g887-7qv7 \
           --ignore-vuln GHSA-w8v5-vhqr-4h9v
