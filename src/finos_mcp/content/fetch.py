@@ -626,11 +626,34 @@ class HTTPClientManager:
         return self._http_client
 
     async def close_http_client(self) -> None:
-        """Close and cleanup global HTTP client."""
-        if self._http_client is not None:
-            await self._http_client.close()
+        """Close and cleanup global HTTP client.
+
+        Mirrors the loop-context guard in get_http_client(): if the client was
+        created in a different (or already-closed) event loop, its internal
+        transport is already torn down at the OS level.  Calling aclose() from
+        a different loop raises ``RuntimeError: Event loop is closed``, so we
+        discard the reference instead.
+        """
+        if self._http_client is None:
+            return
+
+        current_loop = asyncio.get_running_loop()
+        if self._loop is not None and (
+            self._loop.is_closed() or self._loop is not current_loop
+        ):
+            # Client was created in a different/closed loop; its connections
+            # are already gone.  Discard without attempting aclose().
+            logging.getLogger(__name__).debug(
+                "HTTP client created in a different event loop; "
+                "discarding reference without aclose()"
+            )
             self._http_client = None
             self._loop = None
+            return
+
+        await self._http_client.close()
+        self._http_client = None
+        self._loop = None
 
 
 # Global HTTP client manager instance
