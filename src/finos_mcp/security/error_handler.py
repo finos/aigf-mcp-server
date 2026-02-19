@@ -25,7 +25,7 @@ class SecureErrorHandler:
         r"/(?:var|home|etc|usr)/[a-zA-Z0-9/_.-]*",  # File paths
         r"\b(?:0x)?[0-9a-fA-F]{8,}\b",  # Memory addresses
         r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",  # IP addresses
-        r":\d+",  # Port numbers when after hostnames
+        r"(?<=\w):\d{2,5}\b",  # Port numbers anchored after a word char (e.g. host:8080)
         r"\.py:\d+",  # Python file line numbers
         r"line \d+",  # Line number references
         r"at [a-zA-Z0-9_.-]+\.[a-zA-Z0-9_]+:\d+",  # Stack trace locations
