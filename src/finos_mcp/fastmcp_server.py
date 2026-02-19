@@ -965,7 +965,18 @@ def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
 
 
 async def _call_registered_tool(tool_obj, *args, **kwargs):
-    """Invoke a registered FastMCP FunctionTool via its wrapped function."""
+    """Invoke a registered FastMCP FunctionTool via its wrapped function.
+
+    SECURITY NOTE — intentional auth bypass:
+    This helper calls tool_obj.fn() directly, which bypasses the FastMCP JWT
+    auth middleware layer.  This is by design: callers of this function are
+    @mcp.prompt() handlers that have already been authenticated at the MCP
+    boundary.  Prompt handlers are permitted to internally delegate to tool
+    functions without re-authenticating, because the initial auth context
+    covers the full scope of the prompt execution.  Any new callers of this
+    helper must also be authenticated entry points; do not call it from
+    unauthenticated code paths.
+    """
     result = tool_obj.fn(*args, **kwargs)
     if inspect.isawaitable(result):
         return await result
