@@ -1,0 +1,262 @@
+# ===============================================================================
+# IRONCLAD GIT SECURITY CONFIGURATION
+# ===============================================================================
+# This file contains security-focused git configurations that enhance protection
+# against committing sensitive files and improve repository security.
+#
+# To apply these settings:
+# 1. Repository level: git config --file .gitconfig-security --get-regexp '^[^#]' | while read key value; do git config "$key" "$value"; done
+# 2. Global level (use with caution): git config --global --file .gitconfig-security --get-regexp '^[^#]' | while read key value; do git config --global "$key" "$value"; done
+# ===============================================================================
+
+[core]
+    # Protect against case-insensitive filesystems issues
+    ignorecase = false
+
+    # Protect line endings to prevent cross-platform issues
+    autocrlf = false
+    safecrlf = true
+
+    # Ensure UTF-8 encoding for consistent handling
+    quotepath = false
+
+    # Use secure pager settings
+    pager = less -FRX
+
+    # Protect against symlink issues
+    symlinks = false
+
+    # Exclude files matching global gitignore
+    excludesfile = ~/.gitignore_global
+
+[status]
+    # Show all untracked files for comprehensive review
+    showUntrackedFiles = all
+
+    # Use short format for cleaner output
+    short = false
+
+[commit]
+    # Require explicit commit messages (no shortcuts)
+    template = ~/.gitmessage
+
+    # Verify commit signatures when possible
+    gpgsign = false
+
+    # Show diff in commit message editor
+    verbose = true
+
+[push]
+    # Only push current branch by default
+    default = simple
+
+    # Verify that all referenced objects are available
+    followTags = false
+
+    # Require explicit force pushing
+    autoSetupRemote = false
+
+[pull]
+    # Require explicit merge strategy
+    rebase = false
+
+    # Don't automatically setup tracking
+    autoSetupRemote = false
+
+[fetch]
+    # Prune deleted remote branches
+    prune = true
+
+    # Don't fetch tags by default
+    tags = false
+
+[merge]
+    # Use more comprehensive conflict markers
+    conflictstyle = diff3
+
+    # Require explicit merge commits
+    ff = false
+
+[diff]
+    # Show renames for better tracking
+    renames = true
+
+    # Use more context for better diffs
+    context = 5
+
+    # Detect algorithm for better performance
+    algorithm = histogram
+
+    # Show word-level diffs for text files
+    wordRegex = [A-Za-z0-9_]+
+
+    # Color moved lines differently
+    colorMoved = default
+
+[log]
+    # Show signatures when available
+    showSignature = false
+
+    # Use ISO date format for consistency
+    date = iso
+
+    # Follow file moves/renames
+    follow = true
+
+[advice]
+    # Disable potentially confusing advice
+    pushNonFastForward = false
+    statusHints = false
+    commitBeforeMerge = false
+    resolveConflict = false
+    implicitIdentity = false
+    detachedHead = false
+    addEmbeddedRepo = false
+    addIgnoredFile = true
+    addEmptyPathspec = false
+    pushNeedsForce = false
+
+[help]
+    # Don't automatically run commands
+    autocorrect = 0
+
+[color]
+    # Enable colors for better visibility
+    ui = auto
+
+[color "status"]
+    added = green
+    changed = yellow
+    untracked = red
+
+[color "diff"]
+    meta = blue
+    frag = magenta
+    old = red
+    new = green
+
+[color "branch"]
+    current = yellow
+    local = white
+    remote = red
+
+[alias]
+    # Security-focused aliases
+
+    # Comprehensive status check
+    st = status --porcelain=v1 --untracked-files=all
+
+    # Safe staging with review
+    add-safe = "!f() { git diff --name-only --cached | head -20; echo 'Staged files above. Continue? [y/N]'; read confirm; [ \"$confirm\" = \"y\" ] && git add \"$@\" || echo 'Cancelled'; }; f"
+
+    # Comprehensive diff before commit
+    pre-commit = "!git diff --cached --stat && echo '---' && git diff --cached"
+
+    # Safe commit with verification
+    commit-safe = "!git pre-commit && echo 'Continue with commit? [y/N]'; read confirm; [ \"$confirm\" = \"y\" ] && git commit || echo 'Cancelled'"
+
+    # Show what would be committed
+    what-commit = diff --cached --name-status
+
+    # Safe branch operations
+    br = branch -vv
+    bra = branch -a -vv
+
+    # Safe log operations
+    lg = log --oneline --graph --decorate -10
+    lga = log --oneline --graph --decorate --all -10
+
+    # Check for sensitive files
+    check-sensitive = "!git diff --cached --name-only | grep -iE '\\.(key|pem|p12|pfx)$|secret|password|token|credential|\\.env|\\.local|claude|personal|private' && echo 'WARNING: Sensitive files detected!' || echo 'No sensitive files detected'"
+
+    # Unstage all files
+    unstage = reset HEAD --
+
+    # Show ignored files that are tracked
+    show-ignored-tracked = ls-files -i --exclude-standard
+
+    # Safe remote operations
+    remote-v = remote -v
+
+    # Show untracked files
+    untracked = ls-files --others --exclude-standard
+
+[init]
+    # Use main as default branch name
+    defaultBranch = main
+
+[branch]
+    # Auto-setup tracking for new branches
+    autosetupmerge = always
+    autosetuprebase = never
+
+[rerere]
+    # Remember conflict resolutions
+    enabled = true
+    autoupdate = true
+
+[rebase]
+    # Show instruction format in rebase
+    instructionFormat = [%an <%ae>] %s
+
+    # Auto-squash marked commits
+    autoSquash = false
+
+    # Auto-stash changes before rebase
+    autoStash = false
+
+[stash]
+    # Show patch format for stashes
+    showPatch = true
+
+[tag]
+    # Force annotated tags
+    forceSignAnnotated = false
+
+[transfer]
+    # Verify object integrity
+    fsckObjects = true
+
+[receive]
+    # Verify incoming objects
+    fsckObjects = true
+
+[submodule]
+    # Recursively update submodules
+    recurse = false
+
+# ===============================================================================
+# SECURITY PATTERNS FOR HOOKS
+# ===============================================================================
+# These patterns can be used by git hooks to detect sensitive files
+
+[security]
+    # Critical files (exact names only - no patterns)
+    critical-files = ".env .env.local .env.production .env.staging .env.development secrets.json api-keys.txt passwords.txt credentials.json auth-tokens.txt"
+
+    # Personal configuration files (exact names only)
+    personal-files = ".dev-secrets .personal-config personal-notes.md todo-personal.md .claude/settings.json .claude/config.json"
+
+    # Temporary sensitive files (exact names only)
+    temp-sensitive-files = "temp-api-key.txt debug-tokens.log .auth-cache security-scan-temp.json audit-temp.log"
+
+# ===============================================================================
+# CLEANUP AND MAINTENANCE
+# ===============================================================================
+
+[gc]
+    # Automatic garbage collection settings
+    auto = 1000
+    autopacklimit = 50
+
+[pack]
+    # Optimize pack files for security scanning
+    packSizeLimit = 2g
+
+[fsck]
+    # Enable additional fsck checks
+    skipList =
+
+# ===============================================================================
+# END IRONCLAD GIT SECURITY CONFIGURATION
+# ===============================================================================

@@ -1,0 +1,11 @@
+{
+    "filename": "sample-mitigation.md",
+    "type": "mitigation",
+    "metadata": {
+        "title": "Sample AI Risk Mitigation",
+        "category": "data-protection",
+        "risk_level": "medium"
+    },
+    "content": "# Sample Mitigation\n\nThis is a sample mitigation for testing purposes.\n\n## Implementation\n\n- Step 1: Configure data validation\n- Step 2: Implement monitoring\n- Step 3: Set up alerts",
+    "full_text": "---\ntitle: Sample AI Risk Mitigation\ncategory: data-protection\nrisk_level: medium\n---\n\n# Sample Mitigation\n\nThis is a sample mitigation for testing purposes.\n\n## Implementation\n\n- Step 1: Configure data validation\n- Step 2: Implement monitoring\n- Step 3: Set up alerts"
+}

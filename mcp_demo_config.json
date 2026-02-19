@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "finos-ai-governance": {
+      "command": "/Users/hugocalderon/SRC/IA-FINOS/.venv/bin/finos-mcp",
+      "args": []
+    }
+  }
+}

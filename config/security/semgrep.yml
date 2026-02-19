@@ -1,0 +1,69 @@
+rules:
+  # Security-focused rules for FINOS AI Governance MCP Server
+  - id: finos-mcp-pickle-usage
+    patterns:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+      - pattern: pickle.dumps(...)
+      - pattern: pickle.dump(...)
+    message: "Pickle usage detected. Consider using safer serialization methods like JSON or msgpack for security."
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+      owasp: "A8: Insecure Deserialization"
+
+  - id: finos-mcp-weak-randomness
+    patterns:
+      - pattern: random.random()
+      - pattern: random.choice(...)
+      - pattern: random.sample(...)
+      - pattern: random.randint(...)
+    message: "Weak randomness detected. Use secrets module for security-sensitive operations."
+    languages: [python]
+    severity: INFO
+    metadata:
+      category: security
+      cwe: "CWE-330: Use of Insufficiently Random Values"
+
+  - id: finos-mcp-sql-injection
+    patterns:
+      - pattern: $CURSOR.execute($QUERY % ...)
+      - pattern: $CURSOR.execute($QUERY + ...)
+      - pattern: $CURSOR.execute($QUERY.format(...))
+      - pattern: $CURSOR.execute(f"...")
+    message: "Potential SQL injection vulnerability. Use parameterized queries."
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      owasp: "A1: Injection"
+
+  - id: finos-mcp-hardcoded-secrets
+    patterns:
+      - pattern: |
+          $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(password|secret|token|key|api_key|private_key)
+    message: "Potential hardcoded secret detected. Use environment variables or secure storage."
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A2: Broken Authentication"
+
+  - id: finos-mcp-unsafe-yaml
+    patterns:
+      - pattern: yaml.load($DATA)
+      - pattern: yaml.load($DATA, Loader=yaml.Loader)
+      - pattern: yaml.load($DATA, Loader=yaml.FullLoader)
+    message: "Unsafe YAML loading detected. Use yaml.safe_load() instead."
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-502: Deserialization of Untrusted Data"

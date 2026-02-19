@@ -1,0 +1,211 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[security,dev]
+
+    - name: Run security checks
+      run: |
+        bandit -c config/security/bandit.yml -r src/
+        ./scripts/semgrep-isolated.sh --config config/security/semgrep.yml src/
+        pylint src/finos_mcp --fail-under=8.0
+
+    - name: Run tests
+      run: |
+        pytest tests/ --cov=src/finos_mcp --cov-fail-under=65
+
+  build:
+    name: Build Distribution
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+        cache: 'pip'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build setuptools_scm
+
+    - name: Build distributions
+      run: python -m build
+
+    - name: Upload distributions
+      uses: actions/upload-artifact@v4
+      with:
+        name: distributions
+        path: dist/
+        retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: distributions
+        path: dist/
+
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "tag_name=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate Release Notes
+      id: release_notes
+      run: |
+        cat > release_notes.md << 'EOF'
+        ## What's Changed
+
+        This release includes:
+        - 11 MCP tools for AI governance framework access (list/get/search for frameworks, risks, mitigations + health monitoring)
+        - 3 dynamic MCP resource templates with finos:// URI scheme
+        - Security-first development with comprehensive scanning
+        - Enterprise-grade quality controls
+        - FastMCP server implementation
+
+        ## Installation
+
+        ```bash
+        pip install finos-ai-governance-mcp-server==${{ steps.version.outputs.version }}
+        ```
+
+        ## Docker
+
+        ```bash
+        docker pull ghcr.io/${{ github.repository_owner }}/finos-ai-governance-mcp-server:${{ steps.version.outputs.version }}
+        ```
+
+        **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.version }}...HEAD
+        EOF
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.tag_name }}
+        name: Release ${{ steps.version.outputs.version }}
+        body_path: release_notes.md
+        files: |
+          dist/*.tar.gz
+          dist/*.whl
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-dev')
+
+    steps:
+    - name: Download distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: distributions
+        path: dist/
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        skip-existing: true
+
+  build-container:
+    name: Build Container Image
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and push container
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository_owner }}/finos-ai-governance-mcp-server:${{ steps.version.outputs.version }}
+          ghcr.io/${{ github.repository_owner }}/finos-ai-governance-mcp-server:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

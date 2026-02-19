@@ -1,0 +1,62 @@
+# Gitleaks configuration file
+# More details: https://github.com/gitleaks/gitleaks
+
+title = "FINOS AI Governance MCP Server - Secret Detection"
+
+[[rules]]
+    id = "github-token"
+    description = "GitHub Token"
+    regex = '''(?i)github[_\-\.]?token[\s:=]*(["']?)([a-z0-9_]{40})\1'''
+    keywords = ["github", "token"]
+
+[[rules]]
+    id = "github-app-token"
+    description = "GitHub App Token"
+    regex = '''(ghu|ghs|ghr|ghp)_[A-Za-z0-9_]{36,255}'''
+    keywords = ["ghu_", "ghs_", "ghr_", "ghp_"]
+
+[[rules]]
+    id = "aws-access-key-id"
+    description = "AWS Access Key ID"
+    regex = '''(?i)(aws[_\-\.]?access[_\-\.]?key[_\-\.]?id[\s:=]*(["']?)([A-Z0-9]{20})\2)'''
+    keywords = ["AKIA", "aws", "access", "key"]
+
+[[rules]]
+    id = "aws-secret-access-key"
+    description = "AWS Secret Access Key"
+    regex = '''(?i)(aws[_\-\.]?secret[_\-\.]?access[_\-\.]?key[\s:=]*(["']?)([A-Za-z0-9/+=]{40})\2)'''
+    keywords = ["aws", "secret", "key"]
+
+# Note: Private key detection rules are handled by default gitleaks rules
+# to avoid false positives in configuration files
+
+[[rules]]
+    id = "generic-api-key"
+    description = "Generic API Key"
+    regex = '''(?i)(api[_\-\.]?key[\s:=]*(["']?)([a-z0-9_\-]{32,})\2)'''
+    keywords = ["api_key", "api-key", "apikey"]
+
+# Allowlists for test files and documentation (updated for gitleaks v8.25.0+)
+[[allowlists]]
+    description = "Test fixtures and example data"
+    paths = [
+        '''tests/.*\.py$''',
+        '''docs/.*\.md$''',
+        '''\.md$''',
+        '''example\..*''',
+        '''test_.*\.py$'''
+    ]
+
+[[allowlists]]
+    description = "Known false positives"
+    regexes = [
+        '''test[_\-]?key''',
+        '''example[_\-]?key''',
+        '''dummy[_\-]?key''',
+        '''fake[_\-]?key''',
+        '''mock[_\-]?key'''
+    ]
+
+# Global configuration
+[extend]
+    useDefault = true

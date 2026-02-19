@@ -1,0 +1,16 @@
+{
+  "mitigation_count": 17,
+  "risk_count": 17,
+  "sample_content_length": 10120,
+  "mitigation_metadata_fields": [
+    "sequence",
+    "title",
+    "layout",
+    "doc-status",
+    "type",
+    "iso-42001_references",
+    "nist-sp-800-53r5_references",
+    "mitigates",
+    "related_mitigations"
+  ]
+}
