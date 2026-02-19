@@ -36,24 +36,34 @@ _shutdown_event: asyncio.Event | None = None
 
 
 async def cleanup_resources() -> None:
-    """Clean up all resources before shutdown."""
+    """Clean up all resources before shutdown.
+
+    Each resource is closed independently so that a failure in one does not
+    prevent the others from being cleaned up.
+    """
     logger.info("Starting graceful resource cleanup...")
 
-    try:
-        # Close all resources in order
-        await close_content_service()
-        logger.debug("Content service closed")
+    _resources = [
+        (close_content_service, "content service"),
+        (close_http_client, "HTTP client"),
+        (close_cache, "cache"),
+    ]
 
-        await close_http_client()
-        logger.debug("HTTP client closed")
+    errors: list[str] = []
+    for close_fn, name in _resources:
+        try:
+            await close_fn()
+            logger.debug("%s closed", name)
+        except Exception as e:
+            errors.append(name)
+            logger.warning("Error closing %s: %s", name, e, exc_info=True)
 
-        await close_cache()
-        logger.debug("Cache closed")
-
+    if errors:
+        logger.warning(
+            "Resource cleanup completed with errors in: %s", ", ".join(errors)
+        )
+    else:
         logger.info("Resource cleanup completed successfully")
-
-    except Exception as e:
-        logger.error("Error during resource cleanup: %s", e, exc_info=True)
 
 
 def setup_signal_handlers() -> None:
