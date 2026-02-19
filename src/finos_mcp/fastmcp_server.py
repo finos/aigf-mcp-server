@@ -854,19 +854,52 @@ async def get_mitigation(
 
 @mcp.tool()
 async def get_service_health() -> ServiceHealth:
-    """Get basic service health status.
+    """Get real service health status by querying each subsystem.
 
     Returns:
-        Structured health information.
+        Structured health information with actual subsystem counts.
     """
-
     await _apply_dos_protection()
+
+    # Query actual subsystem diagnostics instead of hardcoding values.
+    total_services = 4  # fetch, cache, parser, config
+    healthy_services = 0
+    overall_status = "healthy"
+
+    try:
+        service = await get_service()
+        diagnostics = await service.get_service_diagnostics()
+
+        # Count healthy error boundaries (circuit breakers that are closed)
+        boundaries = diagnostics.get("error_boundaries", {})
+        healthy_boundaries = sum(
+            1 for b in boundaries.values() if b.get("status") == "closed"
+        )
+        # Circuit breakers cover fetch + cache (2 of 4 subsystems)
+        healthy_services += healthy_boundaries
+
+        # Parser subsystem is healthy if parser stats are accessible
+        if "parser_statistics" in diagnostics:
+            healthy_services += 1
+
+        # Config subsystem is always healthy if we reached this point
+        healthy_services += 1
+
+        if healthy_services < total_services:
+            overall_status = "degraded"
+
+    except Exception as e:
+        logger.warning("Failed to collect subsystem diagnostics: %s", e)
+        # Cannot determine real status; report degraded rather than lying
+        overall_status = "degraded"
+        healthy_services = 0
+
     return ServiceHealth(
-        status="healthy",
+        status=overall_status,
         uptime_seconds=time.monotonic() - _SERVER_START_TIME,
         version=__version__,
-        healthy_services=4,
-        total_services=4,
+        healthy_services=healthy_services,
+        total_services=total_services,
     )
 
 
