@@ -9,7 +9,7 @@ import asyncio
 
 import pytest
 
-from finos_mcp.fastmcp_server import mcp
+from finos_mcp.fastmcp_server import get_service, mcp
 
 
 async def _list_tools():
@@ -23,6 +23,15 @@ async def _call_tool(name: str, arguments: dict):
     tools = await mcp.get_tools()
     result = await tools[name].run(arguments)
     return result.content, result.structured_content
+
+
+@pytest.fixture(autouse=True)
+async def _reset_service_health_state():
+    """Reset service health counters/circuit state between tests for isolation."""
+    service = await get_service()
+    await service.reset_health()
+    yield
+    await service.reset_health()
 
 
 @pytest.mark.integration
