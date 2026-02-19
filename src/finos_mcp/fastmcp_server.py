@@ -670,20 +670,30 @@ async def get_risk(
         _validate_request_params(risk_id=risk_id)
         service = await get_service()
 
-        # First, discover to find the correct filename
+        # First, discover to find the correct filename.
         discovery_manager = DiscoveryServiceManager()
         discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
+        try:
+            discovery_result = await discovery_service.discover_content()
+            risk_filenames = [
+                file_info.filename for file_info in discovery_result.risk_files
+            ]
+        except Exception as discovery_error:
+            logger.warning(
+                "Risk discovery failed, using static fallback list: %s",
+                discovery_error,
+            )
+            risk_filenames = list(STATIC_RISK_FILES)
 
         # Find the risk file by ID
-        target_file = None
-        for file_info in discovery_result.risk_files:
-            file_id = file_info.filename.replace(".md", "").replace("ri-", "")
+        target_filename = None
+        for filename in risk_filenames:
+            file_id = filename.replace(".md", "").replace("ri-", "")
             if file_id == risk_id:
-                target_file = file_info
+                target_filename = filename
                 break
 
-        if not target_file:
+        if not target_filename:
             return DocumentContent(
                 document_id=risk_id,
                 title=f"Risk {risk_id} not found",
@@ -692,11 +702,11 @@ async def get_risk(
             )
 
         # Get the document content
-        doc = await service.get_document("risk", target_file.filename)
+        doc = await service.get_document("risk", target_filename)
 
         if doc:
             content = doc.get("content", "")
-            title = doc.get("title", target_file.filename.replace(".md", ""))
+            title = doc.get("title", target_filename.replace(".md", ""))
             content, sections = _safe_document_content(
                 content,
                 f"risk:{risk_id}",
@@ -755,20 +765,30 @@ async def get_mitigation(
         _validate_request_params(mitigation_id=mitigation_id)
         service = await get_service()
 
-        # First, discover to find the correct filename
+        # First, discover to find the correct filename.
         discovery_manager = DiscoveryServiceManager()
         discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
+        try:
+            discovery_result = await discovery_service.discover_content()
+            mitigation_filenames = [
+                file_info.filename for file_info in discovery_result.mitigation_files
+            ]
+        except Exception as discovery_error:
+            logger.warning(
+                "Mitigation discovery failed, using static fallback list: %s",
+                discovery_error,
+            )
+            mitigation_filenames = list(STATIC_MITIGATION_FILES)
 
         # Find the mitigation file by ID
-        target_file = None
-        for file_info in discovery_result.mitigation_files:
-            file_id = file_info.filename.replace(".md", "").replace("mi-", "")
+        target_filename = None
+        for filename in mitigation_filenames:
+            file_id = filename.replace(".md", "").replace("mi-", "")
             if file_id == mitigation_id:
-                target_file = file_info
+                target_filename = filename
                 break
 
-        if not target_file:
+        if not target_filename:
             return DocumentContent(
                 document_id=mitigation_id,
                 title=f"Mitigation {mitigation_id} not found",
@@ -777,11 +797,11 @@ async def get_mitigation(
             )
 
         # Get the document content
-        doc = await service.get_document("mitigation", target_file.filename)
+        doc = await service.get_document("mitigation", target_filename)
 
         if doc:
             content = doc.get("content", "")
-            title = doc.get("title", target_file.filename.replace(".md", ""))
+            title = doc.get("title", target_filename.replace(".md", ""))
             content, sections = _safe_document_content(
                 content,
                 f"mitigation:{mitigation_id}",
