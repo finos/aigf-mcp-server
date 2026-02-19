@@ -21,7 +21,7 @@ fi
 REQUIRED_FILES=(
     ".github/workflows/security-analysis.yml"
     "scripts/ci-exact-simulation.sh"
-    "scripts/quality-check.sh"
+    "scripts/ci-local.sh"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
@@ -222,5 +222,5 @@ echo ""
 echo "🔗 Related Files:"
 echo "  - .github/workflows/security-analysis.yml (CI definition)"
 echo "  - scripts/ci-exact-simulation.sh (local simulation)"
-echo "  - scripts/quality-check.sh (quality validation)"
+echo "  - scripts/ci-local.sh (CI-equivalent local runner)"
 echo "  - config/security/ (security configurations)"

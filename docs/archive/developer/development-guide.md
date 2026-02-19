@@ -266,7 +266,7 @@ The project uses MyPy for static type checking. Contributors should ensure prope
 **Testing Type Annotations:**
 ```bash
 # Test type checking in development
-./scripts/quality-check.sh
+./scripts/ci-local.sh
 
 # Or just MyPy
 python -m mypy src/finos_mcp

@@ -182,8 +182,8 @@ mcp list tools
 # Install development dependencies
 pip install -e ".[dev,security,test]"
 
-# Run quality checks
-./scripts/quality-check.sh
+# Run CI-equivalent checks locally
+./scripts/ci-local.sh
 
 # Run tests
 pytest
@@ -366,7 +366,7 @@ Includes:
 1. Fork the repository
 2. Create a feature branch
 3. Make changes and add tests
-4. Run quality checks: `./scripts/quality-check.sh`
+4. Run CI-equivalent checks: `./scripts/ci-local.sh`
 5. Test with MCP CLI: `mcp list tools`
 6. Submit a pull request
 
@@ -389,5 +389,3 @@ Includes:
 - **FINOS Content**: CC BY 4.0 License
 
 ---
-
-*This is an **independent project** - not officially affiliated with FINOS or other framework organizations.*
