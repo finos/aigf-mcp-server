@@ -39,8 +39,14 @@ class CacheEntryMetadata(BaseModel):
     @field_validator("data_size")
     @classmethod
     def validate_data_size(cls, v: int) -> int:
-        """Validate data size limits for security."""
-        max_size = 1024 * 1024  # 1MB limit for security
+        """Validate data size limits for security.
+
+        Aligned with cache.MAX_OBJECT_SIZE (10 MB) so that an object that
+        passes the serialisation-layer size check will also pass Pydantic
+        model validation. Previously this cap was 1 MB while the cache layer
+        allowed 10 MB, producing inconsistent rejections.
+        """
+        max_size = 10_000_000  # 10 MB — must match cache.MAX_OBJECT_SIZE
         if v > max_size:
             raise ValueError(f"Data size {v} exceeds maximum allowed {max_size} bytes")
         return v
@@ -103,10 +109,10 @@ class SecureCacheEntry(BaseModel):
             if not isinstance(v, safe_types):
                 raise ValueError("Objects with __reduce__ method are not allowed")
 
-        # Validate data size recursively
+        # Validate data size — aligned with cache.MAX_OBJECT_SIZE (10 MB)
         data_str = json.dumps(v)
-        if len(data_str.encode("utf-8")) > 1024 * 1024:  # 1MB limit
-            raise ValueError("Data size exceeds 1MB limit")
+        if len(data_str.encode("utf-8")) > 10_000_000:
+            raise ValueError("Data size exceeds 10 MB limit")
 
         return v
 
