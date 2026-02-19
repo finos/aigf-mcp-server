@@ -737,13 +737,14 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
             return len(self._cache)
 
     async def get_stats(self) -> CacheStats:
-        """Get cache statistics."""
+        """Get cache statistics (snapshot of current counters)."""
         async with self._lock:
-            # Update current metrics
-            self._record_operation(
-                CacheOperation.HIT
-            )  # Dummy operation to update stats
-            self._stats.hits -= 1  # Remove the dummy hit
+            # Refresh size/memory fields without touching operation counters.
+            self._stats.current_size = len(self._cache)
+            self._stats.memory_usage_bytes = sum(
+                entry.size_bytes for entry in self._cache.values()
+            )
+            self._stats.update_hit_rate()
 
             return CacheStats(
                 hits=self._stats.hits,
