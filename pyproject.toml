@@ -66,10 +66,10 @@ test = [
 finos-mcp = "finos_mcp.fastmcp_main:main"
 
 [project.urls]
-Homepage = "https://github.com/hugo-calderon/finos-mcp-server"
-Repository = "https://github.com/hugo-calderon/finos-mcp-server"
-Documentation = "https://github.com/hugo-calderon/finos-mcp-server/blob/main/README.md"
-"Bug Tracker" = "https://github.com/hugo-calderon/finos-mcp-server/issues"
+Homepage = "https://github.com/finos/finos-mcp-server"
+Repository = "https://github.com/finos/finos-mcp-server"
+Documentation = "https://github.com/finos/finos-mcp-server/blob/main/README.md"
+"Bug Tracker" = "https://github.com/finos/finos-mcp-server/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
