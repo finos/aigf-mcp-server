@@ -41,11 +41,23 @@ from .content.discovery import (
 from .content.service import get_content_service
 from .logging import get_logger
 from .security.error_handler import secure_error_handler
-from .security.request_validator import request_size_validator
+from .security.request_validator import dos_protector, request_size_validator
 
 # Initialize configuration and logging
 settings = validate_settings_on_startup()
 logger = get_logger("fastmcp_server")
+
+# Fixed client ID for stdio transport (single-client model).
+# HTTP transports share this limit; extend to per-IP tracking when MCP exposes
+# request context in tool handlers.
+_DOS_CLIENT_ID = "mcp_client"
+
+
+async def _apply_dos_protection() -> None:
+    """Enforce rate and concurrency limits. Raises ValueError on violation."""
+    await dos_protector.periodic_cleanup()
+    if not await dos_protector.check_rate_limit(_DOS_CLIENT_ID):
+        raise ValueError("Rate limit exceeded. Please slow down and try again later.")
 
 
 def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
@@ -298,6 +310,7 @@ async def list_frameworks() -> FrameworkList:
         Use the 'id' field from results with get_framework() for detailed content.
     """
     try:
+        await _apply_dos_protection()
         discovery_manager = DiscoveryServiceManager()
         discovery_service = await discovery_manager.get_discovery_service()
         discovery_result = await discovery_service.discover_content()
@@ -420,6 +433,7 @@ async def get_framework(
         Content is formatted for easy parsing and includes both structured data and raw text.
     """
     try:
+        await _apply_dos_protection()
         _validate_request_params(framework=framework)
         service = await get_service()
 
@@ -520,6 +534,7 @@ async def list_risks() -> DocumentList:
         Perfect for risk cataloging, threat modeling, and security assessment workflows.
     """
     try:
+        await _apply_dos_protection()
         discovery_manager = DiscoveryServiceManager()
         discovery_service = await discovery_manager.get_discovery_service()
         discovery_result = await discovery_service.discover_content()
@@ -587,6 +602,7 @@ async def list_mitigations() -> DocumentList:
         Essential for security planning, control implementation, and compliance remediation.
     """
     try:
+        await _apply_dos_protection()
         discovery_manager = DiscoveryServiceManager()
         discovery_service = await discovery_manager.get_discovery_service()
         discovery_result = await discovery_service.discover_content()
@@ -667,6 +683,7 @@ async def get_risk(
         Includes structured content suitable for risk registers and security documentation.
     """
     try:
+        await _apply_dos_protection()
         _validate_request_params(risk_id=risk_id)
         service = await get_service()
 
@@ -762,6 +779,7 @@ async def get_mitigation(
         Includes actionable steps suitable for security implementation and compliance documentation.
     """
     try:
+        await _apply_dos_protection()
         _validate_request_params(mitigation_id=mitigation_id)
         service = await get_service()
 
@@ -842,6 +860,7 @@ async def get_service_health() -> ServiceHealth:
         Structured health information.
     """
 
+    await _apply_dos_protection()
     return ServiceHealth(
         status="healthy",
         uptime_seconds=time.monotonic() - _SERVER_START_TIME,
@@ -859,6 +878,7 @@ async def get_cache_stats() -> CacheStats:
         Structured cache performance information.
     """
     try:
+        await _apply_dos_protection()
         cache = await get_cache()
         stats = await cache.get_stats()
         total_requests = stats.hits + stats.misses
@@ -1023,6 +1043,7 @@ async def search_frameworks(
         Each result includes the framework ID, section, and relevant text excerpt.
     """
     try:
+        await _apply_dos_protection()
         _validate_request_params(query=query, limit=limit)
         # Get all frameworks first
         frameworks_list = await _call_registered_tool(list_frameworks)
@@ -1143,6 +1164,7 @@ async def search_risks(
         Essential for threat modeling and security risk assessments.
     """
     try:
+        await _apply_dos_protection()
         _validate_request_params(query=query, limit=limit)
         # Get all risks first
         risks_list = await _call_registered_tool(list_risks)
@@ -1265,6 +1287,7 @@ async def search_mitigations(
         Critical for security implementation and compliance remediation planning.
     """
     try:
+        await _apply_dos_protection()
         _validate_request_params(query=query, limit=limit)
         # Get all mitigations first
         mitigations_list = await _call_registered_tool(list_mitigations)
