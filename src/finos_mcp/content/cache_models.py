@@ -8,7 +8,7 @@ to prevent RCE vulnerabilities while maintaining type safety.
 import hashlib
 import hmac
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -31,7 +31,7 @@ class CacheEntryMetadata(BaseModel):
     """Metadata for cache entries with security validation."""
 
     entry_type: CacheDataType = Field(..., description="Type of cached data")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     data_size: int = Field(..., ge=0, description="Size of data in bytes")
     compression_used: bool = Field(default=False, description="Was compression applied")
     integrity_hash: str | None = Field(None, description="Data integrity hash")
