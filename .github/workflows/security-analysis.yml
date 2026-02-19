@@ -300,6 +300,7 @@ jobs:
     - name: Run Integration Tests
       run: |
         echo "Running integration tests..."
+        export FINOS_MCP_CACHE_SECRET=test_cache_secret_for_ci_integration_32chars
         # Test that the MCP server can actually start and respond
         timeout 30 python -c "
         import asyncio
