@@ -12,6 +12,11 @@ This independent project provides access to governance frameworks and risk asses
 git clone https://github.com/hugo-calderon/finos-mcp-server.git
 cd aigf-mcp-server
 pip install -e .
+
+# Required security setting (generate your own value; choose one)
+export FINOS_MCP_CACHE_SECRET=$(python -c "import secrets; print(secrets.token_hex(32))")
+# OR
+export FINOS_MCP_CACHE_SECRET=$(openssl rand -hex 32)
 ```
 
 ### 2. Test
@@ -122,7 +127,7 @@ This server works with any MCP-compatible client. See [MCP Client Directory](htt
 
 ---
 
-## Configuration (Optional)
+## Configuration
 
 Set environment variables for better performance:
 
@@ -130,6 +135,10 @@ Set environment variables for better performance:
 # Faster responses (optional)
 export FINOS_MCP_CACHE_MAX_SIZE=2000
 export FINOS_MCP_LOG_LEVEL=INFO
+# Required: cache integrity secret (choose one)
+export FINOS_MCP_CACHE_SECRET=$(python -c "import secrets; print(secrets.token_hex(32))")
+# OR
+export FINOS_MCP_CACHE_SECRET=$(openssl rand -hex 32)
 # Transport/network binding (config-driven)
 export FINOS_MCP_MCP_TRANSPORT=stdio
 # export FINOS_MCP_MCP_TRANSPORT=http

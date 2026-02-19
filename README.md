@@ -43,6 +43,11 @@ source venv/bin/activate
 # Install dependencies
 pip install -e .
 
+# Required security setting (generate your own value; choose one)
+export FINOS_MCP_CACHE_SECRET=$(python -c "import secrets; print(secrets.token_hex(32))")
+# OR
+export FINOS_MCP_CACHE_SECRET=$(openssl rand -hex 32)
+
 # Test
 finos-mcp --help
 mcp list tools
@@ -217,6 +222,21 @@ Environment variables and configuration:
 - Content loaded from GitHub repositories dynamically
 - Cache configuration in `src/finos_mcp/content/cache.py`
 - Security settings in `src/finos_mcp/security/`
+
+### Required Security Configuration
+
+`FINOS_MCP_CACHE_SECRET` is required at startup.
+
+```bash
+# Option 1 (Python)
+export FINOS_MCP_CACHE_SECRET=$(python -c "import secrets; print(secrets.token_hex(32))")
+# Option 2 (OpenSSL)
+export FINOS_MCP_CACHE_SECRET=$(openssl rand -hex 32)
+```
+
+Notes:
+- Use a unique secret per environment.
+- Do not commit real secrets to git.
 
 ### MCP Auth Configuration
 
