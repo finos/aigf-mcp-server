@@ -248,7 +248,15 @@ class TTLCache(CacheInterface[K, T]):  # pylint: disable=too-many-instance-attri
         # Statistics
         self._stats = CacheStats(max_size=max_size)
 
-        # Background cleanup task
+        # Background cleanup task.
+        # NOTE: _start_cleanup_task() is intentionally NOT called from __init__
+        # because __init__ may run outside an async context (no running event loop).
+        # asyncio.create_task() requires a running loop and will raise RuntimeError
+        # if called synchronously.  The cleanup task is started from start(), which
+        # must be awaited after constructing the cache in an async context.
+        # TTLCache.__init__ does attempt a best-effort task creation for cases where
+        # a loop is already running (e.g. tests that create the cache inside a
+        # coroutine), but callers should always await start() for reliable behaviour.
         self._cleanup_task: asyncio.Task[None] | None = None
         self._enable_background_cleanup = enable_background_cleanup
         if enable_background_cleanup:
