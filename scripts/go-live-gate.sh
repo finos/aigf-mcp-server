@@ -53,6 +53,7 @@ fi
 
 step "Gate 3: Lint and typing checks"
 "$PYTHON_BIN" -m ruff check src/ tests/
+"$PYTHON_BIN" -m ruff format --check src/ tests/
 "$PYTHON_BIN" -m mypy src/finos_mcp
 pass "Ruff and MyPy checks passed"
 

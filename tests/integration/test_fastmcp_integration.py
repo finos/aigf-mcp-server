@@ -222,10 +222,13 @@ class TestPerformanceCharacteristics:
     async def test_response_times(self):
         """Test that tool responses are within acceptable time limits."""
         import time
+
         try:
             socket.getaddrinfo("api.github.com", 443)
         except OSError:
-            pytest.skip("DNS unavailable; skipping network-dependent response-time test")
+            pytest.skip(
+                "DNS unavailable; skipping network-dependent response-time test"
+            )
 
         # Test list operations (should be fast)
         start_time = time.time()
