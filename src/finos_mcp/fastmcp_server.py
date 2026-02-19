@@ -278,6 +278,13 @@ class AsyncServiceManager:
 # Global service manager instance
 _service_manager = AsyncServiceManager()
 
+# Module-level DiscoveryServiceManager singleton.
+# Tool handlers previously called DiscoveryServiceManager() on every
+# invocation, constructing a new Python wrapper object each time even though
+# the underlying singleton state is held in class variables.  A module-level
+# instance avoids the unnecessary allocation on every call.
+_discovery_manager = DiscoveryServiceManager()
+
 
 async def get_service():
     """Get content service instance safely."""
@@ -313,7 +320,7 @@ async def list_frameworks() -> FrameworkList:
     """
     try:
         await _apply_dos_protection()
-        discovery_manager = DiscoveryServiceManager()
+        discovery_manager = _discovery_manager
         discovery_service = await discovery_manager.get_discovery_service()
         discovery_result = await discovery_service.discover_content()
 
@@ -440,7 +447,7 @@ async def get_framework(
         service = await get_service()
 
         # First, discover to find the correct filename.
-        discovery_manager = DiscoveryServiceManager()
+        discovery_manager = _discovery_manager
         discovery_service = await discovery_manager.get_discovery_service()
         try:
             discovery_result = await discovery_service.discover_content()
@@ -537,7 +544,7 @@ async def list_risks() -> DocumentList:
     """
     try:
         await _apply_dos_protection()
-        discovery_manager = DiscoveryServiceManager()
+        discovery_manager = _discovery_manager
         discovery_service = await discovery_manager.get_discovery_service()
         discovery_result = await discovery_service.discover_content()
 
@@ -605,7 +612,7 @@ async def list_mitigations() -> DocumentList:
     """
     try:
         await _apply_dos_protection()
-        discovery_manager = DiscoveryServiceManager()
+        discovery_manager = _discovery_manager
         discovery_service = await discovery_manager.get_discovery_service()
         discovery_result = await discovery_service.discover_content()
 
@@ -690,7 +697,7 @@ async def get_risk(
         service = await get_service()
 
         # First, discover to find the correct filename.
-        discovery_manager = DiscoveryServiceManager()
+        discovery_manager = _discovery_manager
         discovery_service = await discovery_manager.get_discovery_service()
         try:
             discovery_result = await discovery_service.discover_content()
@@ -786,7 +793,7 @@ async def get_mitigation(
         service = await get_service()
 
         # First, discover to find the correct filename.
-        discovery_manager = DiscoveryServiceManager()
+        discovery_manager = _discovery_manager
         discovery_service = await discovery_manager.get_discovery_service()
         try:
             discovery_result = await discovery_service.discover_content()
