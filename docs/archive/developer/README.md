@@ -10,10 +10,10 @@ Get started quickly with our enhanced development tools:
 # 🚀 Quick development setup (recommended)
 git clone https://github.com/finos/aigf-mcp-server.git
 cd aigf-mcp-server
-./scripts/dev-quick-setup.sh
+pip install -e ".[dev,security,test]"
 
 # ⚡ Fast test mode (70% faster)
-./scripts/dev-test-focused.sh
+pytest -c pytest.fast.ini
 
 # 🔄 Live reload server for real-time development
 python -m finos_mcp.internal.developer_productivity_tools &
@@ -165,10 +165,10 @@ Our enterprise development process emphasizes speed, quality, and security:
 ### Fast Development Tools
 ```bash
 # 🚀 Quick setup with enterprise features
-./scripts/dev-quick-setup.sh
+pip install -e ".[dev,security,test]"
 
 # ⚡ Fast test execution (70% faster)
-./scripts/dev-test-focused.sh unit integration
+pytest -c pytest.fast.ini
 
 # 🔄 Live reload development server
 python -m finos_mcp.internal.developer_tools &
@@ -184,7 +184,7 @@ cli.run_interactive_session()
 python -m finos_mcp.internal.code_quality_automation --generate-tools
 
 # ✅ Automated quality gates with auto-fixing
-./scripts/quality-check.sh --fix
+./scripts/ci-local.sh
 ```
 
 ### Enterprise Quality Gates
@@ -196,7 +196,7 @@ python -m finos_mcp.internal.code_quality_automation --generate-tools
 - **Plugin Testing**: Plugin lifecycle and hook execution validation
 
 ### Enhanced Development Process
-1. **Fast Setup** - Use `./scripts/dev-quick-setup.sh` for instant development environment
+1. **Fast Setup** - Use `pip install -e ".[dev,security,test]"` for instant development environment
 2. **Live Development** - Real-time code updates with live reload server
 3. **Interactive Testing** - Use CLI test runner for rapid feedback
 4. **Quality Automation** - Pre-commit hooks with auto-fixing and quality gates
@@ -341,21 +341,24 @@ We maintain comprehensive testing coverage across all enterprise features:
 ### Running Tests
 ```bash
 # 🚀 Fast test execution (70% faster)
-./scripts/dev-test-focused.sh
+pytest -c pytest.fast.ini
 
 # 🧪 Interactive testing with tenant switching
 python -c "from finos_mcp.internal.developer_productivity_tools import InteractiveTestingCLI; InteractiveTestingCLI().run()"
 
 # 🎯 Focused testing by category
-./scripts/dev-test-focused.sh unit          # Unit tests only
-./scripts/dev-test-focused.sh integration   # Integration tests only
-./scripts/dev-test-focused.sh enterprise    # Enterprise features only
+# Unit tests only
+pytest tests/unit -q
+# Integration tests only
+pytest tests/integration -q
+# Enterprise features only
+pytest -k enterprise -q
 
 # 📊 Full test suite with coverage
 pytest --cov=finos_mcp tests/ -v
 
 # ✅ Quality gates with all checks
-./scripts/quality-check.sh --fix
+./scripts/ci-local.sh
 ```
 
 ## 🚀 Performance Development
@@ -448,8 +451,8 @@ Need development assistance with this independent project?
 </table>
 
 ### Self-Service Development Resources
-- 🚀 **Quick Setup**: Use `./scripts/dev-quick-setup.sh` for instant environment
-- ⚡ **Fast Testing**: Use `./scripts/dev-test-focused.sh` for rapid feedback
+- 🚀 **Quick Setup**: Use `pip install -e ".[dev,security,test]"` for instant environment
+- ⚡ **Fast Testing**: Use `pytest -c pytest.fast.ini` for rapid feedback
 - 🔄 **Live Development**: Use live reload server for real-time updates
 - 📖 **Code Examples**: Browse plugin development examples and templates
 
