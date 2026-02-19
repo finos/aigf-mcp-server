@@ -90,7 +90,7 @@ class ContentSecurityValidator:
 
         # Block explicitly dangerous types
         if main_type in self.DANGEROUS_CONTENT_TYPES:
-            logger.warning(f"Blocked dangerous content type: {main_type}")
+            logger.warning("Blocked dangerous content type: %s", main_type)
             return False
 
         # Allow explicitly safe types
@@ -98,7 +98,7 @@ class ContentSecurityValidator:
             return True
 
         # For unknown types, be conservative and block
-        logger.warning(f"Blocked unknown content type: {main_type}")
+        logger.warning("Blocked unknown content type: %s", main_type)
         return False
 
     def validate_content_safety(self, content: str) -> bool:
@@ -135,7 +135,7 @@ class ContentSecurityValidator:
 
         size = len(content.encode("utf-8"))
         if size > self.max_content_size:
-            logger.warning(f"Content size {size} exceeds limit {self.max_content_size}")
+            logger.warning("Content size %d exceeds limit %d", size, self.max_content_size)
             return False
 
         return True
@@ -165,20 +165,20 @@ class ContentSecurityValidator:
             if hostname:
                 # Block localhost variations
                 if hostname in ("localhost", "127.0.0.1"):
-                    logger.warning(f"Blocked localhost URL: {hostname}")
+                    logger.warning("Blocked localhost URL: %s", hostname)
                     return False
 
                 # Block private IP ranges
                 if re.match(
                     r"^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)", hostname
                 ):
-                    logger.warning(f"Blocked private IP: {hostname}")
+                    logger.warning("Blocked private IP: %s", hostname)
                     return False
 
             return True
 
         except Exception as e:
-            logger.warning(f"URL parsing failed: {e}")
+            logger.warning("URL parsing failed: %s", e)
             return False
 
     def validate_response_safety(self, response: Any) -> bool:
@@ -221,7 +221,7 @@ class ContentSecurityValidator:
             for key, value in content.items():
                 if isinstance(value, str):
                     if not self.validate_content_safety(value):
-                        logger.warning(f"Unsafe content in field: {key}")
+                        logger.warning("Unsafe content in field: %s", key)
                         return False
                 elif isinstance(value, dict | list):
                     if not self.validate_framework_content(value):

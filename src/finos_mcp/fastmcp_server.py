@@ -1083,7 +1083,9 @@ async def search_frameworks(
 
         total_frameworks = len(frameworks_list.frameworks)
         logger.info(
-            f"Starting search across {total_frameworks} frameworks for query: '{query}'"
+            "Starting search across %d frameworks for query: %r",
+            total_frameworks,
+            query,
         )
 
         # Use asyncio.gather for parallel processing (official MCP best practice)
@@ -1095,7 +1097,7 @@ async def search_frameworks(
         # Execute all searches in parallel with progress reporting
         search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
-        logger.info(f"Completed parallel search across {total_frameworks} frameworks")
+        logger.info("Completed parallel search across %d frameworks", total_frameworks)
 
         # Flatten results and filter out exceptions
         results = []
@@ -1204,7 +1206,9 @@ async def search_risks(
 
         total_risks = len(risks_list.documents)
         logger.info(
-            f"Starting search across {total_risks} risk documents for query: '{query}'"
+            "Starting search across %d risk documents for query: %r",
+            total_risks,
+            query,
         )
 
         # Use asyncio.gather for parallel processing (official MCP best practice)
@@ -1215,7 +1219,7 @@ async def search_risks(
         # Execute all searches in parallel with progress reporting
         search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
-        logger.info(f"Completed parallel search across {total_risks} risk documents")
+        logger.info("Completed parallel search across %d risk documents", total_risks)
 
         # Flatten results and filter out exceptions
         results = []
@@ -1327,7 +1331,9 @@ async def search_mitigations(
 
         total_mitigations = len(mitigations_list.documents)
         logger.info(
-            f"Starting search across {total_mitigations} mitigation documents for query: '{query}'"
+            "Starting search across %d mitigation documents for query: %r",
+            total_mitigations,
+            query,
         )
 
         # Use asyncio.gather for parallel processing (official MCP best practice)
@@ -1340,7 +1346,7 @@ async def search_mitigations(
         search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
         logger.info(
-            f"Completed parallel search across {total_mitigations} mitigation documents"
+            "Completed parallel search across %d mitigation documents", total_mitigations
         )
 
         # Flatten results and filter out exceptions

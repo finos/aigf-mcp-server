@@ -140,7 +140,7 @@ class SecureErrorHandler:
         context = additional_context or {}
 
         logger.error(
-            f"Internal error details [{correlation_id}] - {original_error}",
+            "Internal error details [%s] - %s", correlation_id, original_error,
             extra={
                 "correlation_id": correlation_id,
                 "timestamp": datetime.now(timezone.utc).isoformat(),

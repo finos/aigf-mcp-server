@@ -56,7 +56,9 @@ class RequestSizeValidator:
 
         if total_size > self.max_tool_result_size:
             logger.warning(
-                f"Tool result size exceeded limit: {total_size} bytes > {self.max_tool_result_size} bytes"
+                "Tool result size exceeded limit: %d bytes > %d bytes",
+                total_size,
+                self.max_tool_result_size,
             )
             raise ValueError(f"Tool result exceeds size limit ({total_size} bytes)")
 
@@ -76,7 +78,9 @@ class RequestSizeValidator:
 
         if size > self.max_resource_size:
             logger.warning(
-                f"Resource size exceeded limit: {size} bytes > {self.max_resource_size} bytes"
+                "Resource size exceeded limit: %d bytes > %d bytes",
+                size,
+                self.max_resource_size,
             )
             raise ValueError(f"Resource content exceeds size limit ({size} bytes)")
 
@@ -93,7 +97,9 @@ class RequestSizeValidator:
 
         if size > self.max_request_params_size:
             logger.warning(
-                f"Request parameters size exceeded limit: {size} bytes > {self.max_request_params_size} bytes"
+                "Request parameters size exceeded limit: %d bytes > %d bytes",
+                size,
+                self.max_request_params_size,
             )
             raise ValueError(f"Request parameters exceed size limit ({size} bytes)")
 
@@ -110,7 +116,9 @@ class RequestSizeValidator:
 
         if total_concurrent > self.max_concurrent_memory:
             logger.warning(
-                f"Concurrent memory usage exceeded limit: {total_concurrent} bytes > {self.max_concurrent_memory} bytes"
+                "Concurrent memory usage exceeded limit: %d bytes > %d bytes",
+                total_concurrent,
+                self.max_concurrent_memory,
             )
             raise ValueError(
                 f"Total concurrent memory usage exceeds limit ({total_concurrent} bytes)"
@@ -209,12 +217,12 @@ class RequestSizeValidator:
             return total_size
 
         except (RecursionError, MemoryError) as e:
-            logger.warning(f"Recursion or memory error calculating content size: {e}")
+            logger.warning("Recursion or memory error calculating content size: %s", e)
             # Very conservative fallback
             return 1000000  # 1MB conservative estimate
 
         except Exception as e:
-            logger.warning(f"Failed to calculate content size: {e}")
+            logger.warning("Failed to calculate content size: %s", e)
             # Return a conservative estimate
             try:
                 return len(str(content)[:1000].encode("utf-8"))
@@ -271,7 +279,9 @@ class DoSProtector:
 
             if request_count >= self.max_requests_per_minute:
                 logger.warning(
-                    f"Rate limit exceeded for client {client_id}: {request_count} requests in last minute"
+                    "Rate limit exceeded for client %s: %d requests in last minute",
+                    client_id,
+                    request_count,
                 )
                 return False
 
@@ -303,7 +313,9 @@ class DoSProtector:
 
             if concurrent_count >= self.max_concurrent_requests:
                 logger.warning(
-                    f"Concurrent request limit exceeded for client {client_id}: {concurrent_count} requests"
+                    "Concurrent request limit exceeded for client %s: %d requests",
+                    client_id,
+                    concurrent_count,
                 )
                 raise ValueError(
                     f"Too many concurrent requests ({concurrent_count}/{self.max_concurrent_requests})"
@@ -311,7 +323,7 @@ class DoSProtector:
 
             # Track the new request
             self._concurrent_requests[client_id][request_id] = current_time
-            logger.debug(f"Started request {request_id} for client {client_id}")
+            logger.debug("Started request %s for client %s", request_id, client_id)
 
             return request_id
 
@@ -325,7 +337,7 @@ class DoSProtector:
         async with self._lock:
             if client_id in self._concurrent_requests:
                 self._concurrent_requests[client_id].pop(request_id, None)
-                logger.debug(f"Completed request {request_id} for client {client_id}")
+                logger.debug("Completed request %s for client %s", request_id, client_id)
 
     async def get_client_stats(self, client_id: str) -> dict[str, Any]:
         """Get statistics for a client.
@@ -369,7 +381,7 @@ class DoSProtector:
 
         for request_id in timed_out:
             self._concurrent_requests[client_id].pop(request_id, None)
-            logger.warning(f"Request {request_id} for client {client_id} timed out")
+            logger.warning("Request %s for client %s timed out", request_id, client_id)
 
     def _is_request_timed_out(self, client_id: str, request_id: str) -> bool:
         """Check if a specific request has timed out."""
