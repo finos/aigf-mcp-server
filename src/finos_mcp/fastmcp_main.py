@@ -76,7 +76,29 @@ def setup_signal_handlers() -> None:
 async def main_async() -> None:
     """Run the FastMCP server with stdio transport and graceful shutdown.
 
-    This follows the modern MCP pattern for server setup with proper resource management.
+    EVENT LOOP ARCHITECTURE NOTE (A-02):
+    FastMCP's mcp.run() is a synchronous blocking call that internally starts
+    its own event loop.  It is wrapped in asyncio.to_thread() so that it runs
+    in a ThreadPoolExecutor thread, keeping the main asyncio event loop free to
+    handle shutdown signals and cleanup coroutines.
+
+    Consequence: two event loops are active concurrently — FastMCP's loop
+    (in the worker thread) and the main loop (on the main thread).  asyncio
+    primitives (Lock, Event, Queue) created in one loop cannot be awaited from
+    the other without a RuntimeError.  All shared async resources (cache,
+    HTTP client, content service) are initialised lazily on first use inside
+    FastMCP's tool handlers (which run in FastMCP's thread loop), and the
+    cleanup coroutines in cleanup_resources() run on the *main* loop.
+
+    This is safe as long as:
+    (a) Cleanup is invoked *after* mcp.run() returns (i.e. after FastMCP's
+        loop has stopped), so no shared objects are being awaited concurrently.
+    (b) AsyncServiceManager._ensure_loop_context() detects loop changes and
+        resets singletons when a new loop is observed, preventing stale
+        cross-loop object references.
+
+    Validate this architecture under load and graceful-shutdown scenarios
+    before enabling HTTP transport in production.
     """
     global _shutdown_event
 
