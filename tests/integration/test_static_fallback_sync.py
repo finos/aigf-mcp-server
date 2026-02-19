@@ -10,6 +10,7 @@ Run this test:
 - Periodically (weekly) to detect upstream changes
 """
 
+import socket
 import sys
 from pathlib import Path
 
@@ -34,10 +35,18 @@ async def test_static_fallback_matches_github_api():
     This test prevents the bug where outdated static fallback lists cause
     ID mapping mismatches between list/search and get operations.
     """
+    try:
+        socket.getaddrinfo("api.github.com", 443)
+    except OSError:
+        pytest.skip("GitHub API DNS unavailable, cannot verify static fallback sync")
+
     # Get actual files from GitHub API
     discovery_manager = DiscoveryServiceManager()
     discovery_service = await discovery_manager.get_discovery_service()
-    discovery_result = await discovery_service.discover_content()
+    try:
+        discovery_result = await discovery_service.discover_content()
+    except Exception as exc:
+        pytest.skip(f"GitHub API unavailable: {exc}")
 
     # Skip if GitHub API unavailable (network issues, rate limit)
     if discovery_result.source != "github_api":

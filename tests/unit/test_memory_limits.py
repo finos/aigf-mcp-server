@@ -37,10 +37,10 @@ class TestMemoryLimits:
     @pytest.mark.asyncio
     async def test_oversized_object_rejection(self, cache):
         """Test that oversized objects are rejected."""
-        # Create object larger than 1MB (Pydantic enforces 1MB limit)
-        oversized_data = "x" * (1024 * 1024 + 1000)  # Just over 1MB
+        # Create object larger than configured cache object limit (10MB).
+        oversized_data = "x" * (MAX_OBJECT_SIZE + 1000)
 
-        # Should fail due to Pydantic validation (1MB limit)
+        # Should fail due to cache object size validation.
         with pytest.raises(Exception):  # Could be ValueError or ValidationError
             await cache.set("oversized", oversized_data)
 

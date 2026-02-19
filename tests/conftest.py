@@ -6,6 +6,7 @@ Provides common fixtures for integration and unit tests.
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+# Ensure mandatory startup config is present before test module collection/imports.
+# Some tests import finos_mcp.fastmcp_server at module scope, which triggers
+# configuration validation before fixtures execute.
+os.environ.setdefault(
+    "FINOS_MCP_CACHE_SECRET",
+    "test_default_cache_secret_for_pytest_collection_32chars",
+)  # pragma: allowlist secret
 
 
 @pytest.fixture

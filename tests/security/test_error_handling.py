@@ -89,11 +89,11 @@ class TestErrorLogging:
 
         # Internal logging should preserve full details
         mock_logger.error.assert_called()
-        logged_message = mock_logger.error.call_args[0][0]
-
-        assert "Database connection failed" in logged_message
-        assert "timeout after 30s" in logged_message
-        assert correlation_id in str(mock_logger.error.call_args)
+        call_args = mock_logger.error.call_args[0]
+        # Structured lazy logging uses a format string plus args.
+        assert "Internal error details" in call_args[0]
+        assert correlation_id in call_args
+        assert original_error in call_args
 
     def test_no_sensitive_data_in_external_responses(self, error_handler):
         """Test that external error responses never contain sensitive data."""
