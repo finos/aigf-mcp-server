@@ -389,5 +389,3 @@ Includes:
 - **FINOS Content**: CC BY 4.0 License
 
 ---
-
-*This is an **independent project** - not officially affiliated with FINOS or other framework organizations.*
