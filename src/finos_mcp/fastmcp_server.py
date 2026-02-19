@@ -63,8 +63,10 @@ async def _apply_dos_protection() -> None:
 def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
     """Build the MCP auth provider from validated application settings."""
     if not app_settings.mcp_auth_enabled:
-        logger.info(
-            "MCP auth disabled; server will run without boundary authentication"
+        logger.warning(
+            "MCP auth is DISABLED. The server will accept requests from any client "
+            "without authentication. Set FINOS_MCP_MCP_AUTH_ENABLED=true and configure "
+            "FINOS_MCP_MCP_AUTH_JWKS_URI (or MCP_AUTH_PUBLIC_KEY) for production deployments."
         )
         return None
 
