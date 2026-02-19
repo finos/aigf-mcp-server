@@ -202,41 +202,35 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
                     utilization * 100,
                 )
 
-        # Update client limits if changed
+        # Update client limits if changed.
+        # httpx does not expose a public API for modifying pool limits on a live
+        # client, so recreate the client with the new limits.  This is the
+        # documented approach and avoids accessing private internals (_transport,
+        # _pool, _max_connections) that are not stable across minor versions.
         if self._current_max_connections != old_max:
-            # Try to update limits without recreating client (httpx 0.24+ approach)
-            try:
-                # Update the connection pool limits directly if possible
-                if hasattr(self._client, "_transport") and hasattr(
-                    self._client._transport, "_pool"
-                ):
-                    pool = self._client._transport._pool
-                    if hasattr(pool, "_max_connections"):
-                        pool._max_connections = self._current_max_connections
-                        pool._max_keepalive_connections = self._current_max_keepalive
-                        self.logger.debug(
-                            "Updated connection pool limits directly: max_connections=%d, max_keepalive=%d",
-                            self._current_max_connections,
-                            self._current_max_keepalive,
-                        )
-                    else:
-                        # Fallback to client recreation for older httpx versions
-                        await self._recreate_client_with_new_limits()
-                else:
-                    # Fallback to client recreation
-                    await self._recreate_client_with_new_limits()
-
-            except (AttributeError, Exception) as e:
-                # Fallback to client recreation if direct update fails
-                self.logger.debug("Direct pool update failed, recreating client: %s", e)
-                await self._recreate_client_with_new_limits()
+            await self._recreate_client_with_new_limits()
 
         self._pool_stats.last_adjustment = current_time
 
     async def _recreate_client_with_new_limits(self) -> None:
-        """Recreate HTTP client with new connection limits (fallback method)."""
+        """Recreate HTTP client with new connection limits."""
         old_client = self._client
-        timeout_config = old_client._timeout
+        # Use the same timeout the current client was initialised with.
+        # Re-derive from settings rather than reading _timeout (private attr).
+        if hasattr(self.settings, "http_timeout"):
+            timeout_config = httpx.Timeout(
+                connect=min(10.0, self.settings.http_timeout / 3),
+                read=self.settings.http_timeout,
+                write=10.0,
+                pool=5.0,
+            )
+        else:
+            timeout_config = httpx.Timeout(
+                connect=10.0,
+                read=30.0,
+                write=10.0,
+                pool=5.0,
+            )
 
         self._client = httpx.AsyncClient(
             timeout=timeout_config,
