@@ -135,7 +135,9 @@ class ContentSecurityValidator:
 
         size = len(content.encode("utf-8"))
         if size > self.max_content_size:
-            logger.warning("Content size %d exceeds limit %d", size, self.max_content_size)
+            logger.warning(
+                "Content size %d exceeds limit %d", size, self.max_content_size
+            )
             return False
 
         return True

@@ -950,6 +950,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
 
         self.logger.info("Content service shutdown complete")
 
+
 class ContentServiceManager:
     """Singleton manager for the global content service instance."""
 

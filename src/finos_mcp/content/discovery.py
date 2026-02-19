@@ -272,11 +272,15 @@ class GitHubDiscoveryService:
             # Defensive type guards — assert statements are stripped by -O
             # and would silently pass invalid types; use explicit checks instead.
             if not isinstance(mitigation_files, list):
-                raise TypeError(f"Expected list for mitigation_files, got {type(mitigation_files)}")
+                raise TypeError(
+                    f"Expected list for mitigation_files, got {type(mitigation_files)}"
+                )
             if not isinstance(risk_files, list):
                 raise TypeError(f"Expected list for risk_files, got {type(risk_files)}")
             if not isinstance(framework_files, list):
-                raise TypeError(f"Expected list for framework_files, got {type(framework_files)}")
+                raise TypeError(
+                    f"Expected list for framework_files, got {type(framework_files)}"
+                )
 
             # Rate limiting removed for simplicity
             rate_limit_remaining = None

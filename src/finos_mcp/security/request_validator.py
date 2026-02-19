@@ -337,7 +337,9 @@ class DoSProtector:
         async with self._lock:
             if client_id in self._concurrent_requests:
                 self._concurrent_requests[client_id].pop(request_id, None)
-                logger.debug("Completed request %s for client %s", request_id, client_id)
+                logger.debug(
+                    "Completed request %s for client %s", request_id, client_id
+                )
 
     async def get_client_stats(self, client_id: str) -> dict[str, Any]:
         """Get statistics for a client.
