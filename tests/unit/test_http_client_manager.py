@@ -22,9 +22,8 @@ import pytest
 
 from finos_mcp.content.fetch import HTTPClientManager
 
-
 # ---------------------------------------------------------------------------
-# HTTPClientManager.close_http_client() – loop-context guard
+# HTTPClientManager.close_http_client() - loop-context guard
 # ---------------------------------------------------------------------------
 
 
@@ -130,7 +129,7 @@ class TestHTTPClientManagerCloseGuard:
 
 
 # ---------------------------------------------------------------------------
-# cleanup_resources() – per-resource error isolation
+# cleanup_resources() - per-resource error isolation
 # ---------------------------------------------------------------------------
 
 

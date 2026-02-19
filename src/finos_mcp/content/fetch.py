@@ -45,6 +45,8 @@ from ..exceptions import CircuitBreakerError
 from ..logging import get_logger, log_http_request
 from ..security.content_filter import content_security_validator
 
+logger = get_logger("http_client_manager")
+
 
 @dataclass
 class ConnectionPoolStats:
@@ -643,7 +645,7 @@ class HTTPClientManager:
         ):
             # Client was created in a different/closed loop; its connections
             # are already gone.  Discard without attempting aclose().
-            logging.getLogger(__name__).debug(
+            logger.debug(
                 "HTTP client created in a different event loop; "
                 "discarding reference without aclose()"
             )
