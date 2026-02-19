@@ -140,7 +140,7 @@ All significant decisions for this independent project are documented in:
 - **Plugin Security** - Plugin security validation and isolation testing
 
 ### Security Contacts for Independent Project
-- **Security Issues**: [GitHub Security Advisory](https://github.com/hugo-calderon/finos-mcp-server/security/advisories)
+- **Security Issues**: [GitHub Security Advisory](https://github.com/finos/aigf-mcp-server/security/advisories)
 - **Security Team**: Independent project maintainers with enterprise security expertise
 - **Enterprise Security**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com)
 
@@ -200,7 +200,7 @@ For governance-related questions about this independent project:
 <td width="50%">
 
 ### Community Governance
-- 📋 **Process Questions**: [GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
+- 📋 **Process Questions**: [GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)
 - 📜 **Policy Clarification**: Independent project maintainers via GitHub Issues
 - 🤝 **Community Issues**: Code of conduct enforcement for this independent initiative
 
@@ -224,9 +224,9 @@ For governance-related questions about this independent project:
 
 **Want to influence this independent project's direction?**
 
-**Contribute** → [GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues) | **Discuss** → [GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)
+**Contribute** → [GitHub Issues](https://github.com/finos/aigf-mcp-server/issues) | **Discuss** → [GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)
 
-**Enterprise Features** → [Enterprise Requests](https://github.com/hugo-calderon/finos-mcp-server/issues) | **Plugin Development** → [Plugin Ecosystem](https://github.com/hugo-calderon/finos-mcp-server/discussions)
+**Enterprise Features** → [Enterprise Requests](https://github.com/finos/aigf-mcp-server/issues) | **Plugin Development** → [Plugin Ecosystem](https://github.com/finos/aigf-mcp-server/discussions)
 
 </div>
 

@@ -31,7 +31,7 @@ Complete installation guide for users wanting to get started with this independe
 ### Method 1: Development Installation (Recommended)
 ```bash
 # Clone repository
-git clone https://github.com/hugo-calderon/finos-mcp-server.git
+git clone https://github.com/finos/aigf-mcp-server.git
 cd aigf-mcp-server
 
 # Create virtual environment
@@ -48,7 +48,7 @@ finos-mcp --version
 ### Method 2: Quick Installation
 ```bash
 # Direct installation (if you just want to use it)
-pip install git+https://github.com/hugo-calderon/finos-mcp-server.git
+pip install git+https://github.com/finos/aigf-mcp-server.git
 
 # Verify installation
 finos-mcp --version
@@ -174,7 +174,7 @@ which finos-mcp  # Should show path in .venv
 pip install -e .  # If using development installation
 
 # Or for direct installation:
-pip install git+https://github.com/hugo-calderon/finos-mcp-server.git
+pip install git+https://github.com/finos/aigf-mcp-server.git
 ```
 
 **❌ "Configuration Error: GitHub token format invalid"**
@@ -203,8 +203,8 @@ export FINOS_MCP_GITHUB_TOKEN=your_token_here
 If you encounter issues with this independent project:
 
 1. **Check logs**: Run with `FINOS_MCP_LOG_LEVEL=DEBUG` for detailed information
-2. **GitHub Issues**: [Report bugs and issues](https://github.com/hugo-calderon/finos-mcp-server/issues)
-3. **GitHub Discussions**: [Ask questions and get help](https://github.com/hugo-calderon/finos-mcp-server/discussions)
+2. **GitHub Issues**: [Report bugs and issues](https://github.com/finos/aigf-mcp-server/issues)
+3. **GitHub Discussions**: [Ask questions and get help](https://github.com/finos/aigf-mcp-server/discussions)
 4. **Direct Contact**: [calderon.hugo@gmail.com](mailto:calderon.hugo@gmail.com) for urgent issues
 
 ## 🎯 Next Steps

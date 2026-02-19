@@ -258,8 +258,8 @@ The server provides built-in health monitoring:
 
 1. **[Installation Guide](installation-guide.md)** - Setup and configuration help
 2. **[Developer API Reference](../developer/api-reference.md)** - Technical API documentation
-3. **[GitHub Issues](https://github.com/hugo-calderon/finos-mcp-server/issues)** - Bug reports and feature requests
-4. **[GitHub Discussions](https://github.com/hugo-calderon/finos-mcp-server/discussions)** - Community support
+3. **[GitHub Issues](https://github.com/finos/aigf-mcp-server/issues)** - Bug reports and feature requests
+4. **[GitHub Discussions](https://github.com/finos/aigf-mcp-server/discussions)** - Community support
 
 ---
 
