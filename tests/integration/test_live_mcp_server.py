@@ -44,9 +44,16 @@ def _extract_tool_payload(result: CallToolResult) -> dict:
 @pytest.mark.asyncio
 async def test_live_tools_and_content_flow() -> None:
     """Validate live end-to-end behavior for all tools, resources, and prompts."""
+    env = os.environ.copy()
+    env.setdefault(
+        "FINOS_MCP_CACHE_SECRET",
+        "test_cache_secret_for_live_mcp_server_32chars",
+    )
+
     server_params = StdioServerParameters(
         command=sys.executable,
         args=["-m", "finos_mcp.fastmcp_main"],
+        env=env,
     )
 
     async with stdio_client(server_params) as (read, write):

@@ -47,6 +47,11 @@ from .security.request_validator import dos_protector, request_size_validator
 settings = validate_settings_on_startup()
 logger = get_logger("fastmcp_server")
 
+# Configure global DoS protection from validated settings.
+dos_protector.max_requests_per_minute = settings.dos_max_requests_per_minute
+dos_protector.max_concurrent_requests = settings.dos_max_concurrent_requests
+dos_protector.request_timeout = settings.dos_request_timeout_seconds
+
 # Fixed client ID for stdio transport (single-client model).
 # HTTP transports share this limit; extend to per-IP tracking when MCP exposes
 # request context in tool handlers.
@@ -1366,7 +1371,8 @@ async def search_mitigations(
         search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
         logger.info(
-            "Completed parallel search across %d mitigation documents", total_mitigations
+            "Completed parallel search across %d mitigation documents",
+            total_mitigations,
         )
 
         # Flatten results and filter out exceptions

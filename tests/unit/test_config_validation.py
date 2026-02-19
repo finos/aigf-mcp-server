@@ -29,6 +29,11 @@ def clean_env():
         if key.startswith("FINOS_MCP_"):
             del os.environ[key]
 
+    # Required for startup validation after S-02 hardening.
+    os.environ["FINOS_MCP_CACHE_SECRET"] = (
+        "test_cache_secret_for_config_validation_32chars"
+    )
+
     yield
 
     # Restore original environment

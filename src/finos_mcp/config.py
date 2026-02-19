@@ -172,6 +172,26 @@ class Settings(BaseSettings):
         ),
     )
 
+    # DoS Protection Configuration
+    dos_max_requests_per_minute: PositiveInt = Field(
+        default=600,
+        ge=10,
+        le=2000,
+        description="Maximum requests per client per minute enforced by DoS protection",
+    )
+    dos_max_concurrent_requests: PositiveInt = Field(
+        default=10,
+        ge=1,
+        le=200,
+        description="Maximum concurrent requests per client enforced by DoS protection",
+    )
+    dos_request_timeout_seconds: PositiveInt = Field(
+        default=30,
+        ge=5,
+        le=600,
+        description="Request timeout in seconds used by DoS protection",
+    )
+
     # SHA-based Version Tracking
     enable_sha_validation: bool = Field(
         default=True,

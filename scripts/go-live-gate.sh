@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-$ROOT_DIR/venv/bin/python}"
 REQUIRE_CLEAN="${REQUIRE_CLEAN:-1}"
+FINOS_MCP_CACHE_SECRET="${FINOS_MCP_CACHE_SECRET:-test_cache_secret_for_go_live_gates_32chars}"
+export FINOS_MCP_CACHE_SECRET
 
 cd "$ROOT_DIR"
 
