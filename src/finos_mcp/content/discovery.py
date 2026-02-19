@@ -119,24 +119,29 @@ class GitHubDiscoveryService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-        # Try to create cache directory in current working directory
-        # If that fails (e.g., read-only filesystem in Claude Desktop),
-        # fallback to system temporary directory
+        # Resolve the discovery cache directory.
+        # Priority: FINOS_MCP_DISCOVERY_CACHE_DIR setting (absolute path) >
+        #           .cache/discovery relative to CWD (legacy default) >
+        #           system temp directory (read-only filesystem fallback).
+        configured_dir = getattr(self.settings, "discovery_cache_dir", None)
         try:
-            self.cache_dir = Path(".cache/discovery")
+            if configured_dir:
+                self.cache_dir = Path(configured_dir)
+            else:
+                self.cache_dir = Path(".cache/discovery")
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             # Test write permissions by attempting to create a test file
             test_file = self.cache_dir / ".write_test"
             test_file.touch()
             test_file.unlink()
-            logger.info("Using local cache directory: %s", self.cache_dir)
+            logger.info("Using discovery cache directory: %s", self.cache_dir.resolve())
         except (OSError, PermissionError) as e:
             # Fallback to system temporary directory
             temp_base = Path(tempfile.gettempdir())
             self.cache_dir = temp_base / "finos_mcp_cache" / "discovery"
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             logger.warning(
-                "Could not create local cache directory (read-only filesystem), "
+                "Could not create configured cache directory, "
                 "using system temp directory: %s (original error: %s)",
                 self.cache_dir,
                 str(e),

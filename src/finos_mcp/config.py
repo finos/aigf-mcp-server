@@ -151,6 +151,18 @@ class Settings(BaseSettings):
         description="GitHub API request timeout in seconds",
     )
 
+    # Discovery cache directory (absolute path preferred; CWD-relative paths
+    # produce different cache locations when the server is started from different
+    # working directories, e.g. in containers or via systemd).
+    discovery_cache_dir: str | None = Field(
+        default=None,
+        description=(
+            "Absolute path for the GitHub discovery cache directory. "
+            "Defaults to .cache/discovery relative to CWD when unset, "
+            "with automatic fallback to the system temp directory."
+        ),
+    )
+
     # Cache Security
     cache_secret: str | None = Field(
         default=None,
