@@ -1,0 +1,253 @@
+"""Security tests for URI validation - Path traversal and injection prevention.
+
+These tests ensure the URI validation system is secure against path traversal
+attacks and malicious URI injection in financial services environments.
+"""
+
+import pytest
+from unittest.mock import Mock, patch
+from typing import Any
+
+from finos_mcp.server import FinosMCPServer, SecurityError
+
+
+class TestURIValidationSecurity:
+    """Test suite for URI validation security."""
+
+    def test_path_traversal_prevention(self):
+        """Test that path traversal attacks are prevented."""
+        server = FinosMCPServer()
+
+        # Common path traversal payloads
+        malicious_uris = [
+            "../../../etc/passwd",
+            "..\\..\\..\\windows\\system32\\config\\sam",
+            "....//....//....//etc/passwd",
+            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",  # URL encoded
+            "..%252f..%252f..%252fetc%252fpasswd",      # Double URL encoded
+            "file:///etc/passwd",
+            "file://../../etc/passwd",
+            "/var/log/../../../../etc/passwd",
+            "../../../../../../etc/shadow",
+            "../.ssh/id_rsa",
+            "..\\..\\..\\Users\\Administrator\\Desktop\\secrets.txt",
+        ]
+
+        for malicious_uri in malicious_uris:
+            with pytest.raises((ValueError, SecurityError, FileNotFoundError)):
+                # The secure implementation should reject all path traversal attempts
+                server._validate_uri_security(malicious_uri)
+
+    def test_malicious_scheme_rejection(self):
+        """Test that malicious URI schemes are rejected."""
+        server = FinosMCPServer()
+
+        # Malicious schemes that should be blocked
+        malicious_schemes = [
+            "javascript:alert('xss')",
+            "data:text/html,<script>alert('xss')</script>",
+            "ftp://malicious.server.com/payload",
+            "ldap://evil.server.com/",
+            "gopher://evil.server.com/",
+            "dict://evil.server.com:11211/",
+            "sftp://evil.server.com/",
+            "tftp://evil.server.com/",
+        ]
+
+        for malicious_scheme in malicious_schemes:
+            with pytest.raises((ValueError, SecurityError)):
+                server._validate_uri_security(malicious_scheme)
+
+    def test_local_file_access_prevention(self):
+        """Test that local file access is prevented."""
+        server = FinosMCPServer()
+
+        # Local file access attempts that should be blocked
+        local_file_uris = [
+            "file:///etc/passwd",
+            "file:///C:/Windows/System32/config/SAM",
+            "file://localhost/etc/passwd",
+            "file:///home/user/.ssh/id_rsa",
+            "file:///proc/self/environ",
+            "file:///dev/null",
+            "/etc/passwd",
+            "/root/.bash_history",
+            "C:\\Windows\\System32\\drivers\\etc\\hosts",
+        ]
+
+        for local_uri in local_file_uris:
+            with pytest.raises((ValueError, SecurityError, FileNotFoundError)):
+                server._validate_uri_security(local_uri)
+
+    def test_allowlist_enforcement(self):
+        """Test that only allowlisted domains/schemes are permitted."""
+        server = FinosMCPServer()
+
+        # Valid URIs that should be allowed (financial data sources)
+        valid_uris = [
+            "https://api.finos.org/data/gdpr",
+            "https://www.iso.org/standard/iso-42001.html",
+            "https://ffiec.gov/press/guidance/2023/cybersecurity.pdf",
+            "https://gdpr.eu/article-7-conditions-for-consent/",
+        ]
+
+        for valid_uri in valid_uris:
+            # These should not raise exceptions
+            result = server._validate_uri_security(valid_uri)
+            assert result is True or result is None  # Depending on implementation
+
+    def test_uri_injection_prevention(self):
+        """Test that URI injection attacks are prevented."""
+        server = FinosMCPServer()
+
+        # URI injection payloads
+        injection_uris = [
+            "https://legitimate.com@evil.com/",
+            "https://evil.com#@legitimate.com/",
+            "https://legitimate.com\\@evil.com/",
+            "https://legitimate.com%2Eevil.com/",
+            "https://legitimate.com.evil.com/",
+            "https://1.2.3.4/", # IP address instead of domain
+            "https://127.0.0.1/", # Localhost IP
+            "https://0x7f000001/", # Hex localhost
+            "https://[::1]/", # IPv6 localhost
+        ]
+
+        for injection_uri in injection_uris:
+            with pytest.raises((ValueError, SecurityError)):
+                server._validate_uri_security(injection_uri)
+
+    def test_oversized_uri_rejection(self):
+        """Test that oversized URIs are rejected to prevent DoS."""
+        server = FinosMCPServer()
+
+        # Create oversized URI (should be rejected)
+        oversized_uri = "https://example.com/" + "x" * 10000
+
+        with pytest.raises((ValueError, SecurityError)):
+            server._validate_uri_security(oversized_uri)
+
+    def test_null_byte_injection_prevention(self):
+        """Test that null byte injection is prevented."""
+        server = FinosMCPServer()
+
+        # Null byte injection attempts
+        null_byte_uris = [
+            "https://example.com/file.pdf\x00.txt",
+            "https://example.com/safe\x00../../../etc/passwd",
+            "file.txt\x00.php",
+        ]
+
+        for null_uri in null_byte_uris:
+            with pytest.raises((ValueError, SecurityError)):
+                server._validate_uri_security(null_uri)
+
+    def test_unicode_normalization_attacks(self):
+        """Test that Unicode normalization attacks are prevented."""
+        server = FinosMCPServer()
+
+        # Unicode normalization attack payloads
+        unicode_attacks = [
+            "https://example.com/\u002e\u002e/\u002e\u002e/etc/passwd",
+            "https://example.com/\uff0e\uff0e/\uff0e\uff0e/etc/passwd",
+            "https://example.com/\u002e\u002e\u002f\u002e\u002e\u002f",
+        ]
+
+        for unicode_uri in unicode_attacks:
+            with pytest.raises((ValueError, SecurityError)):
+                server._validate_uri_security(unicode_uri)
+
+
+class TestURISecurityHelpers:
+    """Test helper functions for URI security validation."""
+
+    def test_domain_allowlist_validation(self):
+        """Test domain allowlist validation function."""
+        server = FinosMCPServer()
+
+        # Valid domains for financial regulatory content
+        valid_domains = [
+            "finos.org",
+            "iso.org",
+            "ffiec.gov",
+            "gdpr.eu",
+            "nist.gov",
+            "sec.gov",
+            "europa.eu",
+        ]
+
+        for domain in valid_domains:
+            assert server._is_domain_allowed(domain) is True
+
+        # Invalid domains
+        invalid_domains = [
+            "evil.com",
+            "malicious.example.com",
+            "phishing.site",
+            "127.0.0.1",
+            "localhost",
+        ]
+
+        for domain in invalid_domains:
+            assert server._is_domain_allowed(domain) is False
+
+    def test_scheme_allowlist_validation(self):
+        """Test URI scheme allowlist validation."""
+        server = FinosMCPServer()
+
+        # Only HTTPS should be allowed for security
+        valid_schemes = ["https"]
+        invalid_schemes = ["http", "ftp", "file", "javascript", "data"]
+
+        for scheme in valid_schemes:
+            assert server._is_scheme_allowed(scheme) is True
+
+        for scheme in invalid_schemes:
+            assert server._is_scheme_allowed(scheme) is False
+
+    def test_path_normalization_security(self):
+        """Test that path normalization prevents traversal."""
+        server = FinosMCPServer()
+
+        dangerous_paths = [
+            "../../../etc/passwd",
+            "..\\..\\..\\windows\\system32",
+            "....//....//etc/passwd",
+            "/var/log/../../../../etc/passwd",
+        ]
+
+        for path in dangerous_paths:
+            normalized = server._normalize_path_securely(path)
+            # Normalized path should not contain traversal patterns
+            assert ".." not in normalized
+            assert not normalized.startswith("/etc/")
+            assert not normalized.startswith("/var/")
+            assert not normalized.startswith("C:\\")
+
+
+
+
+# Security test fixtures
+@pytest.fixture
+def mock_server():
+    """Fixture providing a mock server instance."""
+    return FinosMCPServer()
+
+
+@pytest.fixture
+def security_config():
+    """Fixture providing security configuration."""
+    return {
+        "allowed_domains": [
+            "finos.org",
+            "iso.org",
+            "ffiec.gov",
+            "gdpr.eu",
+            "nist.gov",
+            "sec.gov",
+            "europa.eu",
+        ],
+        "allowed_schemes": ["https"],
+        "max_uri_length": 2048,
+        "enable_strict_validation": True,
+    }

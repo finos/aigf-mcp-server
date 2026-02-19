@@ -1,0 +1,9 @@
+fastmcp>=2.14.5,<3
+mcp>=1.14.0
+httpx>=0.28.0
+pyyaml>=6.0.0
+pydantic>=2.11.0
+tenacity>=8.0.0
+pathvalidate>=3.2.0
+bleach>=6.1.0
+python-slugify>=8.0.0

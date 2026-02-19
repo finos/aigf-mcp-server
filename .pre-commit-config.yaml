@@ -1,0 +1,123 @@
+# Pre-commit hooks for FINOS MCP Server
+# Ensures code quality and security before commits
+repos:
+  # Python code formatting and linting - Ruff handles everything
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.11
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # Python type checking - STRICT (matches CI requirements)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.17.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-bleach, types-requests, httpx, mcp, types-PyYAML, pathvalidate, python-slugify, tenacity]
+        args: [--show-error-codes, --show-error-context, --strict-optional, --warn-redundant-casts, --warn-unused-ignores]
+        files: ^src/.*\.py$
+        exclude: ^src/finos_mcp/internal/.*\.py$
+
+  # Advanced security scanning with Semgrep (Ruff handles basic security via flake8-bandit)
+  - repo: https://github.com/semgrep/semgrep
+    rev: v1.135.0
+    hooks:
+      - id: semgrep
+        args: [--config, config/security/semgrep.yml, --error, --strict]
+        files: ^src/.*\.py$
+
+  # Additional code quality analysis with Pylint (Ruff handles most linting)
+  - repo: https://github.com/PyCQA/pylint
+    rev: v3.3.8
+    hooks:
+      - id: pylint
+        args: [--rcfile=.pylintrc, --fail-under=8.0]
+        files: ^src/.*\.py$
+        exclude: ^src/finos_mcp/_version\.py$
+        additional_dependencies: [
+          mcp>=1.0.0,
+          httpx>=0.25.0,
+          PyYAML>=6.0.0,
+          pydantic>=2.0.0,
+          tenacity>=8.0.0
+        ]
+
+  # Dependency vulnerability scanning
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.9.0
+    hooks:
+      - id: pip-audit
+
+  # ===============================================================================
+  # CRITICAL PROTECTION: .claude content blocking (CANNOT be disabled)
+  # ===============================================================================
+  - repo: local
+    hooks:
+      - id: validate-static-fallback
+        name: "Validate static fallback sync (Warning)"
+        description: Warns if static fallback lists may be out of sync with GitHub
+        entry: 'bash -c "if git diff --cached --name-only | grep -q \"src/finos_mcp/content/discovery.py\"; then echo \"⚠️  WARNING: discovery.py changed. If modifying static fallback lists, run: python scripts/update-static-fallback.py\"; fi; exit 0"'
+        language: system
+        stages: [pre-commit]
+        types: [python]
+        pass_filenames: false
+        always_run: false
+
+      - id: block-claude-content
+        name: "Block .claude content (CRITICAL SECURITY)"
+        description: Prevents any .claude content from being committed
+        entry: 'bash -c "if git diff --cached --name-only | grep -iE \"(^|/)\.?claude\"; then echo \"BLOCKED - .claude content detected in commit!\" && exit 1; fi"'
+        language: system
+        stages: [pre-commit]
+        types: [file]
+        pass_filenames: false
+        always_run: true
+
+      - id: block-claude-files
+        name: "Block claude-related files (CRITICAL SECURITY)"
+        description: Prevents any claude-related files from being committed
+        entry: 'bash -c "if find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" | head -1 | grep -q .; then echo \"BLOCKED - Claude-related files detected!\" && find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" && exit 1; fi"'
+        language: system
+        stages: [pre-commit]
+        types: [file]
+        pass_filenames: false
+        always_run: true
+
+      - id: scan-claude-content
+        name: "Scan for .claude references (CRITICAL SECURITY)"
+        description: Scans file contents for .claude references
+        entry: 'bash -c "if git diff --cached --name-only | xargs grep -l \"\.claude\" 2>/dev/null; then echo \"BLOCKED - Files contain .claude references!\" && git diff --cached --name-only | xargs grep -n \"\.claude\" 2>/dev/null | head -10 && exit 1; fi"'
+        language: system
+        stages: [pre-commit]
+        types: [text]
+        pass_filenames: false
+        always_run: true
+
+  # General file formatting
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: detect-private-key
+
+  # Security scanning for secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package.lock.json
+
+# Configuration
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]

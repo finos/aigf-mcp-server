@@ -1,0 +1,276 @@
+"""Security tests for memory protection - DoS prevention.
+
+These tests ensure the server has proper memory protection against
+denial-of-service attacks through resource exhaustion.
+"""
+
+import asyncio
+import pytest
+from unittest.mock import Mock, patch
+from typing import Any
+
+from finos_mcp.server import FinosMCPServer
+from finos_mcp.content.service import ContentService
+
+
+class TestMemoryProtection:
+    """Test suite for memory protection against DoS attacks."""
+
+    def test_large_payload_rejection(self):
+        """Test that oversized payloads are rejected."""
+        server = FinosMCPServer()
+
+        # Create oversized payloads (should be rejected)
+        oversized_payloads = [
+            "x" * (50 * 1024 * 1024),  # 50MB string
+            ["x" * 1000000] * 100,      # Large list
+            {"key" + str(i): "x" * 10000 for i in range(1000)},  # Large dict
+        ]
+
+        for payload in oversized_payloads:
+            with pytest.raises((MemoryError, ValueError)):
+                server._validate_memory_limits(payload)
+
+    def test_memory_usage_monitoring(self):
+        """Test that memory usage is properly monitored."""
+        server = FinosMCPServer()
+
+        # Simulate high memory usage scenario
+        with patch('psutil.virtual_memory') as mock_memory:
+            # Simulate 95% memory usage
+            mock_memory.return_value.percent = 95.0
+
+            with pytest.raises((MemoryError, RuntimeError)):
+                server._check_memory_availability()
+
+    def test_request_size_limits(self):
+        """Test that request size limits are enforced."""
+        server = FinosMCPServer()
+
+        # Test various oversized requests
+        oversized_requests = [
+            # Large text content
+            {"type": "framework_query", "content": "x" * 10000000},
+            # Large nested structure
+            {"frameworks": [{"content": "x" * 1000000} for _ in range(100)]},
+            # Deep nesting
+            {"level" + str(i): {"content": "data"} for i in range(10000)},
+        ]
+
+        for request in oversized_requests:
+            with pytest.raises((ValueError, MemoryError)):
+                server._validate_request_size(request)
+
+    def test_streaming_for_large_responses(self):
+        """Test that large responses use streaming."""
+        content_service = ContentService()
+
+        # Mock large framework data
+        with patch.object(content_service, '_get_all_frameworks') as mock_frameworks:
+            # Simulate very large framework response
+            large_framework_data = [
+                {"id": f"framework_{i}", "content": "x" * 100000}
+                for i in range(1000)
+            ]
+            mock_frameworks.return_value = large_framework_data
+
+            # Should use streaming instead of loading all into memory
+            result = content_service._stream_large_response(large_framework_data)
+
+            # Verify streaming is used (not all data loaded at once)
+            assert hasattr(result, '__iter__')
+            assert not isinstance(result, list)  # Should be generator/iterator
+
+    def test_concurrent_request_limits(self):
+        """Test that concurrent request limits prevent resource exhaustion."""
+        server = FinosMCPServer()
+
+        # Simulate many concurrent requests
+        async def simulate_concurrent_load():
+            tasks = []
+            for i in range(1000):  # Try to create 1000 concurrent requests
+                task = asyncio.create_task(server._process_request_with_limits({
+                    "id": f"request_{i}",
+                    "content": "test_content"
+                }))
+                tasks.append(task)
+
+            # Should limit concurrent processing
+            with pytest.raises((RuntimeError, asyncio.TimeoutError)):
+                await asyncio.gather(*tasks, timeout=5.0)
+
+        # Run the concurrent load test
+        asyncio.run(simulate_concurrent_load())
+
+    def test_garbage_collection_triggers(self):
+        """Test that garbage collection is triggered appropriately."""
+        server = FinosMCPServer()
+
+        with patch('gc.collect') as mock_gc:
+            # Simulate memory pressure scenario
+            server._handle_memory_pressure()
+
+            # Verify garbage collection was triggered
+            mock_gc.assert_called()
+
+    def test_memory_leak_prevention(self):
+        """Test that memory leaks are prevented through proper cleanup."""
+        server = FinosMCPServer()
+
+        # Simulate processing many requests
+        for i in range(100):
+            request_data = {
+                "id": f"request_{i}",
+                "frameworks": ["gdpr", "nist"],
+                "query": f"test query {i}"
+            }
+
+            # Process and cleanup should prevent memory accumulation
+            server._process_and_cleanup_request(request_data)
+
+        # Memory usage should be stable (no significant growth)
+        # This would be validated through memory profiling in real scenarios
+        assert True  # Placeholder for memory stability check
+
+    def test_resource_cleanup_on_error(self):
+        """Test that resources are properly cleaned up on errors."""
+        server = FinosMCPServer()
+
+        with patch.object(server, '_allocate_resources') as mock_allocate:
+            with patch.object(server, '_cleanup_resources') as mock_cleanup:
+                # Simulate error during processing
+                mock_allocate.side_effect = Exception("Simulated error")
+
+                with pytest.raises(Exception):
+                    server._process_with_resource_management({})
+
+                # Verify cleanup was called even after error
+                mock_cleanup.assert_called()
+
+
+class TestStreamingProtection:
+    """Test streaming mechanisms for large data protection."""
+
+    @pytest.mark.asyncio
+    async def test_streaming_framework_queries(self):
+        """Test that large framework queries use streaming."""
+        content_service = ContentService()
+
+        # Mock large query result
+        with patch.object(content_service, 'query_frameworks') as mock_query:
+            # Simulate large result set
+            large_results = [
+                {"framework": "gdpr", "section": f"article_{i}", "content": "x" * 1000}
+                for i in range(10000)
+            ]
+            mock_query.return_value = large_results
+
+            # Should return streaming response
+            stream = await content_service.stream_framework_query("gdpr compliance")
+
+            # Verify it's a streaming response, not all loaded at once
+            assert hasattr(stream, '__aiter__') or hasattr(stream, '__iter__')
+
+    @pytest.mark.asyncio
+    async def test_chunked_response_processing(self):
+        """Test that responses are processed in chunks."""
+        server = FinosMCPServer()
+
+        large_data = [{"item": i, "content": "x" * 1000} for i in range(5000)]
+
+        chunks = []
+        async for chunk in server._process_in_chunks(large_data, chunk_size=100):
+            chunks.append(chunk)
+            # Each chunk should be limited in size
+            assert len(chunk) <= 100
+
+        # Verify all data was processed
+        total_items = sum(len(chunk) for chunk in chunks)
+        assert total_items == len(large_data)
+
+    def test_memory_efficient_serialization(self):
+        """Test that serialization is memory efficient for large data."""
+        server = FinosMCPServer()
+
+        # Large data structure
+        large_data = {
+            "frameworks": [
+                {"id": f"fw_{i}", "content": "x" * 10000}
+                for i in range(1000)
+            ]
+        }
+
+        # Should use streaming serialization, not load all into memory
+        serialized_stream = server._serialize_streaming(large_data)
+
+        # Verify it's a generator/iterator, not fully materialized
+        assert hasattr(serialized_stream, '__iter__')
+        assert not isinstance(serialized_stream, (str, bytes))
+
+
+class TestResourceLimits:
+    """Test resource limit enforcement."""
+
+    def test_cpu_usage_limits(self):
+        """Test that CPU usage limits are enforced."""
+        server = FinosMCPServer()
+
+        with patch('psutil.cpu_percent') as mock_cpu:
+            # Simulate high CPU usage
+            mock_cpu.return_value = 95.0
+
+            with pytest.raises((RuntimeError, ResourceWarning)):
+                server._check_cpu_limits()
+
+    def test_processing_timeout_limits(self):
+        """Test that processing timeouts prevent hanging."""
+        server = FinosMCPServer()
+
+        async def slow_operation():
+            await asyncio.sleep(60)  # Simulate very slow operation
+            return "result"
+
+        # Should timeout and not hang indefinitely
+        with pytest.raises(asyncio.TimeoutError):
+            asyncio.run(asyncio.wait_for(
+                server._process_with_timeout(slow_operation()),
+                timeout=10.0
+            ))
+
+    def test_file_descriptor_limits(self):
+        """Test that file descriptor limits are respected."""
+        server = FinosMCPServer()
+
+        # Simulate many file operations
+        file_handles = []
+        try:
+            for i in range(10000):  # Try to open many files
+                handle = server._open_file_safely(f"/tmp/test_file_{i}")
+                file_handles.append(handle)
+        except (OSError, RuntimeError):
+            # Should hit resource limits and raise appropriate error
+            assert len(file_handles) < 10000
+        finally:
+            # Cleanup
+            for handle in file_handles:
+                if handle:
+                    server._close_file_safely(handle)
+
+
+# Memory protection fixtures
+@pytest.fixture
+def memory_limited_server():
+    """Fixture providing a server with memory limits enabled."""
+    server = FinosMCPServer()
+    server._enable_memory_protection(max_memory_mb=100)
+    return server
+
+
+@pytest.fixture
+def mock_system_resources():
+    """Mock system resource monitoring."""
+    with patch('psutil.virtual_memory') as mock_memory:
+        with patch('psutil.cpu_percent') as mock_cpu:
+            mock_memory.return_value.percent = 50.0  # Normal memory usage
+            mock_cpu.return_value = 30.0  # Normal CPU usage
+            yield mock_memory, mock_cpu

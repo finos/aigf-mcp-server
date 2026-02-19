@@ -1,0 +1,108 @@
+name: Conventional Commits
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  conventional-commits:
+    name: Validate Conventional Commits
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate PR title follows conventional commits
+      uses: amannn/action-semantic-pull-request@v5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        # Configure types that are allowed
+        types: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          test
+          chore
+          perf
+          ci
+          build
+          revert
+
+        # Configure scopes (optional)
+        scopes: |
+          deps
+          security
+          config
+          tools
+          cache
+          http
+          logging
+          parser
+          service
+          tests
+          ci
+
+        # Require scope for certain types
+        requireScope: false
+
+        # Disable validation of issue numbers
+        validateSingleCommit: false
+
+        # Custom subject pattern (optional)
+        subjectPattern: ^(?![A-Z]).+$
+        subjectPatternError: |
+          The subject "{subject}" found in the pull request title "{title}"
+          didn't match the configured pattern. Please ensure that the subject
+          doesn't start with an uppercase character.
+
+    - name: Comment on PR if validation fails
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const comment = `## ❌ Conventional Commits Validation Failed
+
+          Your PR title doesn't follow [Conventional Commits](https://www.conventionalcommits.org/) format.
+
+          ### Required format:
+          \`\`\`
+          <type>[optional scope]: <description>
+          \`\`\`
+
+          ### Examples:
+          - \`feat: add new search functionality\`
+          - \`fix(parser): handle malformed YAML gracefully\`
+          - \`docs: update installation instructions\`
+          - \`chore(deps): update dependencies\`
+
+          ### Allowed types:
+          - **feat**: A new feature
+          - **fix**: A bug fix
+          - **docs**: Documentation only changes
+          - **style**: Changes that do not affect the meaning of the code
+          - **refactor**: A code change that neither fixes a bug nor adds a feature
+          - **perf**: A code change that improves performance
+          - **test**: Adding missing tests or correcting existing tests
+          - **chore**: Changes to the build process or auxiliary tools
+          - **ci**: Changes to CI configuration files and scripts
+          - **build**: Changes that affect the build system or external dependencies
+          - **revert**: Reverts a previous commit
+
+          Please update your PR title to match this format.`;
+
+          await github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });

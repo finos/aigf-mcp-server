@@ -1,20 +1,183 @@
-# dependencies
-website/node_modules
+# ===============================================================================
+# SMART GITIGNORE - FIXED VALUES ONLY
+# ===============================================================================
+# This file uses explicit file names instead of broad patterns.
+# Only protects actual sensitive files and build artifacts.
+# ===============================================================================
 
-# production
-website/build
+# ===============================================================================
+# 1. SENSITIVE FILES (EXACT NAMES ONLY)
+# ===============================================================================
 
-# generated files
-website/.docusaurus
-.cache-loader
-
-# misc
-.DS_Store
+# Environment files
+.env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.production
+.env.staging
+.env.development
 
-website/npm-debug.log*
-website/yarn-debug.log*
-website/yarn-error.log*
+# Secret files
+secrets.json
+api-keys.txt
+passwords.txt
+credentials.json
+auth-tokens.txt
+
+# Personal configuration
+.dev-secrets
+.personal-config
+personal-notes.md
+todo-personal.md
+
+# Claude AI agent configuration
+.claude/
+
+# ===============================================================================
+# 2. IDE PERSONAL SETTINGS (SPECIFIC FILES ONLY)
+# ===============================================================================
+
+# VS Code personal settings (not workspace settings)
+.vscode/settings.personal.json
+.vscode/launch.personal.json
+
+# JetBrains personal files
+.idea/workspace.personal.xml
+.idea/misc.personal.xml
+
+# ===============================================================================
+# 3. STANDARD BUILD ARTIFACTS AND TEMP FILES
+# ===============================================================================
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# MyPy and Ruff cache
+.mypy_cache/
+.ruff_cache/
+
+# ===============================================================================
+# 4. OPERATING SYSTEM FILES
+# ===============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===============================================================================
+# 5. DEVELOPMENT AND CODING SESSION FILES
+# ===============================================================================
+
+# Private development files that should not be public (specific names only)
+CLAUDE.md
+PERFORMANCE_SETUP.md
+DEVELOPMENT.md
+ARCHITECTURE.md
+.claude/
+.cache/
+skills/
+.playwright-mcp/
+security-reports/
+coverage-reports/
+coverage.json
+
+# Specific development/testing files (not wildcards to avoid catching legitimate files)
+mcp-cli-config.json
+mcp-config.json
+mcp-test-config.json
+mcp_demo_config.json
+mcp_client_demo.py
+mcp_server_entry.py
+test_mcp_client.py
+show_frameworks.py
+
+# Specific test script files
+scripts/test-mcp-cli.sh
+scripts/test-mcp-inspector-cli.sh
+
+# Test directories that should remain private
+tests/golden/
+tests/internal/
+
+# Temp files
+json
+
+# Temporary sensitive files
+temp-api-key.txt
+debug-tokens.log
+.auth-cache
+security-scan-temp.json
+audit-temp.log
+
+# Log files
+*.log
+debug.log
+error.log
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# ===============================================================================
+# END SMART GITIGNORE
+# ===============================================================================

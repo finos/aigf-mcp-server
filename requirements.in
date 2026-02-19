@@ -1,0 +1,21 @@
+# Core dependencies for FINOS AI Governance MCP Server
+# Run `pip-compile requirements.in` to generate requirements-lock.txt
+
+# MCP Protocol Implementation
+fastmcp>=2.14.5,<3
+mcp>=1.14.0
+
+# HTTP Client for FINOS Repository
+httpx>=0.28.0
+
+# YAML Parsing for Frontmatter
+PyYAML>=6.0.0
+
+# Data Validation and Configuration
+pydantic>=2.11.0
+
+# Runtime utility and security-focused validation
+tenacity>=8.0.0
+pathvalidate>=3.2.0
+bleach>=6.1.0
+python-slugify>=8.0.0
