@@ -1048,7 +1048,7 @@ def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
         return bool(s) and not _SNIPPET_URL_LINE.match(s) and not _SNIPPET_BARE_URL.match(s) and not s.startswith("```")
 
     context = lines[max(0, match_line - 4) : match_line + 5]
-    prose = [l.strip() for l in context if _is_prose(l)]
+    prose = [ln.strip() for ln in context if _is_prose(ln)]
 
     snippet = " ".join(prose)
     if len(snippet) > 280:
@@ -1631,8 +1631,8 @@ async def risk_assessment_analysis(
             summary = _extract_section(doc.content, "Summary", "Overview", "Description")
             if summary:
                 risk_sections.append(f"### {doc.title} ({risk_id})\n{summary}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Skipping risk doc %s in prompt: %s", risk_id, exc)
 
     risk_info = (
         "\n\n".join(risk_sections)
@@ -1696,8 +1696,8 @@ async def mitigation_strategy_prompt(
             purpose = _extract_section(doc.content, "Purpose", "Summary", "Overview")
             if purpose:
                 mitigation_sections.append(f"### {doc.title} ({mitigation_id})\n{purpose}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Skipping mitigation doc %s in prompt: %s", mitigation_id, exc)
 
     mitigation_info = (
         "\n\n".join(mitigation_sections)
