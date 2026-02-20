@@ -379,6 +379,52 @@ def _format_framework_name(framework_id: str) -> str:
     return name_map.get(framework_id, framework_id.replace("-", " ").title())
 
 
+# Acronyms that should be fully uppercased when they appear as words in a name.
+_KNOWN_ACRONYMS: frozenset[str] = frozenset(
+    {"ai", "mcp", "llm", "qos", "ddos", "dow", "rbac", "ip"}
+)
+
+# Common English function words that stay lowercase in title case (except when first).
+_LOWERCASE_WORDS: frozenset[str] = frozenset(
+    {"and", "or", "the", "a", "an", "of", "for", "in", "to", "with", "as"}
+)
+
+
+def _format_document_name(filename: str, prefix: str) -> str:
+    """Format a document filename into a clean human-readable name.
+
+    Examples:
+        "ri-9_data-poisoning.md",  "ri-" -> "Data Poisoning (RI-9)"
+        "mi-20_mcp-server-security-governance.md", "mi-" -> "MCP Server Security Governance (MI-20)"
+    """
+    stem = filename.removesuffix(".md")
+    if stem.startswith(prefix):
+        stem = stem[len(prefix):]
+
+    # Split number from slug on the first underscore.
+    parts = stem.split("_", 1)
+    if len(parts) == 2 and parts[0].isdigit():
+        number, slug = parts
+    else:
+        number, slug = "", stem
+
+    # Clean slug: strip trailing punctuation artifacts, replace hyphens with spaces.
+    raw_words = slug.rstrip("- ").replace("-", " ").split()
+    words = []
+    for i, word in enumerate(raw_words):
+        lower = word.lower()
+        if lower in _KNOWN_ACRONYMS:
+            words.append(word.upper())
+        elif i > 0 and lower in _LOWERCASE_WORDS:
+            words.append(lower)
+        else:
+            words.append(word.capitalize())
+
+    clean_name = " ".join(words)
+    label = prefix.rstrip("-").upper()
+    return f"{clean_name} ({label}-{number})" if number else clean_name
+
+
 def _format_yaml_content(yaml_content: str, framework_id: str) -> str:
     """Format YAML content for better display."""
     try:
@@ -556,17 +602,15 @@ async def list_risks() -> DocumentList:
         # Convert GitHub file info to DocumentInfo
         risk_docs = []
         for file_info in discovery_result.risk_files:
-            # Extract ID from filename (remove extension and prefix)
-            doc_id = file_info.filename.replace(".md", "").replace("ri-", "")
-            # Create readable name from filename
-            doc_name = file_info.filename.replace(".md", "").replace("-", " ").title()
+            doc_id = file_info.filename.removesuffix(".md").removeprefix("ri-")
+            doc_name = _format_document_name(file_info.filename, "ri-")
 
             risk_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=file_info.filename,
-                    description=f"Risk document: {doc_name}",
+                    description=f"AI governance risk: {doc_name}",
                     last_modified=file_info.last_modified.isoformat()
                     if file_info.last_modified
                     else None,
@@ -584,14 +628,14 @@ async def list_risks() -> DocumentList:
         # Fall back to static list for offline/network-constrained environments.
         fallback_docs = []
         for filename in STATIC_RISK_FILES:
-            doc_id = filename.replace(".md", "").replace("ri-", "")
-            doc_name = filename.replace(".md", "").replace("-", " ").title()
+            doc_id = filename.removesuffix(".md").removeprefix("ri-")
+            doc_name = _format_document_name(filename, "ri-")
             fallback_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=filename,
-                    description=f"Risk document: {doc_name}",
+                    description=f"AI governance risk: {doc_name}",
                     last_modified=None,
                 )
             )
@@ -624,17 +668,15 @@ async def list_mitigations() -> DocumentList:
         # Convert GitHub file info to DocumentInfo
         mitigation_docs = []
         for file_info in discovery_result.mitigation_files:
-            # Extract ID from filename (remove extension and prefix)
-            doc_id = file_info.filename.replace(".md", "").replace("mi-", "")
-            # Create readable name from filename
-            doc_name = file_info.filename.replace(".md", "").replace("-", " ").title()
+            doc_id = file_info.filename.removesuffix(".md").removeprefix("mi-")
+            doc_name = _format_document_name(file_info.filename, "mi-")
 
             mitigation_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=file_info.filename,
-                    description=f"Mitigation strategy: {doc_name}",
+                    description=f"AI governance mitigation: {doc_name}",
                     last_modified=file_info.last_modified.isoformat()
                     if file_info.last_modified
                     else None,
@@ -652,14 +694,14 @@ async def list_mitigations() -> DocumentList:
         # Fall back to static list for offline/network-constrained environments.
         fallback_docs = []
         for filename in STATIC_MITIGATION_FILES:
-            doc_id = filename.replace(".md", "").replace("mi-", "")
-            doc_name = filename.replace(".md", "").replace("-", " ").title()
+            doc_id = filename.removesuffix(".md").removeprefix("mi-")
+            doc_name = _format_document_name(filename, "mi-")
             fallback_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=filename,
-                    description=f"Mitigation strategy: {doc_name}",
+                    description=f"AI governance mitigation: {doc_name}",
                     last_modified=None,
                 )
             )

@@ -16,6 +16,7 @@ from finos_mcp.fastmcp_server import (
     FrameworkContent,
     FrameworkList,
     ServiceHealth,
+    _format_document_name,
     get_cache_stats,
     get_framework,
     get_service_health,
@@ -332,3 +333,59 @@ class TestErrorHandling:
                 cache_misses=25,
                 hit_rate=0.75,
             )
+
+
+@pytest.mark.unit
+class TestFormatDocumentName:
+    """Tests for the _format_document_name helper."""
+
+    def test_basic_risk_name(self):
+        assert _format_document_name("ri-9_data-poisoning.md", "ri-") == "Data Poisoning (RI-9)"
+
+    def test_basic_mitigation_name(self):
+        assert _format_document_name("mi-1_ai-data-leakage-prevention-and-detection.md", "mi-") == "AI Data Leakage Prevention and Detection (MI-1)"
+
+    def test_acronym_mcp_uppercased(self):
+        result = _format_document_name("mi-20_mcp-server-security-governance.md", "mi-")
+        assert result == "MCP Server Security Governance (MI-20)"
+
+    def test_acronym_llm_uppercased(self):
+        result = _format_document_name("ri-10_prompt-injection.md", "ri-")
+        assert "RI-10" in result
+        assert result.startswith("Prompt Injection")
+
+    def test_trailing_dash_stripped(self):
+        result = _format_document_name(
+            "mi-15_using-large-language-models-for-automated-evaluation-llm-as-a-judge-.md",
+            "mi-",
+        )
+        assert not result.endswith("(MI-15) ")
+        assert not result.endswith("- (MI-15)")
+        assert "LLM" in result
+        assert "MI-15" in result
+
+    def test_number_in_parentheses(self):
+        result = _format_document_name("ri-16_bias-and-discrimination.md", "ri-")
+        assert result == "Bias and Discrimination (RI-16)"
+
+    def test_strips_prefix_correctly(self):
+        """Prefix should not appear in the output name."""
+        result = _format_document_name("ri-4_hallucination-and-inaccurate-outputs.md", "ri-")
+        assert not result.startswith("Ri ")
+        assert "RI-4" in result
+
+    def test_list_risks_names_are_clean(self):
+        """Integration check: list_risks documents must not contain old-style names."""
+        from finos_mcp.content.discovery import STATIC_RISK_FILES
+        for filename in STATIC_RISK_FILES:
+            name = _format_document_name(filename, "ri-")
+            assert not name.startswith("Ri "), f"Old prefix in: {name}"
+            assert "RI-" in name, f"Missing number badge in: {name}"
+
+    def test_list_mitigations_names_are_clean(self):
+        """Integration check: list_mitigations documents must not contain old-style names."""
+        from finos_mcp.content.discovery import STATIC_MITIGATION_FILES
+        for filename in STATIC_MITIGATION_FILES:
+            name = _format_document_name(filename, "mi-")
+            assert not name.startswith("Mi "), f"Old prefix in: {name}"
+            assert "MI-" in name, f"Missing number badge in: {name}"
