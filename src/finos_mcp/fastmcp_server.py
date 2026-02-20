@@ -1607,7 +1607,9 @@ async def risk_assessment_analysis(
     _validate_request_params(risk_category=risk_category, context=context)
 
     # Find relevant risk documents and extract their Summary sections.
-    search_results = await _call_registered_tool(search_risks, risk_category, limit=3)
+    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
+    search_query = risk_category.replace("-", " ")
+    search_results = await _call_registered_tool(search_risks, search_query, limit=3)
 
     risk_sections: list[str] = []
     for result in search_results.results:
@@ -1668,8 +1670,10 @@ async def mitigation_strategy_prompt(
     _validate_request_params(risk_type=risk_type, system_description=system_description)
 
     # Find relevant mitigation documents and extract their Purpose sections.
+    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
+    search_query = risk_type.replace("-", " ")
     mitigation_results = await _call_registered_tool(
-        search_mitigations, risk_type, limit=3
+        search_mitigations, search_query, limit=3
     )
 
     mitigation_sections: list[str] = []
