@@ -408,7 +408,7 @@ def _format_document_name(filename: str, prefix: str) -> str:
     """
     stem = filename.removesuffix(".md")
     if stem.startswith(prefix):
-        stem = stem[len(prefix):]
+        stem = stem[len(prefix) :]
 
     # Split number from slug on the first underscore.
     parts = stem.split("_", 1)
@@ -1045,7 +1045,12 @@ def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
 
     def _is_prose(line: str) -> bool:
         s = line.strip()
-        return bool(s) and not _SNIPPET_URL_LINE.match(s) and not _SNIPPET_BARE_URL.match(s) and not s.startswith("```")
+        return (
+            bool(s)
+            and not _SNIPPET_URL_LINE.match(s)
+            and not _SNIPPET_BARE_URL.match(s)
+            and not s.startswith("```")
+        )
 
     context = lines[max(0, match_line - 4) : match_line + 5]
     prose = [ln.strip() for ln in context if _is_prose(ln)]
@@ -1242,7 +1247,11 @@ async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[Search
                 break
 
         snippet = _clean_search_snippet(content, query, match_index)
-        return [SearchResult(framework_id=f"risk-{risk_doc.id}", section=section, content=snippet)]
+        return [
+            SearchResult(
+                framework_id=f"risk-{risk_doc.id}", section=section, content=snippet
+            )
+        ]
 
     except Exception as e:
         logger.warning("Failed to search risk %s: %s", risk_doc.id, e)
@@ -1351,7 +1360,13 @@ async def _search_single_mitigation(
                 break
 
         snippet = _clean_search_snippet(content, query, match_index)
-        return [SearchResult(framework_id=f"mitigation-{mitigation_doc.id}", section=section, content=snippet)]
+        return [
+            SearchResult(
+                framework_id=f"mitigation-{mitigation_doc.id}",
+                section=section,
+                content=snippet,
+            )
+        ]
 
     except Exception as e:
         logger.warning("Failed to search mitigation %s: %s", mitigation_doc.id, e)
@@ -1628,7 +1643,9 @@ async def risk_assessment_analysis(
         risk_id = result.framework_id.removeprefix("risk-")
         try:
             doc = await _call_registered_tool(get_risk, risk_id)
-            summary = _extract_section(doc.content, "Summary", "Overview", "Description")
+            summary = _extract_section(
+                doc.content, "Summary", "Overview", "Description"
+            )
             if summary:
                 risk_sections.append(f"### {doc.title} ({risk_id})\n{summary}")
         except Exception as exc:
@@ -1695,7 +1712,9 @@ async def mitigation_strategy_prompt(
             doc = await _call_registered_tool(get_mitigation, mitigation_id)
             purpose = _extract_section(doc.content, "Purpose", "Summary", "Overview")
             if purpose:
-                mitigation_sections.append(f"### {doc.title} ({mitigation_id})\n{purpose}")
+                mitigation_sections.append(
+                    f"### {doc.title} ({mitigation_id})\n{purpose}"
+                )
         except Exception as exc:
             logger.debug("Skipping mitigation doc %s in prompt: %s", mitigation_id, exc)
 

@@ -343,10 +343,18 @@ class TestFormatDocumentName:
     """Tests for the _format_document_name helper."""
 
     def test_basic_risk_name(self):
-        assert _format_document_name("ri-9_data-poisoning.md", "ri-") == "Data Poisoning (RI-9)"
+        assert (
+            _format_document_name("ri-9_data-poisoning.md", "ri-")
+            == "Data Poisoning (RI-9)"
+        )
 
     def test_basic_mitigation_name(self):
-        assert _format_document_name("mi-1_ai-data-leakage-prevention-and-detection.md", "mi-") == "AI Data Leakage Prevention and Detection (MI-1)"
+        assert (
+            _format_document_name(
+                "mi-1_ai-data-leakage-prevention-and-detection.md", "mi-"
+            )
+            == "AI Data Leakage Prevention and Detection (MI-1)"
+        )
 
     def test_acronym_mcp_uppercased(self):
         result = _format_document_name("mi-20_mcp-server-security-governance.md", "mi-")
@@ -373,13 +381,16 @@ class TestFormatDocumentName:
 
     def test_strips_prefix_correctly(self):
         """Prefix should not appear in the output name."""
-        result = _format_document_name("ri-4_hallucination-and-inaccurate-outputs.md", "ri-")
+        result = _format_document_name(
+            "ri-4_hallucination-and-inaccurate-outputs.md", "ri-"
+        )
         assert not result.startswith("Ri ")
         assert "RI-4" in result
 
     def test_list_risks_names_are_clean(self):
         """Integration check: list_risks documents must not contain old-style names."""
         from finos_mcp.content.discovery import STATIC_RISK_FILES
+
         for filename in STATIC_RISK_FILES:
             name = _format_document_name(filename, "ri-")
             assert not name.startswith("Ri "), f"Old prefix in: {name}"
@@ -388,6 +399,7 @@ class TestFormatDocumentName:
     def test_list_mitigations_names_are_clean(self):
         """Integration check: list_mitigations documents must not contain old-style names."""
         from finos_mcp.content.discovery import STATIC_MITIGATION_FILES
+
         for filename in STATIC_MITIGATION_FILES:
             name = _format_document_name(filename, "mi-")
             assert not name.startswith("Mi "), f"Old prefix in: {name}"
