@@ -989,6 +989,28 @@ async def get_cache_stats() -> CacheStats:
 
 _SNIPPET_URL_LINE = re.compile(r"^\s*(url|reference|href)\s*:", re.IGNORECASE)
 _SNIPPET_BARE_URL = re.compile(r"^\s*https?://\S+\s*$")
+_SECTION_HEADER = re.compile(r"^#{1,3}\s+", re.MULTILINE)
+
+
+def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
+    """Extract the text body of the first matching markdown section.
+
+    Tries each header name in order (case-insensitive).  Returns up to
+    max_chars of the section body, or an empty string if none is found.
+    """
+    for header in headers:
+        pattern = re.compile(
+            r"^#{1,3}\s+" + re.escape(header) + r"\s*$", re.IGNORECASE | re.MULTILINE
+        )
+        m = pattern.search(content)
+        if not m:
+            continue
+        start = m.end()
+        next_h = _SECTION_HEADER.search(content, start)
+        body = content[start : next_h.start() if next_h else len(content)].strip()
+        if body:
+            return body[:max_chars]
+    return ""
 
 
 def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
@@ -1583,12 +1605,26 @@ async def risk_assessment_analysis(
         Prompt for conducting risk assessment.
     """
     _validate_request_params(risk_category=risk_category, context=context)
-    # Search for relevant risk documents
+
+    # Find relevant risk documents and extract their Summary sections.
     search_results = await _call_registered_tool(search_risks, risk_category, limit=3)
 
-    risk_info = ""
+    risk_sections: list[str] = []
     for result in search_results.results:
-        risk_info += f"\n{result.section}:\n{result.content}\n"
+        risk_id = result.framework_id.removeprefix("risk-")
+        try:
+            doc = await _call_registered_tool(get_risk, risk_id)
+            summary = _extract_section(doc.content, "Summary", "Overview", "Description")
+            if summary:
+                risk_sections.append(f"### {doc.title} ({risk_id})\n{summary}")
+        except Exception:
+            pass
+
+    risk_info = (
+        "\n\n".join(risk_sections)
+        if risk_sections
+        else "No specific documentation found for this risk category."
+    )
 
     return f"""You are an AI risk assessment specialist. Conduct a thorough risk assessment for the following scenario.
 
@@ -1630,14 +1666,28 @@ async def mitigation_strategy_prompt(
         Prompt for developing mitigation strategies.
     """
     _validate_request_params(risk_type=risk_type, system_description=system_description)
-    # Search for relevant mitigation strategies
+
+    # Find relevant mitigation documents and extract their Purpose sections.
     mitigation_results = await _call_registered_tool(
         search_mitigations, risk_type, limit=3
     )
 
-    mitigation_info = ""
+    mitigation_sections: list[str] = []
     for result in mitigation_results.results:
-        mitigation_info += f"\n{result.section}:\n{result.content}\n"
+        mitigation_id = result.framework_id.removeprefix("mitigation-")
+        try:
+            doc = await _call_registered_tool(get_mitigation, mitigation_id)
+            purpose = _extract_section(doc.content, "Purpose", "Summary", "Overview")
+            if purpose:
+                mitigation_sections.append(f"### {doc.title} ({mitigation_id})\n{purpose}")
+        except Exception:
+            pass
+
+    mitigation_info = (
+        "\n\n".join(mitigation_sections)
+        if mitigation_sections
+        else "No specific mitigation documentation found for this risk type."
+    )
 
     return f"""You are an AI safety engineer tasked with developing mitigation strategies.
 

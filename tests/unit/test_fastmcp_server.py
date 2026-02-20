@@ -17,6 +17,7 @@ from finos_mcp.fastmcp_server import (
     FrameworkList,
     ServiceHealth,
     _clean_search_snippet,
+    _extract_section,
     _format_document_name,
     get_cache_stats,
     get_framework,
@@ -422,3 +423,43 @@ class TestCleanSearchSnippet:
         text = "url: https://a.com\nurl: https://b.com"
         snippet = _clean_search_snippet(text, "query", 0)
         assert len(snippet) > 0  # never empty
+
+
+@pytest.mark.unit
+class TestExtractSection:
+    """Tests for the _extract_section helper."""
+
+    _DOC = (
+        "## Summary\n\nThis is the summary text describing the risk.\n\n"
+        "## Description\n\nDetailed description follows here.\n\n"
+        "## Links\n\nurl: https://example.com"
+    )
+
+    def test_extracts_named_section(self):
+        result = _extract_section(self._DOC, "Summary")
+        assert "summary text" in result.lower()
+        assert "Description" not in result
+
+    def test_first_matching_header_wins(self):
+        result = _extract_section(self._DOC, "Summary", "Description")
+        assert "summary text" in result.lower()
+
+    def test_falls_back_to_second_header(self):
+        result = _extract_section(self._DOC, "Overview", "Description")
+        assert "Detailed description" in result
+
+    def test_returns_empty_when_no_match(self):
+        result = _extract_section(self._DOC, "NonExistent")
+        assert result == ""
+
+    def test_respects_max_chars(self):
+        long_body = "x " * 1000
+        doc = f"## Summary\n\n{long_body}"
+        result = _extract_section(doc, "Summary", max_chars=50)
+        assert len(result) <= 50
+
+    def test_purpose_header(self):
+        doc = "## Purpose\n\nThis mitigation addresses the risk by applying controls.\n\n## Implementation\n\nSteps here."
+        result = _extract_section(doc, "Purpose")
+        assert "controls" in result
+        assert "Steps" not in result
