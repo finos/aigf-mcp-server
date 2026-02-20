@@ -398,6 +398,13 @@ _LOWERCASE_WORDS: frozenset[str] = frozenset(
     {"and", "or", "the", "a", "an", "of", "for", "in", "to", "with", "as"}
 )
 
+# Stop words filtered out during multi-token search fallback.
+_SEARCH_STOP_WORDS: frozenset[str] = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been",
+    "for", "of", "in", "to", "and", "or", "with", "at", "by",
+    "from", "that", "this", "it", "on", "as", "not",
+})
+
 
 def _format_document_name(filename: str, prefix: str) -> str:
     """Format a document filename into a clean human-readable name.
@@ -792,7 +799,7 @@ async def get_risk(
 
         if doc:
             content = doc.get("content", "")
-            title = doc.get("title", target_filename.replace(".md", ""))
+            title = doc.get("title") or _format_document_name(target_filename, "ri-")
             content, sections = _safe_document_content(
                 content,
                 f"risk:{risk_id}",
@@ -888,7 +895,7 @@ async def get_mitigation(
 
         if doc:
             content = doc.get("content", "")
-            title = doc.get("title", target_filename.replace(".md", ""))
+            title = doc.get("title") or _format_document_name(target_filename, "mi-")
             content, sections = _safe_document_content(
                 content,
                 f"mitigation:{mitigation_id}",
@@ -1023,6 +1030,36 @@ def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
         if body:
             return body[:max_chars]
     return ""
+
+
+def _best_match_index(content: str, query: str) -> tuple[int, bool]:
+    """Return (char_index, is_exact_phrase) for the best match of query in content.
+
+    Tries the full phrase first (fast path) — is_exact_phrase=True.
+    If no match, splits the query into tokens, filters stop words and
+    very short tokens (≤2 chars), then tries each token longest-first
+    (more specific tokens preferred) — is_exact_phrase=False.
+    Returns (-1, False) if nothing matches.
+    """
+    lower = content.lower()
+
+    # Fast path: exact phrase
+    idx = lower.find(query.lower())
+    if idx != -1:
+        return idx, True
+
+    # Fallback: individual tokens, longest first
+    tokens = sorted(
+        (t for t in query.lower().split() if len(t) > 2 and t not in _SEARCH_STOP_WORDS),
+        key=len,
+        reverse=True,
+    )
+    for token in tokens:
+        idx = lower.find(token)
+        if idx != -1:
+            return idx, False
+
+    return -1, False
 
 
 def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
@@ -1227,16 +1264,20 @@ async def search_frameworks(
         return SearchResults(query=query, results=[], total_found=0)
 
 
-async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[SearchResult]:
+async def _search_single_risk(
+    risk_doc: DocumentInfo, query: str
+) -> list[tuple[SearchResult, bool, int]]:
     """Search within a single risk document.
 
     Fetches full document content (served from cache after first request) and
-    returns a prose snippet around the first match.
+    returns a list of (SearchResult, is_exact_phrase, match_index) tuples so
+    the caller can rank results: exact matches first, then by match position
+    (earlier = more topically central) before applying the limit.
     """
     try:
         doc = await _call_registered_tool(get_risk, risk_doc.id)
         content = doc.content
-        match_index = content.lower().find(query.lower())
+        match_index, is_exact = _best_match_index(content, query)
         if match_index == -1:
             return []
 
@@ -1248,8 +1289,12 @@ async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[Search
 
         snippet = _clean_search_snippet(content, query, match_index)
         return [
-            SearchResult(
-                framework_id=f"risk-{risk_doc.id}", section=section, content=snippet
+            (
+                SearchResult(
+                    framework_id=f"risk-{risk_doc.id}", section=section, content=snippet
+                ),
+                is_exact,
+                match_index,
             )
         ]
 
@@ -1318,15 +1363,19 @@ async def search_risks(
 
         logger.info("Completed parallel search across %d risk documents", total_risks)
 
-        # Flatten results and filter out exceptions
-        results = []
+        # Flatten results and filter out exceptions.
+        # Each item is (SearchResult, is_exact_phrase, match_index).
+        tagged: list[tuple[SearchResult, bool, int]] = []
         for result in search_results:
             if isinstance(result, list):
-                results.extend(result)
+                tagged.extend(result)
             elif isinstance(result, Exception):
                 logger.warning("Search task failed: %s", result)
 
-        # Limit results
+        # Primary key: exact-phrase matches first (is_exact=True → 0, False → 1).
+        # Secondary key: earlier match position means the topic is more central.
+        tagged.sort(key=lambda x: (not x[1], x[2]))
+        results = [r for r, _, __ in tagged]
         limited_results = results[:limit]
 
         return SearchResults(
@@ -1340,16 +1389,18 @@ async def search_risks(
 
 async def _search_single_mitigation(
     mitigation_doc: DocumentInfo, query: str
-) -> list[SearchResult]:
+) -> list[tuple[SearchResult, bool, int]]:
     """Search within a single mitigation document.
 
     Fetches full document content (served from cache after first request) and
-    returns a prose snippet around the first match.
+    returns a list of (SearchResult, is_exact_phrase, match_index) tuples so
+    the caller can rank results: exact matches first, then by match position
+    (earlier = more topically central) before applying the limit.
     """
     try:
         doc = await _call_registered_tool(get_mitigation, mitigation_doc.id)
         content = doc.content
-        match_index = content.lower().find(query.lower())
+        match_index, is_exact = _best_match_index(content, query)
         if match_index == -1:
             return []
 
@@ -1361,10 +1412,14 @@ async def _search_single_mitigation(
 
         snippet = _clean_search_snippet(content, query, match_index)
         return [
-            SearchResult(
-                framework_id=f"mitigation-{mitigation_doc.id}",
-                section=section,
-                content=snippet,
+            (
+                SearchResult(
+                    framework_id=f"mitigation-{mitigation_doc.id}",
+                    section=section,
+                    content=snippet,
+                ),
+                is_exact,
+                match_index,
             )
         ]
 
@@ -1437,15 +1492,19 @@ async def search_mitigations(
             total_mitigations,
         )
 
-        # Flatten results and filter out exceptions
-        results = []
+        # Flatten results and filter out exceptions.
+        # Each item is (SearchResult, is_exact_phrase, match_index).
+        tagged: list[tuple[SearchResult, bool, int]] = []
         for result in search_results:
             if isinstance(result, list):
-                results.extend(result)
+                tagged.extend(result)
             elif isinstance(result, Exception):
                 logger.warning("Search task failed: %s", result)
 
-        # Limit results
+        # Primary key: exact-phrase matches first (is_exact=True → 0, False → 1).
+        # Secondary key: earlier match position means the topic is more central.
+        tagged.sort(key=lambda x: (not x[1], x[2]))
+        results = [r for r, _, __ in tagged]
         limited_results = results[:limit]
 
         return SearchResults(

@@ -5,28 +5,35 @@ Tests the modern FastMCP-based server with structured output and decorator-based
 """
 
 import inspect
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
 
 from finos_mcp.fastmcp_server import (
     CacheStats,
+    DocumentContent,
     DocumentInfo,
     DocumentList,
     Framework,
     FrameworkContent,
     FrameworkList,
+    SearchResults,
     ServiceHealth,
+    _best_match_index,
     _clean_search_snippet,
     _extract_section,
     _format_document_name,
     get_cache_stats,
     get_framework,
+    get_mitigation,
+    get_risk,
     get_service_health,
     list_frameworks,
     list_mitigations,
     list_risks,
     mcp,
+    search_risks,
 )
 
 
@@ -546,3 +553,113 @@ class TestTitleField:
         for fw in result.frameworks:
             assert fw.title is not None, f"Missing title on framework: {fw.id}"
             assert len(fw.title) > 0
+
+
+@pytest.mark.unit
+class TestDocumentContentTitle:
+    """Tests that get_risk and get_mitigation return formatted human-readable titles."""
+
+    @pytest.mark.asyncio
+    async def test_get_risk_title_is_formatted(self):
+        mock_service = AsyncMock()
+        mock_service.get_document.return_value = {"content": "Risk content here"}
+        with patch(
+            "finos_mcp.fastmcp_server.get_service",
+            new_callable=AsyncMock,
+            return_value=mock_service,
+        ):
+            result = await _invoke_direct_tool(get_risk, "9_data-poisoning")
+        assert isinstance(result, DocumentContent)
+        assert result.title == "Data Poisoning (RI-9)"
+
+    @pytest.mark.asyncio
+    async def test_get_mitigation_title_is_formatted(self):
+        mock_service = AsyncMock()
+        mock_service.get_document.return_value = {"content": "Mitigation content here"}
+        with patch(
+            "finos_mcp.fastmcp_server.get_service",
+            new_callable=AsyncMock,
+            return_value=mock_service,
+        ):
+            result = await _invoke_direct_tool(
+                get_mitigation, "1_ai-data-leakage-prevention-and-detection"
+            )
+        assert isinstance(result, DocumentContent)
+        assert result.title == "AI Data Leakage Prevention and Detection (MI-1)"
+
+
+@pytest.mark.unit
+class TestBestMatchIndex:
+    """Tests for the _best_match_index search helper.
+
+    Return type is (int, bool) — (char_index, is_exact_phrase).
+    """
+
+    def test_exact_phrase_match_index(self):
+        idx, is_exact = _best_match_index("data poisoning occurs", "data poisoning")
+        assert idx >= 0
+        assert is_exact is True
+
+    def test_exact_phrase_is_flagged_exact(self):
+        _, is_exact = _best_match_index("model hallucination risk", "hallucination")
+        assert is_exact is True
+
+    def test_token_fallback_finds_match(self):
+        # "customer data privacy" -> tokens ["customer","data","privacy"]
+        # "data" is in the content
+        idx, is_exact = _best_match_index("sensitive data leakage", "customer data privacy")
+        assert idx >= 0
+        assert is_exact is False
+
+    def test_token_fallback_is_not_flagged_exact(self):
+        _, is_exact = _best_match_index("only data here", "customer data privacy")
+        assert is_exact is False
+
+    def test_stop_words_only_returns_minus_one(self):
+        idx, is_exact = _best_match_index("some content here", "the is are")
+        assert idx == -1
+        assert is_exact is False
+
+    def test_no_match_returns_minus_one(self):
+        idx, is_exact = _best_match_index("hello world", "xyzzy foobar")
+        assert idx == -1
+        assert is_exact is False
+
+
+@pytest.mark.unit
+class TestSearchRanking:
+    """Exact-phrase results must rank above token-fallback results (T8)."""
+
+    def test_sort_key_exact_before_fallback(self):
+        """Pure sort-key test — no network.  Exact matches must precede token fallbacks."""
+        from finos_mcp.fastmcp_server import SearchResult
+
+        exact_late = (
+            SearchResult(framework_id="risk-a", section="S", content="x"),
+            True,   # is_exact
+            800,    # match_index — late in document
+        )
+        fallback_early = (
+            SearchResult(framework_id="risk-b", section="S", content="x"),
+            False,  # token fallback
+            5,      # match_index — very early
+        )
+        exact_early = (
+            SearchResult(framework_id="risk-c", section="S", content="x"),
+            True,
+            10,
+        )
+
+        tagged = [exact_late, fallback_early, exact_early]
+        tagged.sort(key=lambda x: (not x[1], x[2]))
+
+        ids = [t[0].framework_id for t in tagged]
+        # exact_early first, exact_late second, fallback_early last
+        assert ids == ["risk-c", "risk-a", "risk-b"]
+
+    @pytest.mark.asyncio
+    async def test_search_risks_token_fallback_still_returns_results(self):
+        """Token-fallback queries still return results (T7 regression)."""
+        result = await _invoke_direct_tool(search_risks, "customer data privacy", limit=5)
+        assert isinstance(result, SearchResults)
+        assert result.total_found >= 1
