@@ -32,11 +32,12 @@ from typing import Any
 
 # ── ANSI colours ────────────────────────────────────────────────────────────────
 GREEN = "\033[92m"
-RED   = "\033[91m"
+RED = "\033[91m"
 YELLOW = "\033[93m"
-CYAN  = "\033[96m"
-BOLD  = "\033[1m"
+CYAN = "\033[96m"
+BOLD = "\033[1m"
 RESET = "\033[0m"
+
 
 def _c(colour: str, text: str) -> str:
     """Wrap text in an ANSI colour if stdout is a TTY."""
@@ -47,6 +48,7 @@ def _c(colour: str, text: str) -> str:
 @dataclass
 class Check:
     """A single assertion within a test case."""
+
     description: str
     fn: Any  # Callable[[Any], bool]
 
@@ -56,7 +58,7 @@ class TestCase:
     category: str
     name: str
     description: str
-    cli_args: list[str]         # args appended to the base inspector command
+    cli_args: list[str]  # args appended to the base inspector command
     checks: list[Check]
     parse_path: str = "structured"  # "structured" | "resource" | "prompt" | "raw"
 
@@ -74,19 +76,25 @@ class TestResult:
 
 # ── Inspector runner ─────────────────────────────────────────────────────────────
 BASE_CMD_TEMPLATE = [
-    "npx", "@modelcontextprotocol/inspector",
+    "npx",
+    "@modelcontextprotocol/inspector",
     "--cli",
-    "--config", "{config}",
-    "--server", "{server}",
+    "--config",
+    "{config}",
+    "--server",
+    "{server}",
 ]
 
 
 def _build_base(config: str, server: str) -> list[str]:
     return [
-        "npx", "@modelcontextprotocol/inspector",
+        "npx",
+        "@modelcontextprotocol/inspector",
         "--cli",
-        "--config", config,
-        "--server", server,
+        "--config",
+        config,
+        "--server",
+        server,
     ]
 
 
@@ -164,7 +172,7 @@ def build_test_suite() -> list[TestCase]:
     # Shorthand builders
     def tool(name: str, args: list[str] | None = None) -> list[str]:
         base = ["--method", "tools/call", "--tool-name", name]
-        for a in (args or []):
+        for a in args or []:
             base += ["--tool-arg", a]
         return base
 
@@ -172,10 +180,12 @@ def build_test_suite() -> list[TestCase]:
         return ["--method", "resources/read", "--uri", uri]
 
     def prompt(name: str, args: list[str]) -> list[str]:
-        return [*["--method", "prompts/get", "--prompt-name", name, "--prompt-args"], *args]
+        return [
+            *["--method", "prompts/get", "--prompt-name", name, "--prompt-args"],
+            *args,
+        ]
 
     return [
-
         # ── Category: Infrastructure ────────────────────────────────────────────
         TestCase(
             category="Infrastructure",
@@ -184,15 +194,20 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("get_service_health"),
             parse_path="structured",
             checks=[
-                Check("status == 'healthy'",
-                      lambda d: isinstance(d, dict) and d.get("status") == "healthy"),
-                Check("uptime_seconds > 0",
-                      lambda d: isinstance(d, dict) and d.get("uptime_seconds", 0) > 0),
-                Check("version is non-empty string",
-                      lambda d: isinstance(d, dict) and bool(d.get("version"))),
+                Check(
+                    "status == 'healthy'",
+                    lambda d: isinstance(d, dict) and d.get("status") == "healthy",
+                ),
+                Check(
+                    "uptime_seconds > 0",
+                    lambda d: isinstance(d, dict) and d.get("uptime_seconds", 0) > 0,
+                ),
+                Check(
+                    "version is non-empty string",
+                    lambda d: isinstance(d, dict) and bool(d.get("version")),
+                ),
             ],
         ),
-
         TestCase(
             category="Infrastructure",
             name="TC-02 • Cache statistics",
@@ -200,13 +215,18 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("get_cache_stats"),
             parse_path="structured",
             checks=[
-                Check("total_requests >= 0",
-                      lambda d: isinstance(d, dict) and d.get("total_requests", -1) >= 0),
-                Check("hit_rate in [0.0, 1.0]",
-                      lambda d: isinstance(d, dict) and 0.0 <= d.get("hit_rate", -1) <= 1.0),
+                Check(
+                    "total_requests >= 0",
+                    lambda d: isinstance(d, dict) and d.get("total_requests", -1) >= 0,
+                ),
+                Check(
+                    "hit_rate in [0.0, 1.0]",
+                    lambda d: (
+                        isinstance(d, dict) and 0.0 <= d.get("hit_rate", -1) <= 1.0
+                    ),
+                ),
             ],
         ),
-
         # ── Category: Discovery (list tools) ────────────────────────────────────
         TestCase(
             category="Discovery",
@@ -215,19 +235,29 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("list_frameworks"),
             parse_path="structured",
             checks=[
-                Check("total_count >= 1",
-                      lambda d: isinstance(d, dict) and d.get("total_count", 0) >= 1),
-                Check("every framework has non-empty id, name, description",
-                      lambda d: isinstance(d, dict) and all(
-                          fw.get("id") and fw.get("name") and fw.get("description")
-                          for fw in d.get("frameworks", [])
-                      )),
-                Check("returned count matches total_count",
-                      lambda d: isinstance(d, dict) and
-                          len(d.get("frameworks", [])) == d.get("total_count", -1)),
+                Check(
+                    "total_count >= 1",
+                    lambda d: isinstance(d, dict) and d.get("total_count", 0) >= 1,
+                ),
+                Check(
+                    "every framework has non-empty id, name, description",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and all(
+                            fw.get("id") and fw.get("name") and fw.get("description")
+                            for fw in d.get("frameworks", [])
+                        )
+                    ),
+                ),
+                Check(
+                    "returned count matches total_count",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and len(d.get("frameworks", [])) == d.get("total_count", -1)
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Discovery",
             name="TC-04 • List risks",
@@ -235,18 +265,26 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("list_risks"),
             parse_path="structured",
             checks=[
-                Check("total_count >= 20",
-                      lambda d: isinstance(d, dict) and d.get("total_count", 0) >= 20),
-                Check("document_type == 'risk'",
-                      lambda d: isinstance(d, dict) and d.get("document_type") == "risk"),
-                Check("every document has non-empty id and name",
-                      lambda d: isinstance(d, dict) and all(
-                          doc.get("id") and doc.get("name")
-                          for doc in d.get("documents", [])
-                      )),
+                Check(
+                    "total_count >= 20",
+                    lambda d: isinstance(d, dict) and d.get("total_count", 0) >= 20,
+                ),
+                Check(
+                    "document_type == 'risk'",
+                    lambda d: isinstance(d, dict) and d.get("document_type") == "risk",
+                ),
+                Check(
+                    "every document has non-empty id and name",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and all(
+                            doc.get("id") and doc.get("name")
+                            for doc in d.get("documents", [])
+                        )
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Discovery",
             name="TC-05 • List mitigations",
@@ -254,18 +292,28 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("list_mitigations"),
             parse_path="structured",
             checks=[
-                Check("total_count >= 20",
-                      lambda d: isinstance(d, dict) and d.get("total_count", 0) >= 20),
-                Check("document_type == 'mitigation'",
-                      lambda d: isinstance(d, dict) and d.get("document_type") == "mitigation"),
-                Check("every document has non-empty id and name",
-                      lambda d: isinstance(d, dict) and all(
-                          doc.get("id") and doc.get("name")
-                          for doc in d.get("documents", [])
-                      )),
+                Check(
+                    "total_count >= 20",
+                    lambda d: isinstance(d, dict) and d.get("total_count", 0) >= 20,
+                ),
+                Check(
+                    "document_type == 'mitigation'",
+                    lambda d: (
+                        isinstance(d, dict) and d.get("document_type") == "mitigation"
+                    ),
+                ),
+                Check(
+                    "every document has non-empty id and name",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and all(
+                            doc.get("id") and doc.get("name")
+                            for doc in d.get("documents", [])
+                        )
+                    ),
+                ),
             ],
         ),
-
         # ── Category: Document retrieval ─────────────────────────────────────────
         TestCase(
             category="Document retrieval",
@@ -274,16 +322,25 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("get_framework", ["framework=eu-ai-act"]),
             parse_path="structured",
             checks=[
-                Check("framework_id == 'eu-ai-act'",
-                      lambda d: isinstance(d, dict) and d.get("framework_id") == "eu-ai-act"),
-                Check("content length > 200 chars",
-                      lambda d: isinstance(d, dict) and len(d.get("content", "")) > 200),
-                Check("content does not start with 'Failed'",
-                      lambda d: isinstance(d, dict) and
-                          not d.get("content", "").startswith("Failed")),
+                Check(
+                    "framework_id == 'eu-ai-act'",
+                    lambda d: (
+                        isinstance(d, dict) and d.get("framework_id") == "eu-ai-act"
+                    ),
+                ),
+                Check(
+                    "content length > 200 chars",
+                    lambda d: isinstance(d, dict) and len(d.get("content", "")) > 200,
+                ),
+                Check(
+                    "content does not start with 'Failed'",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and not d.get("content", "").startswith("Failed")
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Document retrieval",
             name="TC-07 • get_risk RI-9 title format (T6)",
@@ -291,15 +348,25 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("get_risk", ["risk_id=9_data-poisoning"]),
             parse_path="structured",
             checks=[
-                Check("title == 'Data Poisoning (RI-9)'",
-                      lambda d: isinstance(d, dict) and d.get("title") == "Data Poisoning (RI-9)"),
-                Check("content length > 100 chars",
-                      lambda d: isinstance(d, dict) and len(d.get("content", "")) > 100),
-                Check("sections is a list",
-                      lambda d: isinstance(d, dict) and isinstance(d.get("sections"), list)),
+                Check(
+                    "title == 'Data Poisoning (RI-9)'",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("title") == "Data Poisoning (RI-9)"
+                    ),
+                ),
+                Check(
+                    "content length > 100 chars",
+                    lambda d: isinstance(d, dict) and len(d.get("content", "")) > 100,
+                ),
+                Check(
+                    "sections is a list",
+                    lambda d: (
+                        isinstance(d, dict) and isinstance(d.get("sections"), list)
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Document retrieval",
             name="TC-08 • get_risk RI-1 title format (T6)",
@@ -307,31 +374,44 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("get_risk", ["risk_id=1_information-leaked-to-hosted-model"]),
             parse_path="structured",
             checks=[
-                Check("title contains '(RI-1)'",
-                      lambda d: isinstance(d, dict) and "(RI-1)" in d.get("title", "")),
-                Check("title does not contain underscores (not raw filename)",
-                      lambda d: isinstance(d, dict) and "_" not in d.get("title", "")),
-                Check("content is non-empty",
-                      lambda d: isinstance(d, dict) and len(d.get("content", "")) > 100),
+                Check(
+                    "title contains '(RI-1)'",
+                    lambda d: isinstance(d, dict) and "(RI-1)" in d.get("title", ""),
+                ),
+                Check(
+                    "title does not contain underscores (not raw filename)",
+                    lambda d: isinstance(d, dict) and "_" not in d.get("title", ""),
+                ),
+                Check(
+                    "content is non-empty",
+                    lambda d: isinstance(d, dict) and len(d.get("content", "")) > 100,
+                ),
             ],
         ),
-
         TestCase(
             category="Document retrieval",
             name="TC-09 • get_mitigation MI-1 title format (T6)",
             description="get_mitigation title is 'AI Data Leakage Prevention and Detection (MI-1)'",
-            cli_args=tool("get_mitigation",
-                          ["mitigation_id=1_ai-data-leakage-prevention-and-detection"]),
+            cli_args=tool(
+                "get_mitigation",
+                ["mitigation_id=1_ai-data-leakage-prevention-and-detection"],
+            ),
             parse_path="structured",
             checks=[
-                Check("title == 'AI Data Leakage Prevention and Detection (MI-1)'",
-                      lambda d: isinstance(d, dict) and
-                          d.get("title") == "AI Data Leakage Prevention and Detection (MI-1)"),
-                Check("content length > 100 chars",
-                      lambda d: isinstance(d, dict) and len(d.get("content", "")) > 100),
+                Check(
+                    "title == 'AI Data Leakage Prevention and Detection (MI-1)'",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("title")
+                        == "AI Data Leakage Prevention and Detection (MI-1)"
+                    ),
+                ),
+                Check(
+                    "content length > 100 chars",
+                    lambda d: isinstance(d, dict) and len(d.get("content", "")) > 100,
+                ),
             ],
         ),
-
         TestCase(
             category="Document retrieval",
             name="TC-10 • get_risk — invalid ID (graceful error)",
@@ -339,16 +419,22 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("get_risk", ["risk_id=invalid-risk-xyz-99"]),
             parse_path="structured",
             checks=[
-                Check("returns a DocumentContent (has 'title' key)",
-                      lambda d: isinstance(d, dict) and "title" in d),
-                Check("title or content indicates not-found (no crash)",
-                      lambda d: isinstance(d, dict) and (
-                          "not found" in d.get("title", "").lower() or
-                          "not found" in d.get("content", "").lower()
-                      )),
+                Check(
+                    "returns a DocumentContent (has 'title' key)",
+                    lambda d: isinstance(d, dict) and "title" in d,
+                ),
+                Check(
+                    "title or content indicates not-found (no crash)",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and (
+                            "not found" in d.get("title", "").lower()
+                            or "not found" in d.get("content", "").lower()
+                        )
+                    ),
+                ),
             ],
         ),
-
         # ── Category: Search ──────────────────────────────────────────────────────
         TestCase(
             category="Search",
@@ -357,17 +443,23 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_frameworks", ["query=risk assessment"]),
             parse_path="structured",
             checks=[
-                Check("total_found >= 1",
-                      lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1),
-                Check("results list is non-empty",
-                      lambda d: isinstance(d, dict) and len(d.get("results", [])) >= 1),
-                Check("every result has a content field",
-                      lambda d: isinstance(d, dict) and all(
-                          r.get("content") for r in d.get("results", [])
-                      )),
+                Check(
+                    "total_found >= 1",
+                    lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1,
+                ),
+                Check(
+                    "results list is non-empty",
+                    lambda d: isinstance(d, dict) and len(d.get("results", [])) >= 1,
+                ),
+                Check(
+                    "every result has a content field",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and all(r.get("content") for r in d.get("results", []))
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Search",
             name="TC-12 • search_risks 'data poisoning' (exact phrase + ranking)",
@@ -375,14 +467,21 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_risks", ["query=data poisoning"]),
             parse_path="structured",
             checks=[
-                Check("total_found >= 1",
-                      lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1),
-                Check("first result content contains 'data poisoning' verbatim (exact match ranked first)",
-                      lambda d: isinstance(d, dict) and d.get("results") and
-                          "data poisoning" in d["results"][0].get("content", "").lower()),
+                Check(
+                    "total_found >= 1",
+                    lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1,
+                ),
+                Check(
+                    "first result content contains 'data poisoning' verbatim (exact match ranked first)",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("results")
+                        and "data poisoning"
+                        in d["results"][0].get("content", "").lower()
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Search",
             name="TC-13 • search_risks 'customer data privacy' (T7 token fallback)",
@@ -390,11 +489,12 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_risks", ["query=customer data privacy"]),
             parse_path="structured",
             checks=[
-                Check("total_found >= 1 (was 0 before T7)",
-                      lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1),
+                Check(
+                    "total_found >= 1 (was 0 before T7)",
+                    lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1,
+                ),
             ],
         ),
-
         TestCase(
             category="Search",
             name="TC-14 • search_risks 'model training security'",
@@ -402,11 +502,12 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_risks", ["query=model training security"]),
             parse_path="structured",
             checks=[
-                Check("total_found >= 1",
-                      lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1),
+                Check(
+                    "total_found >= 1",
+                    lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1,
+                ),
             ],
         ),
-
         TestCase(
             category="Search",
             name="TC-15 • search_risks stop-words only → 0 results",
@@ -414,11 +515,12 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_risks", ["query=the is are"]),
             parse_path="structured",
             checks=[
-                Check("total_found == 0",
-                      lambda d: isinstance(d, dict) and d.get("total_found", -1) == 0),
+                Check(
+                    "total_found == 0",
+                    lambda d: isinstance(d, dict) and d.get("total_found", -1) == 0,
+                ),
             ],
         ),
-
         TestCase(
             category="Search",
             name="TC-16 • search_mitigations 'data protection' (T7 token fallback)",
@@ -426,11 +528,12 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_mitigations", ["query=data protection"]),
             parse_path="structured",
             checks=[
-                Check("total_found >= 1",
-                      lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1),
+                Check(
+                    "total_found >= 1",
+                    lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1,
+                ),
             ],
         ),
-
         TestCase(
             category="Search",
             name="TC-17 • search_mitigations 'encryption'",
@@ -438,16 +541,22 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_mitigations", ["query=encryption"]),
             parse_path="structured",
             checks=[
-                Check("total_found >= 1",
-                      lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1),
-                Check("every result has framework_id and content",
-                      lambda d: isinstance(d, dict) and all(
-                          r.get("framework_id") and r.get("content")
-                          for r in d.get("results", [])
-                      )),
+                Check(
+                    "total_found >= 1",
+                    lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1,
+                ),
+                Check(
+                    "every result has framework_id and content",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and all(
+                            r.get("framework_id") and r.get("content")
+                            for r in d.get("results", [])
+                        )
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Search",
             name="TC-24 • search_mitigations 'data leakage' (exact phrase + ranking)",
@@ -455,14 +564,20 @@ def build_test_suite() -> list[TestCase]:
             cli_args=tool("search_mitigations", ["query=data leakage"]),
             parse_path="structured",
             checks=[
-                Check("total_found >= 1",
-                      lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1),
-                Check("first result content contains 'data leakage' verbatim (exact match ranked first)",
-                      lambda d: isinstance(d, dict) and d.get("results") and
-                          "data leakage" in d["results"][0].get("content", "").lower()),
+                Check(
+                    "total_found >= 1",
+                    lambda d: isinstance(d, dict) and d.get("total_found", 0) >= 1,
+                ),
+                Check(
+                    "first result content contains 'data leakage' verbatim (exact match ranked first)",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("results")
+                        and "data leakage" in d["results"][0].get("content", "").lower()
+                    ),
+                ),
             ],
         ),
-
         # ── Category: Resources ───────────────────────────────────────────────────
         TestCase(
             category="Resources",
@@ -471,13 +586,16 @@ def build_test_suite() -> list[TestCase]:
             cli_args=resource("finos://frameworks/eu-ai-act"),
             parse_path="resource",
             checks=[
-                Check("content length > 100 chars",
-                      lambda d: isinstance(d, str) and len(d) > 100),
-                Check("content does not start with 'Error'",
-                      lambda d: isinstance(d, str) and not d.startswith("Error")),
+                Check(
+                    "content length > 100 chars",
+                    lambda d: isinstance(d, str) and len(d) > 100,
+                ),
+                Check(
+                    "content does not start with 'Error'",
+                    lambda d: isinstance(d, str) and not d.startswith("Error"),
+                ),
             ],
         ),
-
         TestCase(
             category="Resources",
             name="TC-19 • Resource finos://risks/9_data-poisoning",
@@ -485,13 +603,16 @@ def build_test_suite() -> list[TestCase]:
             cli_args=resource("finos://risks/9_data-poisoning"),
             parse_path="resource",
             checks=[
-                Check("content length > 100 chars",
-                      lambda d: isinstance(d, str) and len(d) > 100),
-                Check("content contains 'poison'",
-                      lambda d: isinstance(d, str) and "poison" in d.lower()),
+                Check(
+                    "content length > 100 chars",
+                    lambda d: isinstance(d, str) and len(d) > 100,
+                ),
+                Check(
+                    "content contains 'poison'",
+                    lambda d: isinstance(d, str) and "poison" in d.lower(),
+                ),
             ],
         ),
-
         TestCase(
             category="Resources",
             name="TC-20 • Resource finos://mitigations/1_ai-data-leakage-prevention-and-detection",
@@ -501,15 +622,19 @@ def build_test_suite() -> list[TestCase]:
             ),
             parse_path="resource",
             checks=[
-                Check("content length > 100 chars",
-                      lambda d: isinstance(d, str) and len(d) > 100),
-                Check("content contains 'leakage' or 'data'",
-                      lambda d: isinstance(d, str) and (
-                          "leakage" in d.lower() or "data" in d.lower()
-                      )),
+                Check(
+                    "content length > 100 chars",
+                    lambda d: isinstance(d, str) and len(d) > 100,
+                ),
+                Check(
+                    "content contains 'leakage' or 'data'",
+                    lambda d: (
+                        isinstance(d, str)
+                        and ("leakage" in d.lower() or "data" in d.lower())
+                    ),
+                ),
             ],
         ),
-
         # ── Category: Prompts ─────────────────────────────────────────────────────
         TestCase(
             category="Prompts",
@@ -517,64 +642,91 @@ def build_test_suite() -> list[TestCase]:
             description="Returns a rich compliance prompt including framework content",
             cli_args=prompt(
                 "analyze_framework_compliance",
-                ["framework=eu-ai-act",
-                 "use_case=deploying a customer-facing LLM chatbot in financial services"],
+                [
+                    "framework=eu-ai-act",
+                    "use_case=deploying a customer-facing LLM chatbot in financial services",
+                ],
             ),
             parse_path="prompt",
             checks=[
-                Check("prompt text length > 200 chars",
-                      lambda d: isinstance(d, str) and len(d) > 200),
-                Check("prompt mentions the framework",
-                      lambda d: isinstance(d, str) and "eu-ai-act" in d.lower()),
-                Check("prompt contains compliance guidance keywords",
-                      lambda d: isinstance(d, str) and any(
-                          kw in d.lower() for kw in
-                          ["compliance", "requirement", "risk", "implement"]
-                      )),
+                Check(
+                    "prompt text length > 200 chars",
+                    lambda d: isinstance(d, str) and len(d) > 200,
+                ),
+                Check(
+                    "prompt mentions the framework",
+                    lambda d: isinstance(d, str) and "eu-ai-act" in d.lower(),
+                ),
+                Check(
+                    "prompt contains compliance guidance keywords",
+                    lambda d: (
+                        isinstance(d, str)
+                        and any(
+                            kw in d.lower()
+                            for kw in ["compliance", "requirement", "risk", "implement"]
+                        )
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Prompts",
             name="TC-22 • Prompt risk_assessment_analysis",
             description="Returns a risk assessment prompt with embedded FINOS risk documentation",
             cli_args=prompt(
                 "risk_assessment_analysis",
-                ["risk_category=data poisoning",
-                 "context=a financial institution fine-tuning an LLM on proprietary trading data"],
+                [
+                    "risk_category=data poisoning",
+                    "context=a financial institution fine-tuning an LLM on proprietary trading data",
+                ],
             ),
             parse_path="prompt",
             checks=[
-                Check("prompt text length > 300 chars",
-                      lambda d: isinstance(d, str) and len(d) > 300),
-                Check("prompt contains 'RISK CATEGORY'",
-                      lambda d: isinstance(d, str) and "RISK CATEGORY" in d),
-                Check("prompt contains embedded risk documentation",
-                      lambda d: isinstance(d, str) and (
-                          "RELEVANT RISK DOCUMENTATION" in d or "RI-" in d
-                      )),
+                Check(
+                    "prompt text length > 300 chars",
+                    lambda d: isinstance(d, str) and len(d) > 300,
+                ),
+                Check(
+                    "prompt contains 'RISK CATEGORY'",
+                    lambda d: isinstance(d, str) and "RISK CATEGORY" in d,
+                ),
+                Check(
+                    "prompt contains embedded risk documentation",
+                    lambda d: (
+                        isinstance(d, str)
+                        and ("RELEVANT RISK DOCUMENTATION" in d or "RI-" in d)
+                    ),
+                ),
             ],
         ),
-
         TestCase(
             category="Prompts",
             name="TC-23 • Prompt mitigation_strategy_prompt",
             description="Returns a mitigation prompt with embedded FINOS mitigation strategies",
             cli_args=prompt(
                 "mitigation_strategy_prompt",
-                ["risk_type=privacy leakage",
-                 "system_description=LLM assistant integrated with internal HR data and customer PII"],
+                [
+                    "risk_type=privacy leakage",
+                    "system_description=LLM assistant integrated with internal HR data and customer PII",
+                ],
             ),
             parse_path="prompt",
             checks=[
-                Check("prompt text length > 300 chars",
-                      lambda d: isinstance(d, str) and len(d) > 300),
-                Check("prompt contains 'RISK TYPE'",
-                      lambda d: isinstance(d, str) and "RISK TYPE" in d),
-                Check("prompt contains mitigation strategies section",
-                      lambda d: isinstance(d, str) and (
-                          "AVAILABLE MITIGATION" in d or "MI-" in d
-                      )),
+                Check(
+                    "prompt text length > 300 chars",
+                    lambda d: isinstance(d, str) and len(d) > 300,
+                ),
+                Check(
+                    "prompt contains 'RISK TYPE'",
+                    lambda d: isinstance(d, str) and "RISK TYPE" in d,
+                ),
+                Check(
+                    "prompt contains mitigation strategies section",
+                    lambda d: (
+                        isinstance(d, str)
+                        and ("AVAILABLE MITIGATION" in d or "MI-" in d)
+                    ),
+                ),
             ],
         ),
     ]
@@ -586,9 +738,11 @@ def run_test(tc: TestCase, config: str, server: str, timeout: int) -> TestResult
 
     if not ok and not raw.startswith("{"):
         return TestResult(
-            case=tc, passed=False,
+            case=tc,
+            passed=False,
             failures=[f"Inspector call failed: {raw}"],
-            raw_output=raw, duration_ms=elapsed,
+            raw_output=raw,
+            duration_ms=elapsed,
         )
 
     parse_ok, data, parse_err = parse_response(raw, tc.parse_path)
@@ -670,7 +824,9 @@ def generate_markdown_report(
                     detail += f" (+{len(r.failures) - 2} more)"
             # Escape pipes in detail
             detail = detail.replace("|", "\\|")
-            lines.append(f"| {r.case.name[:6]} | {r.case.description} | {badge} | {dur} | {detail} |")
+            lines.append(
+                f"| {r.case.name[:6]} | {r.case.description} | {badge} | {dur} | {detail} |"
+            )
         lines.append("")
 
     # Failed test details
@@ -695,9 +851,12 @@ def generate_markdown_report(
     lines.append("|----|----------|------|------------|")
     for r in results:
         method_flag = next(
-            (r.case.cli_args[i + 1] for i, a in enumerate(r.case.cli_args)
-             if a == "--method"),
-            "?"
+            (
+                r.case.cli_args[i + 1]
+                for i, a in enumerate(r.case.cli_args)
+                if a == "--method"
+            ),
+            "?",
         )
         lines.append(
             f"| {r.case.name[:6]} | {r.case.category} | "
@@ -764,7 +923,12 @@ def main() -> None:
     for tc in suite:
         if tc.category != current_category:
             current_category = tc.category
-            print(_c(CYAN, f"\n── {current_category} " + "─" * (44 - len(current_category))))
+            print(
+                _c(
+                    CYAN,
+                    f"\n── {current_category} " + "─" * (44 - len(current_category)),
+                )
+            )
 
         print(f"  {tc.name} … ", end="", flush=True)
         result = run_test(tc, args.config, args.server, args.timeout)
@@ -788,7 +952,12 @@ def main() -> None:
     if failed == 0:
         print(_c(GREEN, _c(BOLD, f"  ALL {passed} TESTS PASSED")))
     else:
-        print(_c(RED, _c(BOLD, f"  {failed} FAILED, {passed} PASSED  ({len(results)} total)")))
+        print(
+            _c(
+                RED,
+                _c(BOLD, f"  {failed} FAILED, {passed} PASSED  ({len(results)} total)"),
+            )
+        )
     print(f"  Total time: {total_ms / 1000:.1f}s")
     print(_c(BOLD, "=" * 60))
 

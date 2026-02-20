@@ -399,11 +399,35 @@ _LOWERCASE_WORDS: frozenset[str] = frozenset(
 )
 
 # Stop words filtered out during multi-token search fallback.
-_SEARCH_STOP_WORDS: frozenset[str] = frozenset({
-    "a", "an", "the", "is", "are", "was", "were", "be", "been",
-    "for", "of", "in", "to", "and", "or", "with", "at", "by",
-    "from", "that", "this", "it", "on", "as", "not",
-})
+_SEARCH_STOP_WORDS: frozenset[str] = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "for",
+        "of",
+        "in",
+        "to",
+        "and",
+        "or",
+        "with",
+        "at",
+        "by",
+        "from",
+        "that",
+        "this",
+        "it",
+        "on",
+        "as",
+        "not",
+    }
+)
 
 
 def _format_document_name(filename: str, prefix: str) -> str:
@@ -1050,7 +1074,11 @@ def _best_match_index(content: str, query: str) -> tuple[int, bool]:
 
     # Fallback: individual tokens, longest first
     tokens = sorted(
-        (t for t in query.lower().split() if len(t) > 2 and t not in _SEARCH_STOP_WORDS),
+        (
+            t
+            for t in query.lower().split()
+            if len(t) > 2 and t not in _SEARCH_STOP_WORDS
+        ),
         key=len,
         reverse=True,
     )

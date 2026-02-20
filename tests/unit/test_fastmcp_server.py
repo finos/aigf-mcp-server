@@ -607,7 +607,9 @@ class TestBestMatchIndex:
     def test_token_fallback_finds_match(self):
         # "customer data privacy" -> tokens ["customer","data","privacy"]
         # "data" is in the content
-        idx, is_exact = _best_match_index("sensitive data leakage", "customer data privacy")
+        idx, is_exact = _best_match_index(
+            "sensitive data leakage", "customer data privacy"
+        )
         assert idx >= 0
         assert is_exact is False
 
@@ -636,13 +638,13 @@ class TestSearchRanking:
 
         exact_late = (
             SearchResult(framework_id="risk-a", section="S", content="x"),
-            True,   # is_exact
-            800,    # match_index — late in document
+            True,  # is_exact
+            800,  # match_index — late in document
         )
         fallback_early = (
             SearchResult(framework_id="risk-b", section="S", content="x"),
             False,  # token fallback
-            5,      # match_index — very early
+            5,  # match_index — very early
         )
         exact_early = (
             SearchResult(framework_id="risk-c", section="S", content="x"),
@@ -660,6 +662,8 @@ class TestSearchRanking:
     @pytest.mark.asyncio
     async def test_search_risks_token_fallback_still_returns_results(self):
         """Token-fallback queries still return results (T7 regression)."""
-        result = await _invoke_direct_tool(search_risks, "customer data privacy", limit=5)
+        result = await _invoke_direct_tool(
+            search_risks, "customer data privacy", limit=5
+        )
         assert isinstance(result, SearchResults)
         assert result.total_found >= 1
