@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from finos_mcp.fastmcp_server import (
     CacheStats,
+    DocumentInfo,
     DocumentList,
     Framework,
     FrameworkContent,
@@ -463,3 +464,73 @@ class TestExtractSection:
         result = _extract_section(doc, "Purpose")
         assert "controls" in result
         assert "Steps" not in result
+
+
+@pytest.mark.unit
+class TestTitleField:
+    """Tests for the title field on DocumentInfo and Framework models (MCP 2025-06-18)."""
+
+    def test_document_info_has_title_field(self):
+        """DocumentInfo accepts and stores a title."""
+        doc = DocumentInfo(
+            id="9_data-poisoning",
+            name="Data Poisoning (RI-9)",
+            filename="ri-9_data-poisoning.md",
+            title="Data Poisoning (RI-9)",
+        )
+        assert doc.title == "Data Poisoning (RI-9)"
+
+    def test_document_info_title_optional(self):
+        """DocumentInfo title defaults to None for backwards compatibility."""
+        doc = DocumentInfo(
+            id="9_data-poisoning",
+            name="Data Poisoning (RI-9)",
+            filename="ri-9_data-poisoning.md",
+        )
+        assert doc.title is None
+
+    def test_framework_has_title_field(self):
+        """Framework accepts and stores a title."""
+        fw = Framework(
+            id="nist-ai-rmf",
+            name="NIST AI Risk Management Framework",
+            description="A framework for AI risk management",
+            title="NIST AI Risk Management Framework",
+        )
+        assert fw.title == "NIST AI Risk Management Framework"
+
+    def test_framework_title_optional(self):
+        """Framework title defaults to None for backwards compatibility."""
+        fw = Framework(
+            id="nist-ai-rmf",
+            name="NIST AI Risk Management Framework",
+            description="A framework for AI risk management",
+        )
+        assert fw.title is None
+
+    @pytest.mark.asyncio
+    async def test_list_risks_documents_have_title(self):
+        """list_risks must set title on every returned document."""
+        result = await _invoke_direct_tool(list_risks)
+        assert isinstance(result, DocumentList)
+        for doc in result.documents:
+            assert doc.title is not None, f"Missing title on risk doc: {doc.id}"
+            assert len(doc.title) > 0
+
+    @pytest.mark.asyncio
+    async def test_list_mitigations_documents_have_title(self):
+        """list_mitigations must set title on every returned document."""
+        result = await _invoke_direct_tool(list_mitigations)
+        assert isinstance(result, DocumentList)
+        for doc in result.documents:
+            assert doc.title is not None, f"Missing title on mitigation doc: {doc.id}"
+            assert len(doc.title) > 0
+
+    @pytest.mark.asyncio
+    async def test_list_frameworks_have_title(self):
+        """list_frameworks must set title on every returned framework."""
+        result = await _invoke_direct_tool(list_frameworks)
+        assert isinstance(result, FrameworkList)
+        for fw in result.frameworks:
+            assert fw.title is not None, f"Missing title on framework: {fw.id}"
+            assert len(fw.title) > 0

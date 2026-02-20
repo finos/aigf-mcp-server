@@ -106,6 +106,7 @@ class Framework(BaseModel):
     id: str
     name: str
     description: str
+    title: str | None = None
 
 
 class FrameworkList(BaseModel):
@@ -148,6 +149,7 @@ class DocumentInfo(BaseModel):
     filename: str
     description: str | None = None
     last_modified: str | None = None
+    title: str | None = None
 
 
 class DocumentList(BaseModel):
@@ -343,7 +345,12 @@ async def list_frameworks() -> FrameworkList:
             description = f"Framework definition: {framework_name}"
 
             frameworks.append(
-                Framework(id=framework_id, name=framework_name, description=description)
+                Framework(
+                    id=framework_id,
+                    name=framework_name,
+                    description=description,
+                    title=framework_name,
+                )
             )
 
         return FrameworkList(frameworks=frameworks, total_count=len(frameworks))
@@ -359,6 +366,7 @@ async def list_frameworks() -> FrameworkList:
                     id=framework_id,
                     name=framework_name,
                     description=f"Framework definition: {framework_name}",
+                    title=framework_name,
                 )
             )
 
@@ -615,6 +623,7 @@ async def list_risks() -> DocumentList:
                     last_modified=file_info.last_modified.isoformat()
                     if file_info.last_modified
                     else None,
+                    title=doc_name,
                 )
             )
 
@@ -638,6 +647,7 @@ async def list_risks() -> DocumentList:
                     filename=filename,
                     description=f"AI governance risk: {doc_name}",
                     last_modified=None,
+                    title=doc_name,
                 )
             )
         return DocumentList(
@@ -681,6 +691,7 @@ async def list_mitigations() -> DocumentList:
                     last_modified=file_info.last_modified.isoformat()
                     if file_info.last_modified
                     else None,
+                    title=doc_name,
                 )
             )
 
@@ -704,6 +715,7 @@ async def list_mitigations() -> DocumentList:
                     filename=filename,
                     description=f"AI governance mitigation: {doc_name}",
                     last_modified=None,
+                    title=doc_name,
                 )
             )
         return DocumentList(
