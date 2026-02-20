@@ -11,11 +11,15 @@ from pydantic import ValidationError
 
 from finos_mcp.fastmcp_server import (
     CacheStats,
+    DocumentInfo,
     DocumentList,
     Framework,
     FrameworkContent,
     FrameworkList,
     ServiceHealth,
+    _clean_search_snippet,
+    _extract_section,
+    _format_document_name,
     get_cache_stats,
     get_framework,
     get_service_health,
@@ -332,3 +336,213 @@ class TestErrorHandling:
                 cache_misses=25,
                 hit_rate=0.75,
             )
+
+
+@pytest.mark.unit
+class TestFormatDocumentName:
+    """Tests for the _format_document_name helper."""
+
+    def test_basic_risk_name(self):
+        assert (
+            _format_document_name("ri-9_data-poisoning.md", "ri-")
+            == "Data Poisoning (RI-9)"
+        )
+
+    def test_basic_mitigation_name(self):
+        assert (
+            _format_document_name(
+                "mi-1_ai-data-leakage-prevention-and-detection.md", "mi-"
+            )
+            == "AI Data Leakage Prevention and Detection (MI-1)"
+        )
+
+    def test_acronym_mcp_uppercased(self):
+        result = _format_document_name("mi-20_mcp-server-security-governance.md", "mi-")
+        assert result == "MCP Server Security Governance (MI-20)"
+
+    def test_acronym_llm_uppercased(self):
+        result = _format_document_name("ri-10_prompt-injection.md", "ri-")
+        assert "RI-10" in result
+        assert result.startswith("Prompt Injection")
+
+    def test_trailing_dash_stripped(self):
+        result = _format_document_name(
+            "mi-15_using-large-language-models-for-automated-evaluation-llm-as-a-judge-.md",
+            "mi-",
+        )
+        assert not result.endswith("(MI-15) ")
+        assert not result.endswith("- (MI-15)")
+        assert "LLM" in result
+        assert "MI-15" in result
+
+    def test_number_in_parentheses(self):
+        result = _format_document_name("ri-16_bias-and-discrimination.md", "ri-")
+        assert result == "Bias and Discrimination (RI-16)"
+
+    def test_strips_prefix_correctly(self):
+        """Prefix should not appear in the output name."""
+        result = _format_document_name(
+            "ri-4_hallucination-and-inaccurate-outputs.md", "ri-"
+        )
+        assert not result.startswith("Ri ")
+        assert "RI-4" in result
+
+    def test_list_risks_names_are_clean(self):
+        """Integration check: list_risks documents must not contain old-style names."""
+        from finos_mcp.content.discovery import STATIC_RISK_FILES
+
+        for filename in STATIC_RISK_FILES:
+            name = _format_document_name(filename, "ri-")
+            assert not name.startswith("Ri "), f"Old prefix in: {name}"
+            assert "RI-" in name, f"Missing number badge in: {name}"
+
+    def test_list_mitigations_names_are_clean(self):
+        """Integration check: list_mitigations documents must not contain old-style names."""
+        from finos_mcp.content.discovery import STATIC_MITIGATION_FILES
+
+        for filename in STATIC_MITIGATION_FILES:
+            name = _format_document_name(filename, "mi-")
+            assert not name.startswith("Mi "), f"Old prefix in: {name}"
+            assert "MI-" in name, f"Missing number badge in: {name}"
+
+
+@pytest.mark.unit
+class TestCleanSearchSnippet:
+    """Tests for the _clean_search_snippet helper."""
+
+    def test_returns_prose_around_match(self):
+        text = "## Summary\n\nData poisoning occurs when adversaries tamper with training data.\n\n## Description\n\nMore detail here."
+        snippet = _clean_search_snippet(text, "poisoning", text.index("poisoning"))
+        assert "poisoning" in snippet.lower()
+        assert len(snippet) > 20
+
+    def test_skips_url_field_lines(self):
+        text = "## Links\n\nurl: https://example.com/path\nSome prose content here about the topic.\nurl: https://other.com"
+        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        assert "https://" not in snippet
+        assert "prose" in snippet.lower()
+
+    def test_skips_bare_url_lines(self):
+        text = "Before text.\nhttps://example.com/very/long/url\nAfter prose text with the query term."
+        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        assert "https://" not in snippet
+
+    def test_truncates_long_snippets(self):
+        long_text = "word " * 200
+        snippet = _clean_search_snippet(long_text, "word", 0)
+        assert len(snippet) <= 283  # 280 + "..."
+
+    def test_fallback_when_no_prose(self):
+        text = "url: https://a.com\nurl: https://b.com"
+        snippet = _clean_search_snippet(text, "query", 0)
+        assert len(snippet) > 0  # never empty
+
+
+@pytest.mark.unit
+class TestExtractSection:
+    """Tests for the _extract_section helper."""
+
+    _DOC = (
+        "## Summary\n\nThis is the summary text describing the risk.\n\n"
+        "## Description\n\nDetailed description follows here.\n\n"
+        "## Links\n\nurl: https://example.com"
+    )
+
+    def test_extracts_named_section(self):
+        result = _extract_section(self._DOC, "Summary")
+        assert "summary text" in result.lower()
+        assert "Description" not in result
+
+    def test_first_matching_header_wins(self):
+        result = _extract_section(self._DOC, "Summary", "Description")
+        assert "summary text" in result.lower()
+
+    def test_falls_back_to_second_header(self):
+        result = _extract_section(self._DOC, "Overview", "Description")
+        assert "Detailed description" in result
+
+    def test_returns_empty_when_no_match(self):
+        result = _extract_section(self._DOC, "NonExistent")
+        assert result == ""
+
+    def test_respects_max_chars(self):
+        long_body = "x " * 1000
+        doc = f"## Summary\n\n{long_body}"
+        result = _extract_section(doc, "Summary", max_chars=50)
+        assert len(result) <= 50
+
+    def test_purpose_header(self):
+        doc = "## Purpose\n\nThis mitigation addresses the risk by applying controls.\n\n## Implementation\n\nSteps here."
+        result = _extract_section(doc, "Purpose")
+        assert "controls" in result
+        assert "Steps" not in result
+
+
+@pytest.mark.unit
+class TestTitleField:
+    """Tests for the title field on DocumentInfo and Framework models (MCP 2025-06-18)."""
+
+    def test_document_info_has_title_field(self):
+        """DocumentInfo accepts and stores a title."""
+        doc = DocumentInfo(
+            id="9_data-poisoning",
+            name="Data Poisoning (RI-9)",
+            filename="ri-9_data-poisoning.md",
+            title="Data Poisoning (RI-9)",
+        )
+        assert doc.title == "Data Poisoning (RI-9)"
+
+    def test_document_info_title_optional(self):
+        """DocumentInfo title defaults to None for backwards compatibility."""
+        doc = DocumentInfo(
+            id="9_data-poisoning",
+            name="Data Poisoning (RI-9)",
+            filename="ri-9_data-poisoning.md",
+        )
+        assert doc.title is None
+
+    def test_framework_has_title_field(self):
+        """Framework accepts and stores a title."""
+        fw = Framework(
+            id="nist-ai-rmf",
+            name="NIST AI Risk Management Framework",
+            description="A framework for AI risk management",
+            title="NIST AI Risk Management Framework",
+        )
+        assert fw.title == "NIST AI Risk Management Framework"
+
+    def test_framework_title_optional(self):
+        """Framework title defaults to None for backwards compatibility."""
+        fw = Framework(
+            id="nist-ai-rmf",
+            name="NIST AI Risk Management Framework",
+            description="A framework for AI risk management",
+        )
+        assert fw.title is None
+
+    @pytest.mark.asyncio
+    async def test_list_risks_documents_have_title(self):
+        """list_risks must set title on every returned document."""
+        result = await _invoke_direct_tool(list_risks)
+        assert isinstance(result, DocumentList)
+        for doc in result.documents:
+            assert doc.title is not None, f"Missing title on risk doc: {doc.id}"
+            assert len(doc.title) > 0
+
+    @pytest.mark.asyncio
+    async def test_list_mitigations_documents_have_title(self):
+        """list_mitigations must set title on every returned document."""
+        result = await _invoke_direct_tool(list_mitigations)
+        assert isinstance(result, DocumentList)
+        for doc in result.documents:
+            assert doc.title is not None, f"Missing title on mitigation doc: {doc.id}"
+            assert len(doc.title) > 0
+
+    @pytest.mark.asyncio
+    async def test_list_frameworks_have_title(self):
+        """list_frameworks must set title on every returned framework."""
+        result = await _invoke_direct_tool(list_frameworks)
+        assert isinstance(result, FrameworkList)
+        for fw in result.frameworks:
+            assert fw.title is not None, f"Missing title on framework: {fw.id}"
+            assert len(fw.title) > 0

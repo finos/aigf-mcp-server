@@ -21,6 +21,7 @@ Provides structured output and decorator-based tool registration.
 
 import asyncio
 import inspect
+import re
 import time
 from typing import Annotated
 
@@ -105,6 +106,7 @@ class Framework(BaseModel):
     id: str
     name: str
     description: str
+    title: str | None = None
 
 
 class FrameworkList(BaseModel):
@@ -147,6 +149,7 @@ class DocumentInfo(BaseModel):
     filename: str
     description: str | None = None
     last_modified: str | None = None
+    title: str | None = None
 
 
 class DocumentList(BaseModel):
@@ -342,7 +345,12 @@ async def list_frameworks() -> FrameworkList:
             description = f"Framework definition: {framework_name}"
 
             frameworks.append(
-                Framework(id=framework_id, name=framework_name, description=description)
+                Framework(
+                    id=framework_id,
+                    name=framework_name,
+                    description=description,
+                    title=framework_name,
+                )
             )
 
         return FrameworkList(frameworks=frameworks, total_count=len(frameworks))
@@ -358,6 +366,7 @@ async def list_frameworks() -> FrameworkList:
                     id=framework_id,
                     name=framework_name,
                     description=f"Framework definition: {framework_name}",
+                    title=framework_name,
                 )
             )
 
@@ -377,6 +386,52 @@ def _format_framework_name(framework_id: str) -> str:
     }
 
     return name_map.get(framework_id, framework_id.replace("-", " ").title())
+
+
+# Acronyms that should be fully uppercased when they appear as words in a name.
+_KNOWN_ACRONYMS: frozenset[str] = frozenset(
+    {"ai", "mcp", "llm", "qos", "ddos", "dow", "rbac", "ip"}
+)
+
+# Common English function words that stay lowercase in title case (except when first).
+_LOWERCASE_WORDS: frozenset[str] = frozenset(
+    {"and", "or", "the", "a", "an", "of", "for", "in", "to", "with", "as"}
+)
+
+
+def _format_document_name(filename: str, prefix: str) -> str:
+    """Format a document filename into a clean human-readable name.
+
+    Examples:
+        "ri-9_data-poisoning.md",  "ri-" -> "Data Poisoning (RI-9)"
+        "mi-20_mcp-server-security-governance.md", "mi-" -> "MCP Server Security Governance (MI-20)"
+    """
+    stem = filename.removesuffix(".md")
+    if stem.startswith(prefix):
+        stem = stem[len(prefix) :]
+
+    # Split number from slug on the first underscore.
+    parts = stem.split("_", 1)
+    if len(parts) == 2 and parts[0].isdigit():
+        number, slug = parts
+    else:
+        number, slug = "", stem
+
+    # Clean slug: strip trailing punctuation artifacts, replace hyphens with spaces.
+    raw_words = slug.rstrip("- ").replace("-", " ").split()
+    words = []
+    for i, word in enumerate(raw_words):
+        lower = word.lower()
+        if lower in _KNOWN_ACRONYMS:
+            words.append(word.upper())
+        elif i > 0 and lower in _LOWERCASE_WORDS:
+            words.append(lower)
+        else:
+            words.append(word.capitalize())
+
+    clean_name = " ".join(words)
+    label = prefix.rstrip("-").upper()
+    return f"{clean_name} ({label}-{number})" if number else clean_name
 
 
 def _format_yaml_content(yaml_content: str, framework_id: str) -> str:
@@ -556,20 +611,19 @@ async def list_risks() -> DocumentList:
         # Convert GitHub file info to DocumentInfo
         risk_docs = []
         for file_info in discovery_result.risk_files:
-            # Extract ID from filename (remove extension and prefix)
-            doc_id = file_info.filename.replace(".md", "").replace("ri-", "")
-            # Create readable name from filename
-            doc_name = file_info.filename.replace(".md", "").replace("-", " ").title()
+            doc_id = file_info.filename.removesuffix(".md").removeprefix("ri-")
+            doc_name = _format_document_name(file_info.filename, "ri-")
 
             risk_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=file_info.filename,
-                    description=f"Risk document: {doc_name}",
+                    description=f"AI governance risk: {doc_name}",
                     last_modified=file_info.last_modified.isoformat()
                     if file_info.last_modified
                     else None,
+                    title=doc_name,
                 )
             )
 
@@ -584,15 +638,16 @@ async def list_risks() -> DocumentList:
         # Fall back to static list for offline/network-constrained environments.
         fallback_docs = []
         for filename in STATIC_RISK_FILES:
-            doc_id = filename.replace(".md", "").replace("ri-", "")
-            doc_name = filename.replace(".md", "").replace("-", " ").title()
+            doc_id = filename.removesuffix(".md").removeprefix("ri-")
+            doc_name = _format_document_name(filename, "ri-")
             fallback_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=filename,
-                    description=f"Risk document: {doc_name}",
+                    description=f"AI governance risk: {doc_name}",
                     last_modified=None,
+                    title=doc_name,
                 )
             )
         return DocumentList(
@@ -624,20 +679,19 @@ async def list_mitigations() -> DocumentList:
         # Convert GitHub file info to DocumentInfo
         mitigation_docs = []
         for file_info in discovery_result.mitigation_files:
-            # Extract ID from filename (remove extension and prefix)
-            doc_id = file_info.filename.replace(".md", "").replace("mi-", "")
-            # Create readable name from filename
-            doc_name = file_info.filename.replace(".md", "").replace("-", " ").title()
+            doc_id = file_info.filename.removesuffix(".md").removeprefix("mi-")
+            doc_name = _format_document_name(file_info.filename, "mi-")
 
             mitigation_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=file_info.filename,
-                    description=f"Mitigation strategy: {doc_name}",
+                    description=f"AI governance mitigation: {doc_name}",
                     last_modified=file_info.last_modified.isoformat()
                     if file_info.last_modified
                     else None,
+                    title=doc_name,
                 )
             )
 
@@ -652,15 +706,16 @@ async def list_mitigations() -> DocumentList:
         # Fall back to static list for offline/network-constrained environments.
         fallback_docs = []
         for filename in STATIC_MITIGATION_FILES:
-            doc_id = filename.replace(".md", "").replace("mi-", "")
-            doc_name = filename.replace(".md", "").replace("-", " ").title()
+            doc_id = filename.removesuffix(".md").removeprefix("mi-")
+            doc_name = _format_document_name(filename, "mi-")
             fallback_docs.append(
                 DocumentInfo(
                     id=doc_id,
                     name=doc_name,
                     filename=filename,
-                    description=f"Mitigation strategy: {doc_name}",
+                    description=f"AI governance mitigation: {doc_name}",
                     last_modified=None,
+                    title=doc_name,
                 )
             )
         return DocumentList(
@@ -944,38 +999,66 @@ async def get_cache_stats() -> CacheStats:
 # Simple Search Tools
 
 
+_SNIPPET_URL_LINE = re.compile(r"^\s*(url|reference|href)\s*:", re.IGNORECASE)
+_SNIPPET_BARE_URL = re.compile(r"^\s*https?://\S+\s*$")
+_SECTION_HEADER = re.compile(r"^#{1,3}\s+", re.MULTILINE)
+
+
+def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
+    """Extract the text body of the first matching markdown section.
+
+    Tries each header name in order (case-insensitive).  Returns up to
+    max_chars of the section body, or an empty string if none is found.
+    """
+    for header in headers:
+        pattern = re.compile(
+            r"^#{1,3}\s+" + re.escape(header) + r"\s*$", re.IGNORECASE | re.MULTILINE
+        )
+        m = pattern.search(content)
+        if not m:
+            continue
+        start = m.end()
+        next_h = _SECTION_HEADER.search(content, start)
+        body = content[start : next_h.start() if next_h else len(content)].strip()
+        if body:
+            return body[:max_chars]
+    return ""
+
+
 def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
-    """Extract a clean, readable snippet around the search match."""
-    import re
+    """Extract a clean prose snippet around a search match.
 
-    # Simple approach: extract text around the match
-    start = max(0, match_index - 150)
-    end = min(len(text), match_index + len(query) + 150)
-    raw_snippet = text[start:end]
+    Works line-by-line to avoid returning raw YAML field lines or bare
+    URLs as snippet content.  Collects up to 4 lines of context either
+    side of the match line, filtering out non-prose lines.
+    """
+    lines = text.splitlines()
 
-    # Clean up URL fragments and encoded characters
-    cleaned = re.sub(r"https?://[^\s]+%[A-Fa-f0-9]{2}[^\s]*", "[URL]", raw_snippet)
-    cleaned = re.sub(r"%[A-Fa-f0-9]{2}", "", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    # Locate the line that contains match_index.
+    offset = 0
+    match_line = 0
+    for i, line in enumerate(lines):
+        if offset + len(line) >= match_index:
+            match_line = i
+            break
+        offset += len(line) + 1  # +1 for the newline character
 
-    # If too much was removed, fall back to simple extraction
-    if len(cleaned) < 50:
-        lines = text[start:end].split("\n")
-        meaningful_lines = []
-        for line in lines:
-            if "http" not in line and "%" not in line and len(line.strip()) > 10:
-                meaningful_lines.append(line.strip())
+    def _is_prose(line: str) -> bool:
+        s = line.strip()
+        return (
+            bool(s)
+            and not _SNIPPET_URL_LINE.match(s)
+            and not _SNIPPET_BARE_URL.match(s)
+            and not s.startswith("```")
+        )
 
-        if meaningful_lines:
-            cleaned = " ".join(meaningful_lines[:3])
+    context = lines[max(0, match_line - 4) : match_line + 5]
+    prose = [ln.strip() for ln in context if _is_prose(ln)]
 
-    # Ensure reasonable length
-    if len(cleaned) > 250:
-        cleaned = cleaned[:250] + "..."
-
-    return (
-        cleaned.strip() if cleaned.strip() else f"Found '{query}' in framework content"
-    )
+    snippet = " ".join(prose)
+    if len(snippet) > 280:
+        snippet = snippet[:280] + "..."
+    return snippet or f"Found '{query}' in document content"
 
 
 async def _call_registered_tool(tool_obj, *args, **kwargs):
@@ -1145,41 +1228,30 @@ async def search_frameworks(
 
 
 async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[SearchResult]:
-    """Search within a single risk document (helper function for parallel processing).
+    """Search within a single risk document.
 
-    Optimized to search metadata first before loading full content to avoid rate limits.
+    Fetches full document content (served from cache after first request) and
+    returns a prose snippet around the first match.
     """
     try:
-        query_lower = query.lower()
+        doc = await _call_registered_tool(get_risk, risk_doc.id)
+        content = doc.content
+        match_index = content.lower().find(query.lower())
+        if match_index == -1:
+            return []
 
-        # OPTIMIZATION 1: Search in document name and description first (no API call needed)
-        name_match = query_lower in risk_doc.name.lower()
-        desc_match = (
-            risk_doc.description and query_lower in risk_doc.description.lower()
-        )
+        section = risk_doc.name
+        for line in reversed(content[:match_index].splitlines()[-10:]):
+            if line.strip().startswith("#"):
+                section = line.strip("#").strip()
+                break
 
-        # If we find a match in metadata, create a result using available info
-        if name_match or desc_match:
-            # Create snippet from available metadata
-            snippet_parts = []
-            if name_match:
-                snippet_parts.append(f"Risk: {risk_doc.name}")
-            if desc_match:
-                snippet_parts.append(f"Description: {risk_doc.description}")
-
-            snippet = " | ".join(snippet_parts)
-
-            return [
-                SearchResult(
-                    framework_id=f"risk-{risk_doc.id}",
-                    section=risk_doc.name,
-                    content=snippet,
-                )
-            ]
-
-        # OPTIMIZATION 2: Only load full content if query not found in metadata
-        # This dramatically reduces API calls during search
-        return []
+        snippet = _clean_search_snippet(content, query, match_index)
+        return [
+            SearchResult(
+                framework_id=f"risk-{risk_doc.id}", section=section, content=snippet
+            )
+        ]
 
     except Exception as e:
         logger.warning("Failed to search risk %s: %s", risk_doc.id, e)
@@ -1269,42 +1341,32 @@ async def search_risks(
 async def _search_single_mitigation(
     mitigation_doc: DocumentInfo, query: str
 ) -> list[SearchResult]:
-    """Search within a single mitigation document (helper function for parallel processing).
+    """Search within a single mitigation document.
 
-    Optimized to search metadata first before loading full content to avoid rate limits.
+    Fetches full document content (served from cache after first request) and
+    returns a prose snippet around the first match.
     """
     try:
-        query_lower = query.lower()
+        doc = await _call_registered_tool(get_mitigation, mitigation_doc.id)
+        content = doc.content
+        match_index = content.lower().find(query.lower())
+        if match_index == -1:
+            return []
 
-        # OPTIMIZATION 1: Search in document name and description first (no API call needed)
-        name_match = query_lower in mitigation_doc.name.lower()
-        desc_match = (
-            mitigation_doc.description
-            and query_lower in mitigation_doc.description.lower()
-        )
+        section = mitigation_doc.name
+        for line in reversed(content[:match_index].splitlines()[-10:]):
+            if line.strip().startswith("#"):
+                section = line.strip("#").strip()
+                break
 
-        # If we find a match in metadata, create a result using available info
-        if name_match or desc_match:
-            # Create snippet from available metadata
-            snippet_parts = []
-            if name_match:
-                snippet_parts.append(f"Mitigation: {mitigation_doc.name}")
-            if desc_match:
-                snippet_parts.append(f"Description: {mitigation_doc.description}")
-
-            snippet = " | ".join(snippet_parts)
-
-            return [
-                SearchResult(
-                    framework_id=f"mitigation-{mitigation_doc.id}",
-                    section=mitigation_doc.name,
-                    content=snippet,
-                )
-            ]
-
-        # OPTIMIZATION 2: Only load full content if query not found in metadata
-        # This dramatically reduces API calls during search
-        return []
+        snippet = _clean_search_snippet(content, query, match_index)
+        return [
+            SearchResult(
+                framework_id=f"mitigation-{mitigation_doc.id}",
+                section=section,
+                content=snippet,
+            )
+        ]
 
     except Exception as e:
         logger.warning("Failed to search mitigation %s: %s", mitigation_doc.id, e)
@@ -1570,12 +1632,30 @@ async def risk_assessment_analysis(
         Prompt for conducting risk assessment.
     """
     _validate_request_params(risk_category=risk_category, context=context)
-    # Search for relevant risk documents
-    search_results = await _call_registered_tool(search_risks, risk_category, limit=3)
 
-    risk_info = ""
+    # Find relevant risk documents and extract their Summary sections.
+    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
+    search_query = risk_category.replace("-", " ")
+    search_results = await _call_registered_tool(search_risks, search_query, limit=3)
+
+    risk_sections: list[str] = []
     for result in search_results.results:
-        risk_info += f"\n{result.section}:\n{result.content}\n"
+        risk_id = result.framework_id.removeprefix("risk-")
+        try:
+            doc = await _call_registered_tool(get_risk, risk_id)
+            summary = _extract_section(
+                doc.content, "Summary", "Overview", "Description"
+            )
+            if summary:
+                risk_sections.append(f"### {doc.title} ({risk_id})\n{summary}")
+        except Exception as exc:
+            logger.debug("Skipping risk doc %s in prompt: %s", risk_id, exc)
+
+    risk_info = (
+        "\n\n".join(risk_sections)
+        if risk_sections
+        else "No specific documentation found for this risk category."
+    )
 
     return f"""You are an AI risk assessment specialist. Conduct a thorough risk assessment for the following scenario.
 
@@ -1617,14 +1697,32 @@ async def mitigation_strategy_prompt(
         Prompt for developing mitigation strategies.
     """
     _validate_request_params(risk_type=risk_type, system_description=system_description)
-    # Search for relevant mitigation strategies
+
+    # Find relevant mitigation documents and extract their Purpose sections.
+    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
+    search_query = risk_type.replace("-", " ")
     mitigation_results = await _call_registered_tool(
-        search_mitigations, risk_type, limit=3
+        search_mitigations, search_query, limit=3
     )
 
-    mitigation_info = ""
+    mitigation_sections: list[str] = []
     for result in mitigation_results.results:
-        mitigation_info += f"\n{result.section}:\n{result.content}\n"
+        mitigation_id = result.framework_id.removeprefix("mitigation-")
+        try:
+            doc = await _call_registered_tool(get_mitigation, mitigation_id)
+            purpose = _extract_section(doc.content, "Purpose", "Summary", "Overview")
+            if purpose:
+                mitigation_sections.append(
+                    f"### {doc.title} ({mitigation_id})\n{purpose}"
+                )
+        except Exception as exc:
+            logger.debug("Skipping mitigation doc %s in prompt: %s", mitigation_id, exc)
+
+    mitigation_info = (
+        "\n\n".join(mitigation_sections)
+        if mitigation_sections
+        else "No specific mitigation documentation found for this risk type."
+    )
 
     return f"""You are an AI safety engineer tasked with developing mitigation strategies.
 
