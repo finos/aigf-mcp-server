@@ -21,6 +21,7 @@ Provides structured output and decorator-based tool registration.
 
 import asyncio
 import inspect
+import re
 import time
 from typing import Annotated
 
@@ -986,38 +987,39 @@ async def get_cache_stats() -> CacheStats:
 # Simple Search Tools
 
 
+_SNIPPET_URL_LINE = re.compile(r"^\s*(url|reference|href)\s*:", re.IGNORECASE)
+_SNIPPET_BARE_URL = re.compile(r"^\s*https?://\S+\s*$")
+
+
 def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
-    """Extract a clean, readable snippet around the search match."""
-    import re
+    """Extract a clean prose snippet around a search match.
 
-    # Simple approach: extract text around the match
-    start = max(0, match_index - 150)
-    end = min(len(text), match_index + len(query) + 150)
-    raw_snippet = text[start:end]
+    Works line-by-line to avoid returning raw YAML field lines or bare
+    URLs as snippet content.  Collects up to 4 lines of context either
+    side of the match line, filtering out non-prose lines.
+    """
+    lines = text.splitlines()
 
-    # Clean up URL fragments and encoded characters
-    cleaned = re.sub(r"https?://[^\s]+%[A-Fa-f0-9]{2}[^\s]*", "[URL]", raw_snippet)
-    cleaned = re.sub(r"%[A-Fa-f0-9]{2}", "", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    # Locate the line that contains match_index.
+    offset = 0
+    match_line = 0
+    for i, line in enumerate(lines):
+        if offset + len(line) >= match_index:
+            match_line = i
+            break
+        offset += len(line) + 1  # +1 for the newline character
 
-    # If too much was removed, fall back to simple extraction
-    if len(cleaned) < 50:
-        lines = text[start:end].split("\n")
-        meaningful_lines = []
-        for line in lines:
-            if "http" not in line and "%" not in line and len(line.strip()) > 10:
-                meaningful_lines.append(line.strip())
+    def _is_prose(line: str) -> bool:
+        s = line.strip()
+        return bool(s) and not _SNIPPET_URL_LINE.match(s) and not _SNIPPET_BARE_URL.match(s) and not s.startswith("```")
 
-        if meaningful_lines:
-            cleaned = " ".join(meaningful_lines[:3])
+    context = lines[max(0, match_line - 4) : match_line + 5]
+    prose = [l.strip() for l in context if _is_prose(l)]
 
-    # Ensure reasonable length
-    if len(cleaned) > 250:
-        cleaned = cleaned[:250] + "..."
-
-    return (
-        cleaned.strip() if cleaned.strip() else f"Found '{query}' in framework content"
-    )
+    snippet = " ".join(prose)
+    if len(snippet) > 280:
+        snippet = snippet[:280] + "..."
+    return snippet or f"Found '{query}' in document content"
 
 
 async def _call_registered_tool(tool_obj, *args, **kwargs):
@@ -1187,41 +1189,26 @@ async def search_frameworks(
 
 
 async def _search_single_risk(risk_doc: DocumentInfo, query: str) -> list[SearchResult]:
-    """Search within a single risk document (helper function for parallel processing).
+    """Search within a single risk document.
 
-    Optimized to search metadata first before loading full content to avoid rate limits.
+    Fetches full document content (served from cache after first request) and
+    returns a prose snippet around the first match.
     """
     try:
-        query_lower = query.lower()
+        doc = await _call_registered_tool(get_risk, risk_doc.id)
+        content = doc.content
+        match_index = content.lower().find(query.lower())
+        if match_index == -1:
+            return []
 
-        # OPTIMIZATION 1: Search in document name and description first (no API call needed)
-        name_match = query_lower in risk_doc.name.lower()
-        desc_match = (
-            risk_doc.description and query_lower in risk_doc.description.lower()
-        )
+        section = risk_doc.name
+        for line in reversed(content[:match_index].splitlines()[-10:]):
+            if line.strip().startswith("#"):
+                section = line.strip("#").strip()
+                break
 
-        # If we find a match in metadata, create a result using available info
-        if name_match or desc_match:
-            # Create snippet from available metadata
-            snippet_parts = []
-            if name_match:
-                snippet_parts.append(f"Risk: {risk_doc.name}")
-            if desc_match:
-                snippet_parts.append(f"Description: {risk_doc.description}")
-
-            snippet = " | ".join(snippet_parts)
-
-            return [
-                SearchResult(
-                    framework_id=f"risk-{risk_doc.id}",
-                    section=risk_doc.name,
-                    content=snippet,
-                )
-            ]
-
-        # OPTIMIZATION 2: Only load full content if query not found in metadata
-        # This dramatically reduces API calls during search
-        return []
+        snippet = _clean_search_snippet(content, query, match_index)
+        return [SearchResult(framework_id=f"risk-{risk_doc.id}", section=section, content=snippet)]
 
     except Exception as e:
         logger.warning("Failed to search risk %s: %s", risk_doc.id, e)
@@ -1311,42 +1298,26 @@ async def search_risks(
 async def _search_single_mitigation(
     mitigation_doc: DocumentInfo, query: str
 ) -> list[SearchResult]:
-    """Search within a single mitigation document (helper function for parallel processing).
+    """Search within a single mitigation document.
 
-    Optimized to search metadata first before loading full content to avoid rate limits.
+    Fetches full document content (served from cache after first request) and
+    returns a prose snippet around the first match.
     """
     try:
-        query_lower = query.lower()
+        doc = await _call_registered_tool(get_mitigation, mitigation_doc.id)
+        content = doc.content
+        match_index = content.lower().find(query.lower())
+        if match_index == -1:
+            return []
 
-        # OPTIMIZATION 1: Search in document name and description first (no API call needed)
-        name_match = query_lower in mitigation_doc.name.lower()
-        desc_match = (
-            mitigation_doc.description
-            and query_lower in mitigation_doc.description.lower()
-        )
+        section = mitigation_doc.name
+        for line in reversed(content[:match_index].splitlines()[-10:]):
+            if line.strip().startswith("#"):
+                section = line.strip("#").strip()
+                break
 
-        # If we find a match in metadata, create a result using available info
-        if name_match or desc_match:
-            # Create snippet from available metadata
-            snippet_parts = []
-            if name_match:
-                snippet_parts.append(f"Mitigation: {mitigation_doc.name}")
-            if desc_match:
-                snippet_parts.append(f"Description: {mitigation_doc.description}")
-
-            snippet = " | ".join(snippet_parts)
-
-            return [
-                SearchResult(
-                    framework_id=f"mitigation-{mitigation_doc.id}",
-                    section=mitigation_doc.name,
-                    content=snippet,
-                )
-            ]
-
-        # OPTIMIZATION 2: Only load full content if query not found in metadata
-        # This dramatically reduces API calls during search
-        return []
+        snippet = _clean_search_snippet(content, query, match_index)
+        return [SearchResult(framework_id=f"mitigation-{mitigation_doc.id}", section=section, content=snippet)]
 
     except Exception as e:
         logger.warning("Failed to search mitigation %s: %s", mitigation_doc.id, e)

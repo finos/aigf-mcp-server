@@ -16,6 +16,7 @@ from finos_mcp.fastmcp_server import (
     FrameworkContent,
     FrameworkList,
     ServiceHealth,
+    _clean_search_snippet,
     _format_document_name,
     get_cache_stats,
     get_framework,
@@ -389,3 +390,35 @@ class TestFormatDocumentName:
             name = _format_document_name(filename, "mi-")
             assert not name.startswith("Mi "), f"Old prefix in: {name}"
             assert "MI-" in name, f"Missing number badge in: {name}"
+
+
+@pytest.mark.unit
+class TestCleanSearchSnippet:
+    """Tests for the _clean_search_snippet helper."""
+
+    def test_returns_prose_around_match(self):
+        text = "## Summary\n\nData poisoning occurs when adversaries tamper with training data.\n\n## Description\n\nMore detail here."
+        snippet = _clean_search_snippet(text, "poisoning", text.index("poisoning"))
+        assert "poisoning" in snippet.lower()
+        assert len(snippet) > 20
+
+    def test_skips_url_field_lines(self):
+        text = "## Links\n\nurl: https://example.com/path\nSome prose content here about the topic.\nurl: https://other.com"
+        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        assert "https://" not in snippet
+        assert "prose" in snippet.lower()
+
+    def test_skips_bare_url_lines(self):
+        text = "Before text.\nhttps://example.com/very/long/url\nAfter prose text with the query term."
+        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        assert "https://" not in snippet
+
+    def test_truncates_long_snippets(self):
+        long_text = "word " * 200
+        snippet = _clean_search_snippet(long_text, "word", 0)
+        assert len(snippet) <= 283  # 280 + "..."
+
+    def test_fallback_when_no_prose(self):
+        text = "url: https://a.com\nurl: https://b.com"
+        snippet = _clean_search_snippet(text, "query", 0)
+        assert len(snippet) > 0  # never empty
