@@ -9,6 +9,27 @@ The server provides 11 tools organized in 3 categories:
 - **Risk & Mitigation Tools** (4 tools): Access and search AI governance risks and mitigations
 - **System Monitoring Tools** (2 tools): Service health and cache performance monitoring
 
+### Tool Annotations (MCP Hints)
+
+All tools publish MCP `annotations` metadata to improve planner behavior and client UX:
+- `title`
+- `readOnlyHint`
+- `destructiveHint`
+- `idempotentHint`
+- `openWorldHint`
+
+Current policy:
+- Content/discovery/search tools: `readOnlyHint=true`, `destructiveHint=false`, `idempotentHint=true`, `openWorldHint=true`
+- Internal telemetry tools (`get_service_health`, `get_cache_stats`): same hints, but `openWorldHint=false`
+
+These hints are advisory metadata for planning/safety UX and do not replace hard security controls.
+
+### Resource And Prompt Metadata
+
+In addition to tool annotations:
+- Resource templates publish explicit `title`/`description` plus `annotations` (`audience`, `priority`) for better client ranking and context targeting.
+- Prompts publish explicit `title`/`description` metadata. (Prompt objects do not include MCP `annotations` fields in the current protocol type model.)
+
 ---
 
 ## Framework Access Tools
