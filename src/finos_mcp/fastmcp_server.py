@@ -99,6 +99,25 @@ mcp = FastMCP(settings.server_name, auth=_build_auth_provider(settings))
 _SERVER_START_TIME = time.monotonic()
 
 
+def _tool_annotations(*, title: str, open_world: bool) -> dict[str, bool | str]:
+    """Return MCP tool behavior hints aligned with MCP annotation guidance."""
+    return {
+        "title": title,
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": open_world,
+    }
+
+
+def _resource_annotations(*, priority: float = 0.8) -> dict[str, object]:
+    """Return MCP resource annotations for audience targeting and ranking."""
+    return {
+        "audience": ["assistant"],
+        "priority": priority,
+    }
+
+
 # Structured output models
 class Framework(BaseModel):
     """Framework information."""
@@ -307,7 +326,12 @@ async def close_service():
 # Repository Tools with Structured Output
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="List Governance Frameworks",
+        open_world=True,
+    )
+)
 async def list_frameworks() -> FrameworkList:
     """List all available AI governance frameworks from the FINOS repository.
 
@@ -501,7 +525,12 @@ def _format_yaml_content(yaml_content: str, framework_id: str) -> str:
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Get Framework Content",
+        open_world=True,
+    )
+)
 async def get_framework(
     framework: Annotated[
         str,
@@ -621,7 +650,12 @@ async def get_framework(
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="List Governance Risks",
+        open_world=True,
+    )
+)
 async def list_risks() -> DocumentList:
     """List all available AI governance risk documents for threat assessment and security planning.
 
@@ -689,7 +723,12 @@ async def list_risks() -> DocumentList:
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="List Governance Mitigations",
+        open_world=True,
+    )
+)
 async def list_mitigations() -> DocumentList:
     """List all available AI governance mitigation strategies for risk reduction and security controls.
 
@@ -757,7 +796,12 @@ async def list_mitigations() -> DocumentList:
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Get Risk Content",
+        open_world=True,
+    )
+)
 async def get_risk(
     risk_id: Annotated[
         str,
@@ -853,7 +897,12 @@ async def get_risk(
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Get Mitigation Content",
+        open_world=True,
+    )
+)
 async def get_mitigation(
     mitigation_id: Annotated[
         str,
@@ -952,7 +1001,12 @@ async def get_mitigation(
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Service Health",
+        open_world=False,
+    )
+)
 async def get_service_health() -> ServiceHealth:
     """Get real service health status by querying each subsystem.
 
@@ -1003,7 +1057,12 @@ async def get_service_health() -> ServiceHealth:
     )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Cache Statistics",
+        open_world=False,
+    )
+)
 async def get_cache_stats() -> CacheStats:
     """Get cache statistics.
 
@@ -1206,7 +1265,12 @@ async def _search_single_framework(
         return []
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Search Frameworks",
+        open_world=True,
+    )
+)
 async def search_frameworks(
     query: Annotated[
         str,
@@ -1331,7 +1395,12 @@ async def _search_single_risk(
         return []
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Search Risks",
+        open_world=True,
+    )
+)
 async def search_risks(
     query: Annotated[
         str,
@@ -1456,7 +1525,12 @@ async def _search_single_mitigation(
         return []
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=_tool_annotations(
+        title="Search Mitigations",
+        open_world=True,
+    )
+)
 async def search_mitigations(
     query: Annotated[
         str,
@@ -1550,8 +1624,10 @@ async def search_mitigations(
 @mcp.resource(
     "finos://frameworks/{framework_id}",
     name="Framework Document",
+    title="Framework Resource",
     description="Framework content from FINOS AI governance corpus.",
     mime_type="text/markdown",
+    annotations=_resource_annotations(priority=0.9),
 )
 async def get_framework_resource(
     framework_id: Annotated[
@@ -1583,8 +1659,10 @@ async def get_framework_resource(
 @mcp.resource(
     "finos://risks/{risk_id}",
     name="Risk Document",
+    title="Risk Resource",
     description="Risk documentation from FINOS AI governance corpus.",
     mime_type="text/markdown",
+    annotations=_resource_annotations(priority=0.85),
 )
 async def get_risk_resource(
     risk_id: Annotated[
@@ -1616,8 +1694,10 @@ async def get_risk_resource(
 @mcp.resource(
     "finos://mitigations/{mitigation_id}",
     name="Mitigation Document",
+    title="Mitigation Resource",
     description="Mitigation documentation from FINOS AI governance corpus.",
     mime_type="text/markdown",
+    annotations=_resource_annotations(priority=0.85),
 )
 async def get_mitigation_resource(
     mitigation_id: Annotated[
@@ -1649,7 +1729,10 @@ async def get_mitigation_resource(
 # MCP Prompts Implementation
 
 
-@mcp.prompt()
+@mcp.prompt(
+    title="Framework Compliance Analysis",
+    description="Generate a compliance analysis prompt for a use case against a framework.",
+)
 async def analyze_framework_compliance(
     framework: Annotated[
         str,
@@ -1694,7 +1777,10 @@ Please provide:
 Focus on practical, actionable guidance."""
 
 
-@mcp.prompt()
+@mcp.prompt(
+    title="Risk Assessment Analysis",
+    description="Generate a risk assessment prompt using risk category and scenario context.",
+)
 async def risk_assessment_analysis(
     risk_category: Annotated[
         str,
@@ -1762,7 +1848,10 @@ Please provide:
 Be specific and actionable in your recommendations."""
 
 
-@mcp.prompt()
+@mcp.prompt(
+    title="Mitigation Strategy Planning",
+    description="Generate a mitigation strategy prompt for a specific AI system risk.",
+)
 async def mitigation_strategy_prompt(
     risk_type: Annotated[
         str, Field(min_length=1, max_length=128, description="Risk type to mitigate.")

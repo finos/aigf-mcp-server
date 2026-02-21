@@ -89,6 +89,71 @@ class TestFastMCPServer:
         actual_tools = {tool.name for tool in tools}
         assert expected_tools.issubset(actual_tools)
 
+    @pytest.mark.asyncio
+    async def test_tool_annotations_follow_mcp_hints_best_practices(self):
+        """All exposed tools should advertise MCP behavior hints."""
+        tools = await mcp.get_tools()
+
+        expected_open_world = {
+            "list_frameworks": True,
+            "get_framework": True,
+            "list_risks": True,
+            "list_mitigations": True,
+            "get_risk": True,
+            "get_mitigation": True,
+            "search_frameworks": True,
+            "search_risks": True,
+            "search_mitigations": True,
+            "get_service_health": False,
+            "get_cache_stats": False,
+        }
+
+        for tool_name, open_world in expected_open_world.items():
+            annotations = tools[tool_name].annotations
+            assert annotations is not None, f"Missing annotations for {tool_name}"
+            assert annotations.title, f"Missing annotation title for {tool_name}"
+            assert annotations.readOnlyHint is True
+            assert annotations.destructiveHint is False
+            assert annotations.idempotentHint is True
+            assert annotations.openWorldHint is open_world
+
+    @pytest.mark.asyncio
+    async def test_resource_templates_have_best_practice_metadata(self):
+        """Resource templates expose title/description and MCP annotations."""
+        resource_templates = await mcp.get_resource_templates()
+
+        expected_templates = {
+            "finos://frameworks/{framework_id}": 0.9,
+            "finos://risks/{risk_id}": 0.85,
+            "finos://mitigations/{mitigation_id}": 0.85,
+        }
+
+        for uri_template, expected_priority in expected_templates.items():
+            template = resource_templates[uri_template]
+            assert template.title
+            assert template.description
+            assert template.annotations is not None
+            assert template.annotations.audience == ["assistant"]
+            assert template.annotations.priority == expected_priority
+
+    @pytest.mark.asyncio
+    async def test_prompts_have_best_practice_metadata(self):
+        """Prompts should define explicit title and description."""
+        prompts = await mcp.get_prompts()
+
+        expected_prompts = {
+            "analyze_framework_compliance",
+            "risk_assessment_analysis",
+            "mitigation_strategy_prompt",
+        }
+
+        assert expected_prompts.issubset(set(prompts.keys()))
+
+        for prompt_name in expected_prompts:
+            prompt = prompts[prompt_name]
+            assert prompt.title
+            assert prompt.description
+
 
 @pytest.mark.unit
 class TestStructuredOutputModels:
