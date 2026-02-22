@@ -1,0 +1,30 @@
+services:
+  finos-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: finos-mcp-server:local
+    container_name: finos-mcp-server
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    ports:
+      - "8000:8000"
+    environment:
+      # Required (compose fails fast if missing/empty)
+      FINOS_MCP_CACHE_SECRET: "${FINOS_MCP_CACHE_SECRET:?FINOS_MCP_CACHE_SECRET is required (>=32 chars)}"
+      # Non-stdio runtime transport settings
+      FINOS_MCP_MCP_TRANSPORT: "${FINOS_MCP_MCP_TRANSPORT:-http}"
+      FINOS_MCP_MCP_HOST: "${FINOS_MCP_MCP_HOST:-0.0.0.0}"
+      FINOS_MCP_MCP_PORT: "${FINOS_MCP_MCP_PORT:-8000}"
+      # Optional but recommended for better GitHub API reliability
+      FINOS_MCP_GITHUB_TOKEN: "${FINOS_MCP_GITHUB_TOKEN:-}"
+      FINOS_MCP_LOG_LEVEL: "${FINOS_MCP_LOG_LEVEL:-INFO}"
+    volumes:
+      - ./.cache/discovery:/app/.cache/discovery
+    healthcheck:
+      test: ["CMD", "python", "-c", "import finos_mcp; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
