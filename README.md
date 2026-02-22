@@ -59,6 +59,61 @@ mcp list tools
 
 ---
 
+## Docker Deployment (Local + Cloud)
+
+This repository now includes:
+- `Dockerfile` for a production-style container image
+- `docker-compose.yml` for local deployment
+
+### Run locally with Docker Compose
+
+```bash
+# 1) Create Docker env file
+cp .env.docker.example .env.docker
+
+# 2) Put a real 32+ char value in .env.docker
+# FINOS_MCP_CACHE_SECRET=...
+
+# 3) Start
+docker compose up --build -d
+
+# 4) Follow logs
+docker compose logs -f finos-mcp-server
+```
+
+Server endpoint:
+- `http://localhost:8000/mcp`
+
+### Build and run image directly
+
+```bash
+docker build -t finos-mcp-server:latest .
+
+docker run --rm -p 8000:8000 \
+  -e FINOS_MCP_CACHE_SECRET="$(openssl rand -hex 32)" \
+  -e FINOS_MCP_MCP_TRANSPORT=http \
+  -e FINOS_MCP_MCP_HOST=0.0.0.0 \
+  -e FINOS_MCP_MCP_PORT=8000 \
+  finos-mcp-server:latest
+```
+
+### Use in AWS/GCP/Azure/Kubernetes
+
+Use the same container image and pass environment variables at deploy time:
+- `FINOS_MCP_CACHE_SECRET` (required, minimum 32 chars)
+- `FINOS_MCP_MCP_TRANSPORT=http`
+- `FINOS_MCP_MCP_HOST=0.0.0.0`
+- `FINOS_MCP_MCP_PORT` (for example `8000`)
+- `FINOS_MCP_GITHUB_TOKEN` (recommended)
+- If `FINOS_MCP_MCP_AUTH_ENABLED=true`, then `FINOS_MCP_MCP_AUTH_ISSUER`, `FINOS_MCP_MCP_AUTH_AUDIENCE`, and one of `FINOS_MCP_MCP_AUTH_JWKS_URI` or `FINOS_MCP_MCP_AUTH_PUBLIC_KEY` are also required.
+
+Cloud mapping examples:
+- AWS ECS/Fargate: task definition env vars + secret manager for `FINOS_MCP_CACHE_SECRET`
+- GCP Cloud Run: container env vars + Secret Manager mount/reference
+- Kubernetes: `Deployment` env vars + `Secret` for sensitive values
+
+---
+
 ## Available MCP Tools
 
 ### Framework Access Tools (5)
