@@ -32,7 +32,7 @@ The server provides 11 MCP tools organized in 3 categories:
 ### List Available Frameworks
 ```
 Use: list_frameworks()
-Returns: 7 governance frameworks (NIST AI 600-1, EU AI Act, ISO 42001, etc.)
+Returns: current runtime-discovered governance framework catalog
 ```
 
 ### Search Across Frameworks
@@ -50,7 +50,7 @@ Returns: Complete EU AI Act document content
 ### List Risks
 ```
 Use: list_risks()
-Returns: 17 AI governance risk documents from FINOS repository
+Returns: current runtime-discovered risk document catalog
 ```
 
 ### Search Risks
@@ -76,17 +76,10 @@ Returns: Risks related to injection attacks
 2. Search for mitigations: `search_mitigations("encryption")`
 3. Get mitigation details: `get_mitigation("1_ai-data-leakage-prevention-and-detection")`
 
-## Supported Frameworks
+## Framework Catalog
 
-| Framework | Description |
-|-----------|-------------|
-| **NIST AI 600-1** | Artificial Intelligence Risk Management Framework |
-| **EU AI Act** | European Union Artificial Intelligence Act |
-| **ISO 42001** | AI Management Systems Standard |
-| **FFIEC IT Booklets** | Federal Financial Institutions Examination Council IT guidance |
-| **NIST SP 800-53** | Security and Privacy Controls for Information Systems |
-| **OWASP LLM Top 10** | Top 10 security vulnerabilities for LLM applications |
-| **OWASP ML Top 10** | Top 10 risks for machine learning systems |
+Framework support is discovered dynamically from the configured upstream repository.
+Use `list_frameworks()` to retrieve current IDs, names, and descriptions.
 
 ## For More Information
 

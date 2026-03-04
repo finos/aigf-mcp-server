@@ -15,7 +15,7 @@
 <!-- Tools & Features -->
 ![MCP Tools](https://img.shields.io/badge/MCP%20tools-11-blue)
 ![Document Access](https://img.shields.io/badge/document%20access-direct-blue)
-![Framework Support](https://img.shields.io/badge/frameworks-7%20supported-green)
+![Framework Support](https://img.shields.io/badge/frameworks-runtime%20discovery-green)
 ![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen)
 
 **AI governance framework document access through the Model Context Protocol.**
@@ -119,7 +119,7 @@ Cloud mapping examples:
 ### Framework Access Tools (5)
 | Tool Name | Description | Use Case |
 |-----------|-------------|----------|
-| `list_frameworks` | List all available AI governance frameworks | Get overview of supported frameworks (NIST AI 600-1, EU AI Act, ISO 42001, etc.) |
+| `list_frameworks` | List all available AI governance frameworks | Get overview of the runtime-discovered framework catalog |
 | `get_framework` | Get complete content of a specific framework | Retrieve complete framework document content |
 | `search_frameworks` | Search for text within framework documents | Find specific content within framework documents |
 | `list_risks` | List all available risk documents | Get overview of AI governance risks |
@@ -144,15 +144,8 @@ Cloud mapping examples:
 ## Supported Content
 
 ### AI Governance Frameworks
-| Framework | Description | Focus Area |
-|-----------|-------------|------------|
-| NIST AI 600-1 | NIST Artificial Intelligence Risk Management Framework | Comprehensive AI risk management |
-| EU AI Act | European Union Artificial Intelligence Act | AI regulation and compliance in EU |
-| ISO 42001 | AI Management Systems Standard | AI management and governance |
-| FFIEC IT Booklets | Federal Financial Institutions Examination Council IT guidance | Financial services IT risk management |
-| NIST SP 800-53 | Security and Privacy Controls for Information Systems | Cybersecurity controls and privacy |
-| OWASP LLM Top 10 | Top 10 security vulnerabilities for LLM applications | AI/LLM security risks |
-| OWASP ML Top 10 | Top 10 risks for machine learning systems | ML security and operational risks |
+- Framework definitions are discovered from the configured upstream repository at runtime.
+- Use `list_frameworks` to see the current catalog available to your deployment.
 
 ---
 

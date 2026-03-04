@@ -40,7 +40,7 @@ Lists all available AI governance frameworks.
 **Response Schema**:
 ```json
 {
-  "total_count": 5,
+  "total_count": 3,
   "source": "github_api",
   "message": null,
   "frameworks": [
@@ -168,7 +168,7 @@ Lists all available risk documents.
 **Response Schema**:
 ```json
 {
-  "total_count": 23,
+  "total_count": 3,
   "source": "github_api",
   "message": null,
   "documents": [
@@ -201,8 +201,8 @@ Lists all available risk documents.
 ```
 
 **Field Descriptions**:
-- `total_count` (integer): Total number of risk documents available
-- `source` (string): Data source ("github_api", "cache", or "unavailable")
+- `total_count` (integer): Total number of risk documents available in current discovery run
+- `source` (string): Data source (`github_api` or `unavailable`)
 - `message` (string | null): Discovery status detail when degraded
 - `documents` (array): List of risk document objects
   - `id` (string): Risk identifier for use with get_risk
@@ -286,7 +286,7 @@ Lists all available mitigation documents.
 **Response Schema**:
 ```json
 {
-  "total_count": 23,
+  "total_count": 3,
   "source": "github_api",
   "message": null,
   "documents": [
@@ -319,8 +319,8 @@ Lists all available mitigation documents.
 ```
 
 **Field Descriptions**:
-- `total_count` (integer): Total number of mitigation documents available
-- `source` (string): Data source ("github_api", "cache", or "unavailable")
+- `total_count` (integer): Total number of mitigation documents available in current discovery run
+- `source` (string): Data source (`github_api` or `unavailable`)
 - `message` (string | null): Discovery status detail when degraded
 - `documents` (array): List of mitigation document objects
   - `id` (string): Mitigation identifier for use with get_mitigation
@@ -665,12 +665,8 @@ All content is returned in markdown format for easy rendering:
 
 ### Caching Behavior
 
-The server implements intelligent caching:
-
-- Framework content: Cached for 1 hour
-- Risk/mitigation lists: Cached for 30 minutes
-- Search results: Cached for 15 minutes
-- Health status: Not cached (live data)
+The server uses in-memory caching for content/discovery paths.
+Cache policy is configuration-driven and may vary by deployment.
 
 **Cache Control**:
 - Client cannot control cache directly
@@ -681,34 +677,18 @@ The server implements intelligent caching:
 
 ## Response Size Limits
 
-| Tool | Typical Size | Maximum Size |
-|------|-------------|--------------|
-| list_frameworks | 2KB | 10KB |
-| get_framework | 50-500KB | 5MB |
-| search_frameworks | 5-50KB | 500KB |
-| list_risks | 2KB | 10KB |
-| get_risk | 10-100KB | 1MB |
-| search_risks | 5-50KB | 500KB |
-| list_mitigations | 2KB | 10KB |
-| get_mitigation | 10-100KB | 1MB |
-| search_mitigations | 5-50KB | 500KB |
-| get_service_health | 1KB | 5KB |
-| get_cache_stats | 500B | 2KB |
+Runtime guardrails enforce payload limits:
 
-**Note**: Large responses are automatically formatted for optimal display in MCP clients.
+- tool result payload validation: 5MB default
+- resource/document payload validation: 1MB default
+- request parameter payload validation: 100KB default
 
 ---
 
 ## Response Performance
 
-### Expected Response Times
-
-| Tool Category | Cached | Uncached (GitHub API) |
-|---------------|--------|----------------------|
-| List operations | <10ms | 100-500ms |
-| Get operations | <50ms | 500-2000ms |
-| Search operations | 10-100ms | 200-1000ms |
-| System operations | <5ms | N/A (not cached) |
+Response latency depends on cache state, host capacity, and upstream API/network
+conditions. Avoid assuming fixed latency budgets in clients.
 
 **Optimization Tips**:
 - Use list operations before get operations

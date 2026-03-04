@@ -187,7 +187,7 @@ List all available risk documents.
 ```json
 {
   "total_count": "integer",
-  "source": "string (e.g., 'github_api', 'cache', or 'unavailable')",
+  "source": "string ('github_api' or 'unavailable')",
   "message": "string | null",
   "documents": [
     {
@@ -325,7 +325,7 @@ List all available mitigation documents.
 ```json
 {
   "total_count": "integer",
-  "source": "string (e.g., 'github_api', 'cache', or 'unavailable')",
+  "source": "string ('github_api' or 'unavailable')",
   "message": "string | null",
   "documents": [
     {
@@ -483,7 +483,7 @@ Get service health status and metrics.
 **Example**:
 ```
 get_service_health()
-→ Returns: status=healthy, uptime=3600s, services=5/5
+→ Returns: status=healthy, uptime=3600s, services=4/4
 ```
 
 ---
@@ -542,21 +542,10 @@ get_cache_stats()
 
 ## Error Handling
 
-All tools return structured error responses when errors occur:
-
-```json
-{
-  "error": "string (error type)",
-  "message": "string (human-readable error message)",
-  "details": "object (optional additional context)"
-}
-```
-
-Common error types:
-- `ValidationError`: Invalid input parameters
-- `NotFoundError`: Requested resource not found
-- `ServiceError`: Internal service error
-- `RateLimitError`: Rate limit exceeded
+Tool handlers return safe, user-facing error content and degraded-mode signals:
+- sanitized error text for unexpected failures
+- explicit discovery unavailability via `source: "unavailable"` and `message`
+- validation errors for invalid parameters enforced by schema constraints
 
 ## Discovery Unavailability
 
@@ -573,13 +562,12 @@ cannot be completed.
 
 ## Rate Limiting
 
-- **Tool calls**: 50 requests/minute per client
-- **Content retrieval**: Unlimited (cached content)
-- **Search operations**: 50 requests/minute per client
+- Configurable via `FINOS_MCP_DOS_*` settings.
+- Default limits:
+  - 600 requests/minute per client
+  - 10 concurrent requests per client
 
 ## Performance Characteristics
 
-- **Cached content**: <0.1ms response time
-- **GitHub API calls**: 500-2000ms (when cache miss)
-- **Search operations**: 10-100ms depending on corpus size
-- **List operations**: <10ms (metadata only)
+- Response times depend on cache state, host performance, and upstream network/API conditions.
+- Use `get_service_health` and `get_cache_stats` for runtime performance and reliability signals.

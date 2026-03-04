@@ -45,12 +45,15 @@ Start with a simple framework listing:
 **Expected Response**:
 ```json
 {
-  "total_count": 7,
+  "total_count": 3,
+  "source": "github_api",
+  "message": null,
   "frameworks": [
     {
       "id": "nist-ai-600-1",
       "name": "NIST AI Risk Management Framework",
-      "description": "NIST's framework for managing AI risks"
+      "description": "Framework definition: NIST AI 600-1 Framework",
+      "title": "NIST AI 600-1 Framework"
     }
   ]
 }
