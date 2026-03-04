@@ -28,6 +28,7 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 # ── ANSI colours ────────────────────────────────────────────────────────────────
@@ -1029,10 +1030,10 @@ def main() -> None:
     # Write report
     report_md = generate_markdown_report(results, args.config, args.server, total_ms)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_path = f"scripts/e2e_report_{ts}.md"
-    with open(report_path, "w") as fh:
+    report_path = Path(__file__).resolve().parent / f"e2e_report_{ts}.md"
+    with open(report_path, "w", encoding="utf-8") as fh:
         fh.write(report_md)
-    print(f"\n  Report written → {_c(CYAN, report_path)}\n")
+    print(f"\n  Report written → {_c(CYAN, str(report_path))}\n")
 
     sys.exit(0 if failed == 0 else 1)
 
