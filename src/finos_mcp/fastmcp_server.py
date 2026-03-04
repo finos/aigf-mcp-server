@@ -32,6 +32,8 @@ from fastmcp.server.auth import JWTVerifier
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .api.prompts import register_prompts
+from .api.resources import register_resources
 from .api.tools import (
     get_document_payload,
     get_framework_payload,
@@ -1395,305 +1397,32 @@ async def search_mitigations(
     return SearchResults(**payload)
 
 
-# MCP Resources Implementation
-
-
-@mcp.resource(
-    "finos://frameworks/{framework_id}",
-    name="Framework Document",
-    title="Framework Resource",
-    description="Framework content from FINOS AI governance corpus.",
-    mime_type="text/markdown",
-    annotations=_resource_annotations(priority=0.9),
+# MCP Resources and Prompts registration (delegated modules)
+register_resources(
+    mcp=mcp,
+    resource_annotations=_resource_annotations,
+    validate_request_params=_validate_request_params,
+    call_registered_tool=_call_registered_tool,
+    safe_resource_content=_safe_resource_content,
+    safe_external_error=_safe_external_error,
+    get_framework_tool=get_framework,
+    get_risk_tool=get_risk,
+    get_mitigation_tool=get_mitigation,
+    logger=logger,
 )
-async def get_framework_resource(
-    framework_id: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=128,
-            description="Framework identifier from list_frameworks().",
-        ),
-    ],
-) -> str:
-    """Get framework content as a resource.
 
-    Args:
-        framework_id: Framework identifier
-
-    Returns:
-        Framework content as text.
-    """
-    try:
-        _validate_request_params(framework_id=framework_id)
-        content = await _call_registered_tool(get_framework, framework_id)
-        return _safe_resource_content(content.content, f"framework:{framework_id}")
-    except Exception as e:
-        logger.error("Failed to get framework resource %s: %s", framework_id, e)
-        return _safe_external_error(e, "Error loading framework resource.")
-
-
-@mcp.resource(
-    "finos://risks/{risk_id}",
-    name="Risk Document",
-    title="Risk Resource",
-    description="Risk documentation from FINOS AI governance corpus.",
-    mime_type="text/markdown",
-    annotations=_resource_annotations(priority=0.85),
+register_prompts(
+    mcp=mcp,
+    validate_request_params=_validate_request_params,
+    call_registered_tool=_call_registered_tool,
+    extract_section=_extract_section,
+    get_framework_tool=get_framework,
+    get_risk_tool=get_risk,
+    get_mitigation_tool=get_mitigation,
+    search_risks_tool=search_risks,
+    search_mitigations_tool=search_mitigations,
+    logger=logger,
 )
-async def get_risk_resource(
-    risk_id: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=256,
-            description="Risk identifier from list_risks().",
-        ),
-    ],
-) -> str:
-    """Get risk document as a resource.
-
-    Args:
-        risk_id: Risk document identifier
-
-    Returns:
-        Risk document content as text.
-    """
-    try:
-        _validate_request_params(risk_id=risk_id)
-        content = await _call_registered_tool(get_risk, risk_id)
-        return _safe_resource_content(content.content, f"risk:{risk_id}")
-    except Exception as e:
-        logger.error("Failed to get risk resource %s: %s", risk_id, e)
-        return _safe_external_error(e, "Error loading risk resource.")
-
-
-@mcp.resource(
-    "finos://mitigations/{mitigation_id}",
-    name="Mitigation Document",
-    title="Mitigation Resource",
-    description="Mitigation documentation from FINOS AI governance corpus.",
-    mime_type="text/markdown",
-    annotations=_resource_annotations(priority=0.85),
-)
-async def get_mitigation_resource(
-    mitigation_id: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=256,
-            description="Mitigation identifier from list_mitigations().",
-        ),
-    ],
-) -> str:
-    """Get mitigation document as a resource.
-
-    Args:
-        mitigation_id: Mitigation document identifier
-
-    Returns:
-        Mitigation document content as text.
-    """
-    try:
-        _validate_request_params(mitigation_id=mitigation_id)
-        content = await _call_registered_tool(get_mitigation, mitigation_id)
-        return _safe_resource_content(content.content, f"mitigation:{mitigation_id}")
-    except Exception as e:
-        logger.error("Failed to get mitigation resource %s: %s", mitigation_id, e)
-        return _safe_external_error(e, "Error loading mitigation resource.")
-
-
-# MCP Prompts Implementation
-
-
-@mcp.prompt(
-    title="Framework Compliance Analysis",
-    description="Generate a compliance analysis prompt for a use case against a framework.",
-)
-async def analyze_framework_compliance(
-    framework: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=128,
-            description="Framework identifier (e.g., eu-ai-act).",
-        ),
-    ],
-    use_case: Annotated[
-        str,
-        Field(min_length=1, max_length=4000, description="AI use case to analyze."),
-    ],
-) -> str:
-    """Analyze compliance requirements for a specific AI use case against a framework.
-
-    Args:
-        framework: Framework identifier (e.g., 'eu-ai-act', 'nist-ai-600-1')
-        use_case: Description of the AI use case to analyze
-
-    Returns:
-        Prompt for analyzing compliance requirements.
-    """
-    _validate_request_params(framework=framework, use_case=use_case)
-    framework_content = await _call_registered_tool(get_framework, framework)
-
-    return f"""You are an AI governance expert. Analyze the following AI use case for compliance with the {framework} framework.
-
-FRAMEWORK: {framework_content.framework_id}
-FRAMEWORK CONTENT:
-{framework_content.content[:2000]}...
-
-USE CASE TO ANALYZE:
-{use_case}
-
-Please provide:
-1. Key compliance requirements that apply to this use case
-2. Potential risks and mitigation strategies
-3. Specific sections of the framework that are most relevant
-4. Recommended next steps for ensuring compliance
-
-Focus on practical, actionable guidance."""
-
-
-@mcp.prompt(
-    title="Risk Assessment Analysis",
-    description="Generate a risk assessment prompt using risk category and scenario context.",
-)
-async def risk_assessment_analysis(
-    risk_category: Annotated[
-        str,
-        Field(min_length=1, max_length=128, description="Risk category to assess."),
-    ],
-    context: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=4000,
-            description="Scenario context for risk assessment.",
-        ),
-    ],
-) -> str:
-    """Generate a risk assessment prompt for a specific AI risk category.
-
-    Args:
-        risk_category: Type of risk to assess (e.g., 'bias', 'privacy', 'security')
-        context: Context or scenario for the risk assessment
-
-    Returns:
-        Prompt for conducting risk assessment.
-    """
-    _validate_request_params(risk_category=risk_category, context=context)
-
-    # Find relevant risk documents and extract their Summary sections.
-    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
-    search_query = risk_category.replace("-", " ")
-    search_results = await _call_registered_tool(search_risks, search_query, limit=3)
-
-    risk_sections: list[str] = []
-    for result in search_results.results:
-        risk_id = result.framework_id.removeprefix("risk-")
-        try:
-            doc = await _call_registered_tool(get_risk, risk_id)
-            summary = _extract_section(
-                doc.content, "Summary", "Overview", "Description"
-            )
-            if summary:
-                risk_sections.append(f"### {doc.title} ({risk_id})\n{summary}")
-        except Exception as exc:
-            logger.debug("Skipping risk doc %s in prompt: %s", risk_id, exc)
-
-    risk_info = (
-        "\n\n".join(risk_sections)
-        if risk_sections
-        else "No specific documentation found for this risk category."
-    )
-
-    return f"""You are an AI risk assessment specialist. Conduct a thorough risk assessment for the following scenario.
-
-RISK CATEGORY: {risk_category}
-SCENARIO: {context}
-
-RELEVANT RISK DOCUMENTATION:
-{risk_info}
-
-Please provide:
-1. Likelihood assessment (High/Medium/Low) with justification
-2. Impact assessment (High/Medium/Low) with potential consequences
-3. Specific risk factors present in this scenario
-4. Recommended mitigation strategies
-5. Monitoring and detection approaches
-
-Be specific and actionable in your recommendations."""
-
-
-@mcp.prompt(
-    title="Mitigation Strategy Planning",
-    description="Generate a mitigation strategy prompt for a specific AI system risk.",
-)
-async def mitigation_strategy_prompt(
-    risk_type: Annotated[
-        str, Field(min_length=1, max_length=128, description="Risk type to mitigate.")
-    ],
-    system_description: Annotated[
-        str,
-        Field(
-            min_length=1, max_length=4000, description="Description of the AI system."
-        ),
-    ],
-) -> str:
-    """Generate a mitigation strategy prompt for a specific risk in an AI system.
-
-    Args:
-        risk_type: Type of risk to mitigate
-        system_description: Description of the AI system
-
-    Returns:
-        Prompt for developing mitigation strategies.
-    """
-    _validate_request_params(risk_type=risk_type, system_description=system_description)
-
-    # Find relevant mitigation documents and extract their Purpose sections.
-    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
-    search_query = risk_type.replace("-", " ")
-    mitigation_results = await _call_registered_tool(
-        search_mitigations, search_query, limit=3
-    )
-
-    mitigation_sections: list[str] = []
-    for result in mitigation_results.results:
-        mitigation_id = result.framework_id.removeprefix("mitigation-")
-        try:
-            doc = await _call_registered_tool(get_mitigation, mitigation_id)
-            purpose = _extract_section(doc.content, "Purpose", "Summary", "Overview")
-            if purpose:
-                mitigation_sections.append(
-                    f"### {doc.title} ({mitigation_id})\n{purpose}"
-                )
-        except Exception as exc:
-            logger.debug("Skipping mitigation doc %s in prompt: %s", mitigation_id, exc)
-
-    mitigation_info = (
-        "\n\n".join(mitigation_sections)
-        if mitigation_sections
-        else "No specific mitigation documentation found for this risk type."
-    )
-
-    return f"""You are an AI safety engineer tasked with developing mitigation strategies.
-
-RISK TYPE: {risk_type}
-AI SYSTEM: {system_description}
-
-AVAILABLE MITIGATION STRATEGIES:
-{mitigation_info}
-
-Please develop a comprehensive mitigation plan that includes:
-1. Preventive measures to reduce risk likelihood
-2. Detective controls to identify when risks occur
-3. Corrective actions to respond to incidents
-4. Technical implementation details
-5. Monitoring and validation approaches
-6. Timeline and resource requirements
-
-Prioritize practical, implementable solutions."""
 
 
 # Export the FastMCP instance and models
