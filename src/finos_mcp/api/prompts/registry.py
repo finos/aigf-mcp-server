@@ -35,6 +35,7 @@ def register_prompts(
     mcp: Any,
     validate_request_params: Callable[..., None],
     call_registered_tool: Callable[..., Awaitable[Any]],
+    prompt_service: Any,
     get_framework_tool: Any,
     get_risk_tool: Any,
     get_mitigation_tool: Any,
@@ -66,22 +67,12 @@ def register_prompts(
         validate_request_params(framework=framework, use_case=use_case)
         framework_content = await call_registered_tool(get_framework_tool, framework)
 
-        return f"""You are an AI governance expert. Analyze the following AI use case for compliance with the {framework} framework.
-
-FRAMEWORK: {framework_content.framework_id}
-FRAMEWORK CONTENT:
-{framework_content.content[:2000]}...
-
-USE CASE TO ANALYZE:
-{use_case}
-
-Please provide:
-1. Key compliance requirements that apply to this use case
-2. Potential risks and mitigation strategies
-3. Specific sections of the framework that are most relevant
-4. Recommended next steps for ensuring compliance
-
-Focus on practical, actionable guidance."""
+        return prompt_service.compose_framework_compliance(
+            framework=framework,
+            framework_id=framework_content.framework_id,
+            framework_content=framework_content.content,
+            use_case=use_case,
+        )
 
     @mcp.prompt(
         title="Risk Assessment Analysis",
@@ -128,22 +119,11 @@ Focus on practical, actionable guidance."""
             else "No specific documentation found for this risk category."
         )
 
-        return f"""You are an AI risk assessment specialist. Conduct a thorough risk assessment for the following scenario.
-
-RISK CATEGORY: {risk_category}
-SCENARIO: {context}
-
-RELEVANT RISK DOCUMENTATION:
-{risk_info}
-
-Please provide:
-1. Likelihood assessment (High/Medium/Low) with justification
-2. Impact assessment (High/Medium/Low) with potential consequences
-3. Specific risk factors present in this scenario
-4. Recommended mitigation strategies
-5. Monitoring and detection approaches
-
-Be specific and actionable in your recommendations."""
+        return prompt_service.compose_risk_assessment(
+            risk_category=risk_category,
+            context=context,
+            risk_info=risk_info,
+        )
 
     @mcp.prompt(
         title="Mitigation Strategy Planning",
@@ -196,20 +176,8 @@ Be specific and actionable in your recommendations."""
             else "No specific mitigation documentation found for this risk type."
         )
 
-        return f"""You are an AI safety engineer tasked with developing mitigation strategies.
-
-RISK TYPE: {risk_type}
-AI SYSTEM: {system_description}
-
-AVAILABLE MITIGATION STRATEGIES:
-{mitigation_info}
-
-Please develop a comprehensive mitigation plan that includes:
-1. Preventive measures to reduce risk likelihood
-2. Detective controls to identify when risks occur
-3. Corrective actions to respond to incidents
-4. Technical implementation details
-5. Monitoring and validation approaches
-6. Timeline and resource requirements
-
-Prioritize practical, implementable solutions."""
+        return prompt_service.compose_mitigation_strategy(
+            risk_type=risk_type,
+            system_description=system_description,
+            mitigation_info=mitigation_info,
+        )

@@ -42,7 +42,11 @@ from .api.tools import (
     search_documents_payload,
     search_frameworks_payload,
 )
-from .application.services import CompatEventService, ObservabilityProjectionService
+from .application.services import (
+    CompatEventService,
+    ObservabilityProjectionService,
+    PromptCompositionService,
+)
 from .application.use_cases import (
     execute_get_document,
     execute_get_framework,
@@ -125,6 +129,7 @@ _compat_event_service = CompatEventService(max_events=256)
 _observability_projection_service = ObservabilityProjectionService(
     _compat_event_service
 )
+_prompt_composition_service = PromptCompositionService()
 
 
 def _record_compat_event(
@@ -1417,6 +1422,7 @@ register_prompts(
     mcp=mcp,
     validate_request_params=_validate_request_params,
     call_registered_tool=_call_registered_tool,
+    prompt_service=_prompt_composition_service,
     get_framework_tool=get_framework,
     get_risk_tool=get_risk,
     get_mitigation_tool=get_mitigation,
