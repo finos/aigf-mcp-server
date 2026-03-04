@@ -23,7 +23,9 @@ import asyncio
 import inspect
 import re
 import time
+from collections import deque
 from typing import Annotated
+from uuid import uuid4
 
 import yaml
 from fastmcp import FastMCP
@@ -41,6 +43,12 @@ from .content.discovery import (
 )
 from .content.service import get_content_service
 from .logging import get_logger
+from .openemcp import (
+    OpenEMCPPhase,
+    build_risk_context_from_signals,
+    create_envelope,
+    normalize_validation_status,
+)
 from .security.error_handler import secure_error_handler
 from .security.request_validator import dos_protector, request_size_validator
 
@@ -97,6 +105,24 @@ def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
 # Create FastMCP server instance
 mcp = FastMCP(settings.server_name, auth=_build_auth_provider(settings))
 _SERVER_START_TIME = time.monotonic()
+_COMPAT_EVENTS: deque = deque(maxlen=256)
+
+
+def _record_compat_event(
+    *,
+    phase: OpenEMCPPhase,
+    payload: dict[str, object],
+    correlation_id: str,
+    metadata: dict[str, object] | None = None,
+) -> None:
+    """Record an internal OpenEMCP compatibility envelope."""
+    envelope = create_envelope(
+        phase=phase,
+        payload=payload,
+        correlation_id=correlation_id,
+        metadata=metadata or {},
+    )
+    _COMPAT_EVENTS.append(envelope)
 
 
 def _tool_annotations(*, title: str, open_world: bool) -> dict[str, bool | str]:
@@ -197,6 +223,7 @@ class ServiceHealth(BaseModel):
     version: str
     healthy_services: int
     total_services: int
+    observability: dict[str, object] | None = None
 
 
 class CacheStats(BaseModel):
@@ -206,6 +233,15 @@ class CacheStats(BaseModel):
     cache_hits: int
     cache_misses: int
     hit_rate: float
+    sets: int | None = None
+    deletes: int | None = None
+    expires: int | None = None
+    evictions: int | None = None
+    clears: int | None = None
+    current_size: int | None = None
+    max_size: int | None = None
+    memory_usage_bytes: int | None = None
+    observability: dict[str, object] | None = None
 
 
 def _safe_external_error(error: Exception, fallback_message: str) -> str:
@@ -1019,6 +1055,19 @@ async def get_service_health() -> ServiceHealth:
     total_services = 4  # fetch, cache, parser, config
     healthy_services = 0
     overall_status = "healthy"
+    correlation_id = str(uuid4())
+    phase = OpenEMCPPhase.CONTEXT_STATE_MANAGEMENT
+    boundaries: dict[str, dict[str, object]] = {}
+    failure_count = 0
+    total_requests = 0
+    cache_hit_rate: float | None = None
+
+    _record_compat_event(
+        phase=phase,
+        correlation_id=correlation_id,
+        payload={"event": "start", "tool": "get_service_health"},
+        metadata={"source": "tool"},
+    )
 
     try:
         service = await get_service()
@@ -1039,6 +1088,11 @@ async def get_service_health() -> ServiceHealth:
         # Config subsystem is always healthy if we reached this point
         healthy_services += 1
 
+        service_health = diagnostics.get("service_health", {})
+        failure_count = int(service_health.get("failed_requests", 0))
+        total_requests = int(service_health.get("total_requests", 0))
+        cache_hit_rate = service_health.get("cache_hit_rate")
+
         if healthy_services < total_services:
             overall_status = "degraded"
 
@@ -1048,12 +1102,50 @@ async def get_service_health() -> ServiceHealth:
         overall_status = "degraded"
         healthy_services = 0
 
+    boundary_open_count = sum(
+        1 for b in boundaries.values() if b.get("status") != "closed"
+    )
+    risk_context = build_risk_context_from_signals(
+        phase_assessed=phase.value,
+        boundary_open_count=boundary_open_count,
+        circuit_breaker_trips=boundary_open_count,
+        cache_hit_rate=cache_hit_rate,
+        failed_requests=failure_count,
+        total_requests=total_requests,
+    )
+    canonical_status = normalize_validation_status(
+        "approved" if overall_status == "healthy" else "modified"
+    )
+
+    _record_compat_event(
+        phase=phase,
+        correlation_id=correlation_id,
+        payload={
+            "event": "success",
+            "tool": "get_service_health",
+            "status": overall_status,
+            "validation_status": canonical_status.value,
+            "risk_tier": risk_context.risk_tier.value,
+        },
+        metadata={"source": "tool"},
+    )
+
     return ServiceHealth(
         status=overall_status,
         uptime_seconds=time.monotonic() - _SERVER_START_TIME,
         version=__version__,
         healthy_services=healthy_services,
         total_services=total_services,
+        observability={
+            "openemcp": {
+                "phase": phase.value,
+                "correlation_id": correlation_id,
+                "validation_status": canonical_status.value,
+                "compatibility_enabled": True,
+                "compat_events_buffered": len(_COMPAT_EVENTS),
+            },
+            "risk_context": risk_context.model_dump(mode="json"),
+        },
     )
 
 
@@ -1069,21 +1161,102 @@ async def get_cache_stats() -> CacheStats:
     Returns:
         Structured cache performance information.
     """
+    correlation_id = str(uuid4())
+    phase = OpenEMCPPhase.EXECUTION_RESILIENCE
+    _record_compat_event(
+        phase=phase,
+        correlation_id=correlation_id,
+        payload={"event": "start", "tool": "get_cache_stats"},
+        metadata={"source": "tool"},
+    )
+
     try:
         await _apply_dos_protection()
         cache = await get_cache()
         stats = await cache.get_stats()
         total_requests = stats.hits + stats.misses
         hit_rate = (stats.hits / total_requests) if total_requests > 0 else 0.0
+        risk_context = build_risk_context_from_signals(
+            phase_assessed=phase.value,
+            cache_hit_rate=hit_rate,
+            failed_requests=stats.misses,
+            total_requests=total_requests,
+        )
+        canonical_status = normalize_validation_status(
+            "approved" if hit_rate >= 0.5 else "modified"
+        )
+        _record_compat_event(
+            phase=phase,
+            correlation_id=correlation_id,
+            payload={
+                "event": "success",
+                "tool": "get_cache_stats",
+                "validation_status": canonical_status.value,
+                "hit_rate": round(hit_rate, 4),
+                "risk_tier": risk_context.risk_tier.value,
+            },
+            metadata={"source": "tool"},
+        )
         return CacheStats(
             total_requests=total_requests,
             cache_hits=stats.hits,
             cache_misses=stats.misses,
             hit_rate=hit_rate,
+            sets=stats.sets,
+            deletes=stats.deletes,
+            expires=stats.expires,
+            evictions=stats.evictions,
+            clears=stats.clears,
+            current_size=stats.current_size,
+            max_size=stats.max_size,
+            memory_usage_bytes=stats.memory_usage_bytes,
+            observability={
+                "openemcp": {
+                    "phase": phase.value,
+                    "correlation_id": correlation_id,
+                    "validation_status": canonical_status.value,
+                    "compatibility_enabled": True,
+                    "compat_events_buffered": len(_COMPAT_EVENTS),
+                },
+                "risk_context": risk_context.model_dump(mode="json"),
+            },
         )
     except Exception as e:
         logger.warning("Failed to get real cache stats, returning safe defaults: %s", e)
-        return CacheStats(total_requests=0, cache_hits=0, cache_misses=0, hit_rate=0.0)
+        canonical_status = normalize_validation_status("modified")
+        _record_compat_event(
+            phase=phase,
+            correlation_id=correlation_id,
+            payload={
+                "event": "error",
+                "tool": "get_cache_stats",
+                "validation_status": canonical_status.value,
+                "error_type": type(e).__name__,
+            },
+            metadata={"source": "tool"},
+        )
+        risk_context = build_risk_context_from_signals(
+            phase_assessed=phase.value,
+            cache_hit_rate=0.0,
+            failed_requests=1,
+            total_requests=1,
+        )
+        return CacheStats(
+            total_requests=0,
+            cache_hits=0,
+            cache_misses=0,
+            hit_rate=0.0,
+            observability={
+                "openemcp": {
+                    "phase": phase.value,
+                    "correlation_id": correlation_id,
+                    "validation_status": canonical_status.value,
+                    "compatibility_enabled": True,
+                    "compat_events_buffered": len(_COMPAT_EVENTS),
+                },
+                "risk_context": risk_context.model_dump(mode="json"),
+            },
+        )
 
 
 # Simple Search Tools

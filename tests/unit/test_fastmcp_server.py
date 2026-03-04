@@ -319,6 +319,9 @@ class TestFastMCPTools:
         assert result.version
         assert result.healthy_services > 0
         assert result.total_services > 0
+        assert result.observability is not None
+        assert "openemcp" in result.observability
+        assert "risk_context" in result.observability
 
     @pytest.mark.asyncio
     async def test_get_cache_stats(self):
@@ -330,6 +333,10 @@ class TestFastMCPTools:
         assert result.cache_hits >= 0
         assert result.cache_misses >= 0
         assert 0 <= result.hit_rate <= 1
+        assert result.observability is not None
+        assert result.sets is not None
+        assert result.current_size is not None
+        assert result.memory_usage_bytes is not None
 
 
 @pytest.mark.unit
@@ -361,6 +368,13 @@ class TestFastMCPIntegration:
         assert structured_data["status"] == "healthy"
         assert "version" in structured_data
         assert "uptime_seconds" in structured_data
+        assert "observability" in structured_data
+        assert "openemcp" in structured_data["observability"]
+        assert structured_data["observability"]["openemcp"]["validation_status"] in {
+            "approved",
+            "rejected",
+            "modified",
+        }
 
     @pytest.mark.asyncio
     async def test_health_contract_required_fields_are_stable(self):
@@ -379,6 +393,14 @@ class TestFastMCPIntegration:
             assert field in structured_data
             assert isinstance(structured_data[field], expected_type)
 
+        assert "observability" in structured_data
+        assert "risk_context" in structured_data["observability"]
+        assert structured_data["observability"]["openemcp"]["validation_status"] in {
+            "approved",
+            "rejected",
+            "modified",
+        }
+
     @pytest.mark.asyncio
     async def test_cache_contract_required_fields_are_stable(self):
         """Guardrail: required cache fields/types remain backward compatible."""
@@ -394,6 +416,15 @@ class TestFastMCPIntegration:
         for field, expected_type in required_fields.items():
             assert field in structured_data
             assert isinstance(structured_data[field], expected_type)
+
+        assert "sets" in structured_data
+        assert "evictions" in structured_data
+        assert "observability" in structured_data
+        assert structured_data["observability"]["openemcp"]["validation_status"] in {
+            "approved",
+            "rejected",
+            "modified",
+        }
 
     @pytest.mark.asyncio
     async def test_mcp_call_tool_with_parameters(self):
