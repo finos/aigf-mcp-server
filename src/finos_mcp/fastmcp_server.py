@@ -33,6 +33,12 @@ from pydantic import BaseModel, Field
 
 from . import __version__
 from .application.services import CompatEventService, ObservabilityProjectionService
+from .application.use_cases import (
+    execute_get_framework,
+    execute_list_frameworks,
+    execute_search_frameworks,
+    format_framework_name,
+)
 from .config import Settings, validate_settings_on_startup
 from .content.cache import get_cache
 from .content.discovery import (
@@ -42,6 +48,7 @@ from .content.discovery import (
     DiscoveryServiceManager,
 )
 from .content.service import get_content_service
+from .infrastructure.repositories import FrameworkRepository
 from .logging import get_logger
 from .openemcp import (
     OpenEMCPPhase,
@@ -360,6 +367,12 @@ async def close_service():
     await _service_manager.close_service()
 
 
+_framework_repository = FrameworkRepository(
+    discovery_manager=_discovery_manager,
+    get_service=get_service,
+)
+
+
 # Repository Tools with Structured Output
 
 
@@ -387,66 +400,19 @@ async def list_frameworks() -> FrameworkList:
         FrameworkList: Structured list with framework IDs, names, and descriptions.
         Use the 'id' field from results with get_framework() for detailed content.
     """
-    try:
-        await _apply_dos_protection()
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
-
-        # Convert framework YAML files to Framework objects
-        frameworks = []
-        for file_info in discovery_result.framework_files:
-            # Extract ID from filename (remove extension)
-            framework_id = file_info.filename.replace(".yml", "").replace(".yaml", "")
-
-            # Create readable name from filename
-            framework_name = _format_framework_name(framework_id)
-
-            # Create basic description
-            description = f"Framework definition: {framework_name}"
-
-            frameworks.append(
-                Framework(
-                    id=framework_id,
-                    name=framework_name,
-                    description=description,
-                    title=framework_name,
-                )
-            )
-
-        return FrameworkList(frameworks=frameworks, total_count=len(frameworks))
-    except Exception as e:
-        logger.error("Failed to list frameworks: %s", e)
-        # Fall back to static framework list for offline/network-constrained environments.
-        fallback_frameworks = []
-        for filename in STATIC_FRAMEWORK_FILES:
-            framework_id = filename.replace(".yml", "").replace(".yaml", "")
-            framework_name = _format_framework_name(framework_id)
-            fallback_frameworks.append(
-                Framework(
-                    id=framework_id,
-                    name=framework_name,
-                    description=f"Framework definition: {framework_name}",
-                    title=framework_name,
-                )
-            )
-
-        return FrameworkList(
-            frameworks=fallback_frameworks, total_count=len(fallback_frameworks)
-        )
+    await _apply_dos_protection()
+    payload = await execute_list_frameworks(
+        repository=_framework_repository,
+        static_framework_files=list(STATIC_FRAMEWORK_FILES),
+        logger=logger,
+    )
+    frameworks = [Framework(**item) for item in payload["frameworks"]]
+    return FrameworkList(frameworks=frameworks, total_count=payload["total_count"])
 
 
 def _format_framework_name(framework_id: str) -> str:
     """Format framework ID into a readable name."""
-    name_map = {
-        "nist-ai-600-1": "NIST AI 600-1 Framework",
-        "eu-ai-act": "EU AI Act 2024",
-        "gdpr": "General Data Protection Regulation (GDPR)",
-        "owasp-llm": "OWASP LLM Top 10",
-        "iso-23053": "ISO/IEC 23053 Framework",
-    }
-
-    return name_map.get(framework_id, framework_id.replace("-", " ").title())
+    return format_framework_name(framework_id)
 
 
 # Acronyms that should be fully uppercased when they appear as words in a name.
@@ -601,81 +567,16 @@ async def get_framework(
     try:
         await _apply_dos_protection()
         _validate_request_params(framework=framework)
-        service = await get_service()
-
-        # First, discover to find the correct filename.
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        try:
-            discovery_result = await discovery_service.discover_content()
-            framework_filenames = [
-                file_info.filename for file_info in discovery_result.framework_files
-            ]
-        except Exception as discovery_error:
-            logger.warning(
-                "Framework discovery failed, using static fallback list: %s",
-                discovery_error,
-            )
-            framework_filenames = list(STATIC_FRAMEWORK_FILES)
-
-        # Find the framework file by ID
-        target_filename = None
-        for filename in framework_filenames:
-            file_id = filename.replace(".yml", "").replace(".yaml", "")
-            if file_id == framework:
-                target_filename = filename
-                break
-
-        if not target_filename:
-            return FrameworkContent(
-                framework_id=framework,
-                content=f"Framework '{framework}' was not found in the repository.",
-                sections=0,
-            )
-
-        # Get the document content
-        doc = await service.get_document("framework", target_filename)
-
-        if doc:
-            content = doc.get("content", "")
-            # Format YAML content for display
-            if content.strip():
-                formatted_content = _format_yaml_content(content, framework)
-                try:
-                    request_size_validator.validate_resource_size(formatted_content)
-                except ValueError as e:
-                    logger.warning(
-                        "Framework payload exceeded size limit for %s: %s", framework, e
-                    )
-                    formatted_content = _safe_external_error(
-                        e,
-                        "Framework content exceeded allowed size limits. Please narrow your query.",
-                    )
-                # Count sections by YAML keys
-                sections = len(
-                    [
-                        line
-                        for line in content.split("\n")
-                        if line.strip() and not line.startswith(" ") and ":" in line
-                    ]
-                )
-            else:
-                formatted_content = (
-                    f"Framework {framework} content is empty or not accessible."
-                )
-                sections = 0
-
-            return FrameworkContent(
-                framework_id=framework,
-                content=formatted_content,
-                sections=sections,
-            )
-        else:
-            return FrameworkContent(
-                framework_id=framework,
-                content=f"Failed to load content for framework '{framework}'.",
-                sections=0,
-            )
+        payload = await execute_get_framework(
+            framework_id=framework,
+            repository=_framework_repository,
+            static_framework_files=list(STATIC_FRAMEWORK_FILES),
+            format_yaml_content=_format_yaml_content,
+            validate_resource_size=request_size_validator.validate_resource_size,
+            safe_external_error=_safe_external_error,
+            logger=logger,
+        )
+        return FrameworkContent(**payload)
     except Exception as e:
         logger.error("Failed to get framework content: %s", e)
         return FrameworkContent(
@@ -1481,41 +1382,14 @@ async def search_frameworks(
     try:
         await _apply_dos_protection()
         _validate_request_params(query=query, limit=limit)
-        # Get all frameworks first
-        frameworks_list = await _call_registered_tool(list_frameworks)
-
-        total_frameworks = len(frameworks_list.frameworks)
-        logger.info(
-            "Starting search across %d frameworks for query: %r",
-            total_frameworks,
-            query,
+        payload = await execute_search_frameworks(
+            query=query,
+            limit=limit,
+            list_frameworks_fn=lambda: _call_registered_tool(list_frameworks),
+            search_single_framework_fn=_search_single_framework,
+            logger=logger,
         )
-
-        # Use asyncio.gather for parallel processing (official MCP best practice)
-        search_tasks = [
-            _search_single_framework(framework, query)
-            for framework in frameworks_list.frameworks
-        ]
-
-        # Execute all searches in parallel with progress reporting
-        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-        logger.info("Completed parallel search across %d frameworks", total_frameworks)
-
-        # Flatten results and filter out exceptions
-        results = []
-        for result in search_results:
-            if isinstance(result, list):
-                results.extend(result)
-            elif isinstance(result, Exception):
-                logger.warning("Search task failed: %s", result)
-
-        # Limit results (no sorting needed for simple search)
-        limited_results = results[:limit]
-
-        return SearchResults(
-            query=query, results=limited_results, total_found=len(results)
-        )
+        return SearchResults(**payload)
 
     except Exception as e:
         logger.error("Failed to search frameworks: %s", e)
