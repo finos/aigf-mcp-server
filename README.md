@@ -401,6 +401,7 @@ Includes:
 ### API & Integration
 - **[API Documentation](docs/api/)** - Complete API reference for all 11 MCP tools
 - **[Framework Architecture](docs/api/framework-architecture.md)** - System design and patterns
+- **[MCP Conformance Matrix](docs/mcp-conformance-2025-11-25.md)** - Implemented/partial/out-of-scope capability map
 
 ### Support & Troubleshooting
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
