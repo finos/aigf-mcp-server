@@ -23,7 +23,7 @@ import asyncio
 import inspect
 import re
 import time
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 
 import yaml
@@ -1216,24 +1216,23 @@ async def search_frameworks(
     return SearchResults(**payload)
 
 
-async def _search_single_risk(
-    risk_doc: DocumentInfo, query: str
+async def _search_single_document(
+    *,
+    document: DocumentInfo,
+    query: str,
+    get_document_fn: Any,
+    framework_prefix: str,
+    log_label: str,
 ) -> list[tuple[SearchResult, bool, int]]:
-    """Search within a single risk document.
-
-    Fetches full document content (served from cache after first request) and
-    returns a list of (SearchResult, is_exact_phrase, match_index) tuples so
-    the caller can rank results: exact matches first, then by match position
-    (earlier = more topically central) before applying the limit.
-    """
+    """Search within a single risk/mitigation document."""
     try:
-        doc = await _call_registered_tool(get_risk, risk_doc.id)
+        doc = await _call_registered_tool(get_document_fn, document.id)
         content = doc.content
         match_index, is_exact = _best_match_index(content, query)
         if match_index == -1:
             return []
 
-        section = risk_doc.name
+        section = document.name
         for line in reversed(content[:match_index].splitlines()[-10:]):
             if line.strip().startswith("#"):
                 section = line.strip("#").strip()
@@ -1243,16 +1242,30 @@ async def _search_single_risk(
         return [
             (
                 SearchResult(
-                    framework_id=f"risk-{risk_doc.id}", section=section, content=snippet
+                    framework_id=f"{framework_prefix}-{document.id}",
+                    section=section,
+                    content=snippet,
                 ),
                 is_exact,
                 match_index,
             )
         ]
-
     except Exception as e:
-        logger.warning("Failed to search risk %s: %s", risk_doc.id, e)
+        logger.warning("Failed to search %s %s: %s", log_label, document.id, e)
         return []
+
+
+async def _search_single_risk(
+    risk_doc: DocumentInfo, query: str
+) -> list[tuple[SearchResult, bool, int]]:
+    """Search wrapper for risk documents."""
+    return await _search_single_document(
+        document=risk_doc,
+        query=query,
+        get_document_fn=get_risk,
+        framework_prefix="risk",
+        log_label="risk",
+    )
 
 
 @mcp.tool(
@@ -1314,42 +1327,14 @@ async def search_risks(
 async def _search_single_mitigation(
     mitigation_doc: DocumentInfo, query: str
 ) -> list[tuple[SearchResult, bool, int]]:
-    """Search within a single mitigation document.
-
-    Fetches full document content (served from cache after first request) and
-    returns a list of (SearchResult, is_exact_phrase, match_index) tuples so
-    the caller can rank results: exact matches first, then by match position
-    (earlier = more topically central) before applying the limit.
-    """
-    try:
-        doc = await _call_registered_tool(get_mitigation, mitigation_doc.id)
-        content = doc.content
-        match_index, is_exact = _best_match_index(content, query)
-        if match_index == -1:
-            return []
-
-        section = mitigation_doc.name
-        for line in reversed(content[:match_index].splitlines()[-10:]):
-            if line.strip().startswith("#"):
-                section = line.strip("#").strip()
-                break
-
-        snippet = _clean_search_snippet(content, query, match_index)
-        return [
-            (
-                SearchResult(
-                    framework_id=f"mitigation-{mitigation_doc.id}",
-                    section=section,
-                    content=snippet,
-                ),
-                is_exact,
-                match_index,
-            )
-        ]
-
-    except Exception as e:
-        logger.warning("Failed to search mitigation %s: %s", mitigation_doc.id, e)
-        return []
+    """Search wrapper for mitigation documents."""
+    return await _search_single_document(
+        document=mitigation_doc,
+        query=query,
+        get_document_fn=get_mitigation,
+        framework_prefix="mitigation",
+        log_label="mitigation",
+    )
 
 
 @mcp.tool(
