@@ -363,6 +363,39 @@ class TestFastMCPIntegration:
         assert "uptime_seconds" in structured_data
 
     @pytest.mark.asyncio
+    async def test_health_contract_required_fields_are_stable(self):
+        """Guardrail: required health fields/types remain backward compatible."""
+        _, structured_data = await _call_tool("get_service_health", {})
+
+        required_fields = {
+            "status": str,
+            "uptime_seconds": float,
+            "version": str,
+            "healthy_services": int,
+            "total_services": int,
+        }
+
+        for field, expected_type in required_fields.items():
+            assert field in structured_data
+            assert isinstance(structured_data[field], expected_type)
+
+    @pytest.mark.asyncio
+    async def test_cache_contract_required_fields_are_stable(self):
+        """Guardrail: required cache fields/types remain backward compatible."""
+        _, structured_data = await _call_tool("get_cache_stats", {})
+
+        required_fields = {
+            "total_requests": int,
+            "cache_hits": int,
+            "cache_misses": int,
+            "hit_rate": float,
+        }
+
+        for field, expected_type in required_fields.items():
+            assert field in structured_data
+            assert isinstance(structured_data[field], expected_type)
+
+    @pytest.mark.asyncio
     async def test_mcp_call_tool_with_parameters(self):
         """Test calling tool with parameters through FastMCP server."""
         result = await _call_tool("get_framework", {"framework": "gdpr"})
