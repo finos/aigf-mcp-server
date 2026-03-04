@@ -37,3 +37,10 @@ This project uses a layered architecture to improve modularity and long-term mai
 ## Compatibility Goal
 
 Layering is internal; MCP tool names, arguments, and required response fields remain backward compatible.
+
+## Guard Rails
+
+Automated checks enforce these boundaries:
+
+1. `tests/unit/test_architecture_guards.py` rejects direct `api -> infrastructure/content` imports.
+2. `tests/unit/test_architecture_guards.py` ensures prompt/resource registrations are not reintroduced inline in `fastmcp_server.py`.

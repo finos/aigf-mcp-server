@@ -992,19 +992,21 @@ _SECTION_HEADER = re.compile(r"^#{1,3}\s+", re.MULTILINE)
 def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
     """Extract the text body of the first matching markdown section.
 
-    Tries each header name in order (case-insensitive).  Returns up to
-    max_chars of the section body, or an empty string if none is found.
+    Kept here for backward-compatible internal imports used by tests and
+    prompt registration internals.
     """
     for header in headers:
         pattern = re.compile(
             r"^#{1,3}\s+" + re.escape(header) + r"\s*$", re.IGNORECASE | re.MULTILINE
         )
-        m = pattern.search(content)
-        if not m:
+        match = pattern.search(content)
+        if not match:
             continue
-        start = m.end()
-        next_h = _SECTION_HEADER.search(content, start)
-        body = content[start : next_h.start() if next_h else len(content)].strip()
+        start = match.end()
+        next_header = _SECTION_HEADER.search(content, start)
+        body = content[
+            start : next_header.start() if next_header else len(content)
+        ].strip()
         if body:
             return body[:max_chars]
     return ""
@@ -1415,7 +1417,6 @@ register_prompts(
     mcp=mcp,
     validate_request_params=_validate_request_params,
     call_registered_tool=_call_registered_tool,
-    extract_section=_extract_section,
     get_framework_tool=get_framework,
     get_risk_tool=get_risk,
     get_mitigation_tool=get_mitigation,

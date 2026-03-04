@@ -2,10 +2,32 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
 from pydantic import Field
+
+_SECTION_HEADER = re.compile(r"^#{1,3}\s+", re.MULTILINE)
+
+
+def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
+    """Extract the text body of the first matching markdown section."""
+    for header in headers:
+        pattern = re.compile(
+            r"^#{1,3}\s+" + re.escape(header) + r"\s*$", re.IGNORECASE | re.MULTILINE
+        )
+        match = pattern.search(content)
+        if not match:
+            continue
+        start = match.end()
+        next_header = _SECTION_HEADER.search(content, start)
+        body = content[
+            start : next_header.start() if next_header else len(content)
+        ].strip()
+        if body:
+            return body[:max_chars]
+    return ""
 
 
 def register_prompts(
@@ -13,7 +35,6 @@ def register_prompts(
     mcp: Any,
     validate_request_params: Callable[..., None],
     call_registered_tool: Callable[..., Awaitable[Any]],
-    extract_section: Callable[..., str],
     get_framework_tool: Any,
     get_risk_tool: Any,
     get_mitigation_tool: Any,
@@ -93,7 +114,7 @@ Focus on practical, actionable guidance."""
             risk_id = result.framework_id.removeprefix("risk-")
             try:
                 doc = await call_registered_tool(get_risk_tool, risk_id)
-                summary = extract_section(
+                summary = _extract_section(
                     doc.content, "Summary", "Overview", "Description"
                 )
                 if summary:
@@ -157,7 +178,9 @@ Be specific and actionable in your recommendations."""
             mitigation_id = result.framework_id.removeprefix("mitigation-")
             try:
                 doc = await call_registered_tool(get_mitigation_tool, mitigation_id)
-                purpose = extract_section(doc.content, "Purpose", "Summary", "Overview")
+                purpose = _extract_section(
+                    doc.content, "Purpose", "Summary", "Overview"
+                )
                 if purpose:
                     mitigation_sections.append(
                         f"### {doc.title} ({mitigation_id})\n{purpose}"
