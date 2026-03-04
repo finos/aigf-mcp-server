@@ -167,7 +167,7 @@ def parse_response(raw: str, parse_path: str) -> tuple[bool, Any, str]:
 
 
 # ── Test suite ────────────────────────────────────────────────────────────────────
-def build_test_suite() -> list[TestCase]:
+def build_test_suite(*, include_unavailable: bool = False) -> list[TestCase]:
     """Return the ordered list of test cases."""
 
     # Shorthand builders
@@ -186,7 +186,7 @@ def build_test_suite() -> list[TestCase]:
             *args,
         ]
 
-    return [
+    suite = [
         # ── Category: Infrastructure ────────────────────────────────────────────
         TestCase(
             category="Infrastructure",
@@ -797,6 +797,88 @@ def build_test_suite() -> list[TestCase]:
         ),
     ]
 
+    if include_unavailable:
+        suite.extend(
+            [
+                TestCase(
+                    category="Resilience",
+                    name="TC-U1 • UNAVAILABLE list_risks failback message",
+                    description="When discovery is unavailable, list_risks returns source=unavailable with message",
+                    cli_args=tool("list_risks"),
+                    parse_path="structured",
+                    checks=[
+                        Check(
+                            "source == 'unavailable'",
+                            lambda d: (
+                                isinstance(d, dict) and d.get("source") == "unavailable"
+                            ),
+                        ),
+                        Check(
+                            "total_count == 0",
+                            lambda d: (
+                                isinstance(d, dict) and d.get("total_count", -1) == 0
+                            ),
+                        ),
+                        Check(
+                            "message is non-empty",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and isinstance(d.get("message"), str)
+                                and len(d.get("message", "").strip()) > 0
+                            ),
+                        ),
+                    ],
+                ),
+                TestCase(
+                    category="Resilience",
+                    name="TC-U2 • UNAVAILABLE get_risk failback message",
+                    description="When discovery is unavailable, get_risk returns explicit unavailable messaging",
+                    cli_args=tool("get_risk", ["risk_id=9_data-poisoning"]),
+                    parse_path="structured",
+                    checks=[
+                        Check(
+                            "title indicates unavailable",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and "unavailable" in d.get("title", "").lower()
+                            ),
+                        ),
+                        Check(
+                            "content indicates unavailable",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and "unavailable" in d.get("content", "").lower()
+                            ),
+                        ),
+                    ],
+                ),
+                TestCase(
+                    category="Resilience",
+                    name="TC-U3 • UNAVAILABLE search_risks failback message",
+                    description="When discovery is unavailable, search_risks returns 0 results with message",
+                    cli_args=tool("search_risks", ["query=data poisoning"]),
+                    parse_path="structured",
+                    checks=[
+                        Check(
+                            "total_found == 0",
+                            lambda d: (
+                                isinstance(d, dict) and d.get("total_found", -1) == 0
+                            ),
+                        ),
+                        Check(
+                            "message indicates unavailable",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and "unavailable" in d.get("message", "").lower()
+                            ),
+                        ),
+                    ],
+                ),
+            ]
+        )
+
+    return suite
+
 
 # ── Runner ────────────────────────────────────────────────────────────────────────
 def run_test(tc: TestCase, config: str, server: str, timeout: int) -> TestResult:
@@ -962,9 +1044,14 @@ def main() -> None:
         default="",
         help="Only run tests whose name contains this string (case-insensitive)",
     )
+    parser.add_argument(
+        "--include-unavailable",
+        action="store_true",
+        help="Include additional resilience tests that expect discovery-unavailable failback messaging",
+    )
     args = parser.parse_args()
 
-    suite = build_test_suite()
+    suite = build_test_suite(include_unavailable=args.include_unavailable)
     if args.filter:
         suite = [tc for tc in suite if args.filter.lower() in tc.name.lower()]
         if not suite:
