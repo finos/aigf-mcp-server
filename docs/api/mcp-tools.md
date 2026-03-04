@@ -183,7 +183,7 @@ List all available risk documents.
 ```json
 {
   "total_count": "integer",
-  "source": "string (e.g., 'github_api' or 'static_fallback')",
+  "source": "string (e.g., 'github_api', 'cache', or 'unavailable')",
   "documents": [
     {
       "id": "string",
@@ -315,7 +315,7 @@ List all available mitigation documents.
 ```json
 {
   "total_count": "integer",
-  "source": "string (e.g., 'github_api' or 'static_fallback')",
+  "source": "string (e.g., 'github_api', 'cache', or 'unavailable')",
   "documents": [
     {
       "id": "string",

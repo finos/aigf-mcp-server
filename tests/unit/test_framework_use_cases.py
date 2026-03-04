@@ -33,7 +33,6 @@ class TestFrameworkUseCases:
     async def test_execute_list_frameworks(self):
         payload = await execute_list_frameworks(
             repository=_FakeRepo(),
-            static_framework_files=["fallback.yml"],
             logger=type("L", (), {"error": lambda *args, **kwargs: None})(),
         )
         assert payload["total_count"] == 2
@@ -44,7 +43,6 @@ class TestFrameworkUseCases:
         payload = await execute_get_framework(
             framework_id="eu-ai-act",
             repository=_FakeRepo(),
-            static_framework_files=[],
             format_yaml_content=lambda c, f: c,
             validate_resource_size=lambda _: None,
             safe_external_error=lambda e, m: m,

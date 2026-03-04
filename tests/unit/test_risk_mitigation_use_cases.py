@@ -33,7 +33,6 @@ class TestRiskMitigationUseCases:
         payload = await execute_list_documents(
             document_type="risk",
             prefix="ri-",
-            static_files=["ri-fallback.md"],
             discover_file_infos=lambda: _async_return(
                 [_FakeFileInfo("ri-risk-a.md"), _FakeFileInfo("ri-risk-b.md")]
             ),
@@ -55,7 +54,6 @@ class TestRiskMitigationUseCases:
         payload = await execute_list_documents(
             document_type="mitigation",
             prefix="mi-",
-            static_files=["mi-a.md"],
             discover_file_infos=_raise_discovery,
             format_document_name=lambda filename, prefix: filename.removeprefix(
                 prefix
@@ -63,9 +61,9 @@ class TestRiskMitigationUseCases:
             logger=_Logger(),
         )
 
-        assert payload["total_count"] == 1
-        assert payload["source"] == "static_fallback"
-        assert payload["documents"][0]["id"] == "a"
+        assert payload["total_count"] == 0
+        assert payload["source"] == "unavailable"
+        assert payload["message"] is not None
 
     @pytest.mark.asyncio
     async def test_execute_get_document_found(self):
@@ -73,7 +71,6 @@ class TestRiskMitigationUseCases:
             requested_id="risk-a",
             doc_type="risk",
             prefix="ri-",
-            static_files=[],
             discover_filenames=lambda: _async_return(["ri-risk-a.md"]),
             get_document_by_filename=lambda doc_type, filename: _async_return(
                 {"content": "# Header\nbody", "title": "Risk A"}
@@ -97,7 +94,6 @@ class TestRiskMitigationUseCases:
             requested_id="missing",
             doc_type="risk",
             prefix="ri-",
-            static_files=["ri-risk-a.md"],
             discover_filenames=lambda: _async_return(["ri-risk-a.md"]),
             get_document_by_filename=lambda doc_type, filename: _async_return(None),
             format_document_name=lambda filename, prefix: "Formatted",

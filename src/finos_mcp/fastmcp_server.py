@@ -53,9 +53,6 @@ from .application.use_cases import (
 from .config import Settings, validate_settings_on_startup
 from .content.cache import get_cache
 from .content.discovery import (
-    STATIC_FRAMEWORK_FILES,
-    STATIC_MITIGATION_FILES,
-    STATIC_RISK_FILES,
     DiscoveryServiceManager,
 )
 from .content.service import get_content_service
@@ -178,6 +175,8 @@ class FrameworkList(BaseModel):
 
     frameworks: list[Framework]
     total_count: int
+    source: str | None = None
+    message: str | None = None
 
 
 class FrameworkContent(BaseModel):
@@ -203,6 +202,7 @@ class SearchResults(BaseModel):
     query: str
     results: list[SearchResult]
     total_found: int
+    message: str | None = None
 
 
 class DocumentInfo(BaseModel):
@@ -222,7 +222,8 @@ class DocumentList(BaseModel):
     documents: list[DocumentInfo]
     total_count: int
     document_type: str
-    source: str  # "github_api", "cache", or "static_fallback"
+    source: str  # "github_api", "cache", or "unavailable"
+    message: str | None = None
 
 
 class DocumentContent(BaseModel):
@@ -419,11 +420,15 @@ async def list_frameworks() -> FrameworkList:
         apply_dos=_apply_dos_protection,
         execute_list_frameworks_fn=execute_list_frameworks,
         repository=_framework_repository,
-        static_framework_files=list(STATIC_FRAMEWORK_FILES),
         logger=logger,
     )
     frameworks = [Framework(**item) for item in payload["frameworks"]]
-    return FrameworkList(frameworks=frameworks, total_count=payload["total_count"])
+    return FrameworkList(
+        frameworks=frameworks,
+        total_count=payload["total_count"],
+        source=payload.get("source"),
+        message=payload.get("message"),
+    )
 
 
 def _format_framework_name(framework_id: str) -> str:
@@ -586,7 +591,6 @@ async def get_framework(
         validate_request_params=_validate_request_params,
         execute_get_framework_fn=execute_get_framework,
         repository=_framework_repository,
-        static_framework_files=list(STATIC_FRAMEWORK_FILES),
         format_yaml_content=_format_yaml_content,
         validate_resource_size=request_size_validator.validate_resource_size,
         safe_external_error=_safe_external_error,
@@ -615,7 +619,6 @@ async def list_risks() -> DocumentList:
     payload = await list_documents_payload(
         document_type="risk",
         prefix="ri-",
-        static_files=list(STATIC_RISK_FILES),
         discover_file_infos=_risk_mitigation_repository.discover_risk_file_infos,
         format_document_name=_format_document_name,
         apply_dos=_apply_dos_protection,
@@ -628,6 +631,7 @@ async def list_risks() -> DocumentList:
         total_count=payload["total_count"],
         document_type=payload["document_type"],
         source=payload["source"],
+        message=payload.get("message"),
     )
 
 
@@ -651,7 +655,6 @@ async def list_mitigations() -> DocumentList:
     payload = await list_documents_payload(
         document_type="mitigation",
         prefix="mi-",
-        static_files=list(STATIC_MITIGATION_FILES),
         discover_file_infos=_risk_mitigation_repository.discover_mitigation_file_infos,
         format_document_name=_format_document_name,
         apply_dos=_apply_dos_protection,
@@ -664,6 +667,7 @@ async def list_mitigations() -> DocumentList:
         total_count=payload["total_count"],
         document_type=payload["document_type"],
         source=payload["source"],
+        message=payload.get("message"),
     )
 
 
@@ -701,7 +705,6 @@ async def get_risk(
         requested_id=risk_id,
         doc_type="risk",
         prefix="ri-",
-        static_files=list(STATIC_RISK_FILES),
         discover_filenames=_risk_mitigation_repository.discover_risk_filenames,
         get_document_by_filename=_risk_mitigation_repository.get_document,
         format_document_name=_format_document_name,
@@ -749,7 +752,6 @@ async def get_mitigation(
         requested_id=mitigation_id,
         doc_type="mitigation",
         prefix="mi-",
-        static_files=list(STATIC_MITIGATION_FILES),
         discover_filenames=_risk_mitigation_repository.discover_mitigation_filenames,
         get_document_by_filename=_risk_mitigation_repository.get_document,
         format_document_name=_format_document_name,

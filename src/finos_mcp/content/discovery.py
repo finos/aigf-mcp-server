@@ -23,70 +23,10 @@ from .fetch import CircuitBreakerError, HTTPClient, get_http_client
 
 logger = get_logger("content_discovery")
 
-# Static fallback lists (auto-generated - do not edit manually)
-# To update: python scripts/update-static-fallback.py
-# Last updated: 2025-10-27
-STATIC_MITIGATION_FILES = [
-    "mi-10_ai-model-version-pinning.md",
-    "mi-11_human-feedback-loop-for-ai-systems.md",
-    "mi-12_role-based-access-control-for-ai-data.md",
-    "mi-13_providing-citations-and-source-traceability-for-ai-generated-information.md",
-    "mi-14_encryption-of-ai-data-at-rest.md",
-    "mi-15_using-large-language-models-for-automated-evaluation-llm-as-a-judge-.md",
-    "mi-16_preserving-source-data-access-controls-in-ai-systems.md",
-    "mi-17_ai-firewall-implementation-and-management.md",
-    "mi-18_agent-authority-least-privilege-framework.md",
-    "mi-19_tool-chain-validation-and-sanitization.md",
-    "mi-1_ai-data-leakage-prevention-and-detection.md",
-    "mi-20_mcp-server-security-governance.md",
-    "mi-21_agent-decision-audit-and-explainability.md",
-    "mi-22_multi-agent-isolation-and-segmentation.md",
-    "mi-23_agentic-system-credential-protection-framework.md",
-    "mi-2_data-filtering-from-external-knowledge-bases.md",
-    "mi-3_user-app-model-firewalling-filtering.md",
-    "mi-4_ai-system-observability.md",
-    "mi-5_system-acceptance-testing.md",
-    "mi-6_data-quality-classification-sensitivity.md",
-    "mi-7_legal-and-contractual-frameworks-for-ai-systems.md",
-    "mi-8_quality-of-service-qos-and-ddos-prevention-for-ai-systems.md",
-    "mi-9_ai-system-alerting-and-denial-of-wallet-dow-spend-monitoring.md",
-]
-
-STATIC_RISK_FILES = [
-    "ri-10_prompt-injection.md",
-    "ri-14_inadequate-system-alignment.md",
-    "ri-16_bias-and-discrimination.md",
-    "ri-17_lack-of-explainability.md",
-    "ri-18_model-overreach-expanded-use.md",
-    "ri-19_data-quality-and-drift.md",
-    "ri-1_information-leaked-to-hosted-model.md",
-    "ri-20_reputational-risk.md",
-    "ri-22_regulatory-compliance-and-oversight.md",
-    "ri-23_intellectual-property-ip-and-copyright.md",
-    "ri-24_agent-action-authorization-bypass.md",
-    "ri-25_tool-chain-manipulation-and-injection.md",
-    "ri-26_mcp-server-supply-chain-compromise.md",
-    "ri-27_agent-state-persistence-poisoning.md",
-    "ri-28_multi-agent-trust-boundary-violations.md",
-    "ri-29_agent-mediated-credential-discovery-and-harvesting.md",
-    "ri-2_information-leaked-to-vector-store.md",
-    "ri-4_hallucination-and-inaccurate-outputs.md",
-    "ri-5_foundation-model-versioning.md",
-    "ri-6_non-deterministic-behaviour.md",
-    "ri-7_availability-of-foundational-model.md",
-    "ri-8_tampering-with-the-foundational-model.md",
-    "ri-9_data-poisoning.md",
-]
-
-STATIC_FRAMEWORK_FILES = [
-    "eu-ai-act.yml",
-    "ffiec-itbooklets.yml",
-    "iso-42001.yml",
-    "nist-ai-600-1.yml",
-    "nist-sp-800-53r5.yml",
-    "owasp-llm.yml",
-    "owasp-ml.yml",
-]
+# Deprecated exports kept for backward-compatible imports.
+STATIC_MITIGATION_FILES: tuple[str, ...] = ()
+STATIC_RISK_FILES: tuple[str, ...] = ()
+STATIC_FRAMEWORK_FILES: tuple[str, ...] = ()
 
 
 @dataclass
@@ -108,9 +48,10 @@ class DiscoveryResult:
     mitigation_files: list[GitHubFileInfo]
     risk_files: list[GitHubFileInfo]
     framework_files: list[GitHubFileInfo]
-    source: str  # "github_api", "cache", or "static_fallback"
+    source: str  # "github_api", "cache", or "unavailable"
     cache_expires: datetime | None = None
     rate_limit_remaining: int | None = None
+    message: str | None = None
 
 
 class GitHubDiscoveryService:
@@ -147,18 +88,24 @@ class GitHubDiscoveryService:
                 str(e),
             )
 
-        # GitHub API configuration
-        self.repo_owner = "finos"
-        self.repo_name = "ai-governance-framework"
-        self.mitigation_path = "docs/_mitigations"
-        self.risk_path = "docs/_risks"
-        self.framework_path = "docs/_data"
+        # GitHub API/repository configuration (env-configurable)
+        self.github_api_base_url = self.settings.github_api_base_url
+        self.repo_owner = self.settings.github_repo_owner
+        self.repo_name = self.settings.github_repo_name
+        self.repo_ref = self.settings.github_repo_ref
+        self.mitigation_path = self.settings.github_mitigation_path
+        self.risk_path = self.settings.github_risk_path
+        self.framework_path = self.settings.github_framework_path
 
         # Cache duration (1 hour for production, 5 minutes for development)
         self.cache_duration_seconds = 3600 if not self.settings.debug_mode else 300
 
     async def discover_content(self) -> DiscoveryResult:
         """Discover mitigation and risk files with caching and SHA-based validation."""
+        failure_message = (
+            "Live governance repository discovery is currently unavailable. "
+            "Please retry when upstream connectivity is restored."
+        )
         try:
             # Try to load from cache first
             cached_result = await self._load_from_cache()
@@ -209,10 +156,6 @@ class GitHubDiscoveryService:
                 # Save to cache
                 await self._save_to_cache(github_result)
 
-                # Check if static fallback needs update
-                if self.settings.check_static_fallback:
-                    self._check_static_fallback_sync(github_result)
-
                 logger.info(
                     "Content discovery via GitHub API successful",
                     extra={
@@ -235,12 +178,15 @@ class GitHubDiscoveryService:
             KeyError,
         ) as e:
             logger.warning(
-                "GitHub API discovery failed, using fallback",
+                "GitHub API discovery failed",
                 extra={"error": str(e), "error_type": type(e).__name__},
             )
+            failure_message = (
+                "Live governance repository discovery failed due to upstream "
+                "availability issues. Please retry later."
+            )
 
-        # Fallback to static lists
-        return self._create_static_fallback()
+        return self._create_unavailable_result(failure_message)
 
     async def _fetch_from_github(self) -> DiscoveryResult | None:
         """Fetch file listings from GitHub API using shared HTTP client."""
@@ -342,7 +288,10 @@ class GitHubDiscoveryService:
         file_extension: str = ".md",
     ) -> list[GitHubFileInfo]:
         """Fetch files from a specific directory in the repository with rate limiting."""
-        url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/contents/{directory_path}"
+        url = (
+            f"{self.github_api_base_url}/repos/{self.repo_owner}/"
+            f"{self.repo_name}/contents/{directory_path}"
+        )
 
         headers = {}
         # Add GitHub token if available
@@ -657,126 +606,15 @@ class GitHubDiscoveryService:
 
         return True
 
-    def _check_static_fallback_sync(self, current_result: DiscoveryResult) -> None:
-        """Check if static fallback lists match current GitHub state.
-
-        Logs warnings if mismatches are detected, helping developers know
-        when to run the update script.
-
-        Args:
-            current_result: Current discovery result from GitHub API
-        """
-        current_mitigations = {f.filename for f in current_result.mitigation_files}
-        current_risks = {f.filename for f in current_result.risk_files}
-        current_frameworks = {f.filename for f in current_result.framework_files}
-
-        static_mitigations = set(STATIC_MITIGATION_FILES)
-        static_risks = set(STATIC_RISK_FILES)
-        static_frameworks = set(STATIC_FRAMEWORK_FILES)
-
-        mismatch_detected = False
-
-        # Check mitigations
-        if current_mitigations != static_mitigations:
-            added = current_mitigations - static_mitigations
-            removed = static_mitigations - current_mitigations
-            logger.warning(
-                "Static mitigation fallback list is outdated",
-                extra={
-                    "added_count": len(added),
-                    "removed_count": len(removed),
-                    "added_files": list(added) if added else None,
-                    "removed_files": list(removed) if removed else None,
-                },
-            )
-            mismatch_detected = True
-
-        # Check risks
-        if current_risks != static_risks:
-            added = current_risks - static_risks
-            removed = static_risks - current_risks
-            logger.warning(
-                "Static risk fallback list is outdated",
-                extra={
-                    "added_count": len(added),
-                    "removed_count": len(removed),
-                    "added_files": list(added) if added else None,
-                    "removed_files": list(removed) if removed else None,
-                },
-            )
-            mismatch_detected = True
-
-        # Check frameworks
-        if current_frameworks != static_frameworks:
-            added = current_frameworks - static_frameworks
-            removed = static_frameworks - current_frameworks
-            logger.warning(
-                "Static framework fallback list is outdated",
-                extra={
-                    "added_count": len(added),
-                    "removed_count": len(removed),
-                    "added_files": list(added) if added else None,
-                    "removed_files": list(removed) if removed else None,
-                },
-            )
-            mismatch_detected = True
-
-        if mismatch_detected:
-            logger.warning(
-                "Static fallback lists need update - run: python scripts/update-static-fallback.py"
-            )
-        else:
-            logger.debug("Static fallback lists are synchronized with GitHub")
-
-    def _create_static_fallback(self) -> DiscoveryResult:
-        """Create discovery result from static file lists."""
-        mitigation_files = [
-            GitHubFileInfo(
-                filename=filename,
-                path=f"{self.mitigation_path}/{filename}",
-                sha="static",
-                size=0,
-                download_url=f"https://raw.githubusercontent.com/{self.repo_owner}/{self.repo_name}/main/{self.mitigation_path}/{filename}",
-            )
-            for filename in STATIC_MITIGATION_FILES
-        ]
-
-        risk_files = [
-            GitHubFileInfo(
-                filename=filename,
-                path=f"{self.risk_path}/{filename}",
-                sha="static",
-                size=0,
-                download_url=f"https://raw.githubusercontent.com/{self.repo_owner}/{self.repo_name}/main/{self.risk_path}/{filename}",
-            )
-            for filename in STATIC_RISK_FILES
-        ]
-
-        framework_files = [
-            GitHubFileInfo(
-                filename=filename,
-                path=f"{self.framework_path}/{filename}",
-                sha="static",
-                size=0,
-                download_url=f"https://raw.githubusercontent.com/{self.repo_owner}/{self.repo_name}/main/{self.framework_path}/{filename}",
-            )
-            for filename in STATIC_FRAMEWORK_FILES
-        ]
-
-        logger.info(
-            "Using static fallback for content discovery",
-            extra={
-                "mitigation_count": len(mitigation_files),
-                "risk_count": len(risk_files),
-                "framework_count": len(framework_files),
-            },
-        )
-
+    def _create_unavailable_result(self, message: str) -> DiscoveryResult:
+        """Return an explicit unavailable result when live discovery cannot run."""
+        logger.warning("Discovery unavailable: %s", message)
         return DiscoveryResult(
-            mitigation_files=mitigation_files,
-            risk_files=risk_files,
-            framework_files=framework_files,
-            source="static_fallback",
+            mitigation_files=[],
+            risk_files=[],
+            framework_files=[],
+            source="unavailable",
+            message=message,
         )
 
 

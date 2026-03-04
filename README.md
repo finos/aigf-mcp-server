@@ -224,7 +224,7 @@ Cloud mapping examples:
 - **Input Limits**: Tool, prompt, and resource parameters enforce max lengths and request-size checks
 - **Output Limits**: Resource/document payloads are size-validated before returning to clients
 - **Error Disclosure Control**: External errors are sanitized and correlation-tagged
-- **Fallback Strategy**: Dynamic GitHub discovery with static fallback lists for risk/mitigation/framework catalogs
+- **Failure Signaling Strategy**: Dynamic GitHub discovery with explicit `unavailable` responses when upstream content cannot be reached
 - **Boundary Authentication (Optional)**: JWT validation at MCP boundary with issuer/audience/scope enforcement
 
 ---

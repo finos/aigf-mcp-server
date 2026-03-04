@@ -150,6 +150,34 @@ class Settings(BaseSettings):
         default=30,
         description="GitHub API request timeout in seconds",
     )
+    github_api_base_url: str = Field(
+        default="https://api.github.com",
+        description="GitHub API base URL for content discovery",
+    )
+    github_repo_owner: str = Field(
+        default="finos",
+        description="GitHub repository owner for governance content discovery",
+    )
+    github_repo_name: str = Field(
+        default="ai-governance-framework",
+        description="GitHub repository name for governance content discovery",
+    )
+    github_repo_ref: str = Field(
+        default="main",
+        description="Git reference (branch/tag) used for raw fallback URLs",
+    )
+    github_mitigation_path: str = Field(
+        default="docs/_mitigations",
+        description="Repository path containing mitigation markdown files",
+    )
+    github_risk_path: str = Field(
+        default="docs/_risks",
+        description="Repository path containing risk markdown files",
+    )
+    github_framework_path: str = Field(
+        default="docs/_data",
+        description="Repository path containing framework yaml files",
+    )
 
     # Discovery cache directory (absolute path preferred; CWD-relative paths
     # produce different cache locations when the server is started from different
@@ -200,7 +228,7 @@ class Settings(BaseSettings):
 
     check_static_fallback: bool = Field(
         default=True,
-        description="Check if static fallback lists are outdated and log warnings",
+        description="Deprecated: retained for backward-compatible configuration parsing",
     )
 
     model_config = {
@@ -244,6 +272,17 @@ class Settings(BaseSettings):
             raise ValueError("Base URL must be a valid HTTP or HTTPS URL")
         if not parsed.netloc:
             raise ValueError("Base URL must include a domain")
+        return v.rstrip("/")
+
+    @field_validator("github_api_base_url")
+    @classmethod
+    def validate_github_api_base_url(cls, v: str) -> str:
+        """Validate GitHub API base URL."""
+        parsed = urlparse(v)
+        if not parsed.scheme or parsed.scheme not in ["http", "https"]:
+            raise ValueError("GitHub API base URL must be a valid HTTP or HTTPS URL")
+        if not parsed.netloc:
+            raise ValueError("GitHub API base URL must include a domain")
         return v.rstrip("/")
 
     @field_validator("mcp_auth_jwks_uri")

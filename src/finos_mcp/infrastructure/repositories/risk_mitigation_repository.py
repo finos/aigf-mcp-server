@@ -18,9 +18,22 @@ class RiskMitigationRepository:
         self._discovery_manager = discovery_manager
         self._get_service = get_service
 
+    @staticmethod
+    def _assert_available(discovery_result: Any) -> None:
+        source = getattr(discovery_result, "source", "github_api")
+        if source == "unavailable":
+            message = getattr(
+                discovery_result,
+                "message",
+                "Risk and mitigation discovery is currently unavailable.",
+            )
+            raise RuntimeError(message)
+
     async def _discover(self) -> Any:
         discovery_service = await self._discovery_manager.get_discovery_service()
-        return await discovery_service.discover_content()
+        result = await discovery_service.discover_content()
+        self._assert_available(result)
+        return result
 
     async def discover_risk_file_infos(self) -> list[Any]:
         result = await self._discover()

@@ -38,7 +38,6 @@ class TestGovernanceToolHandlers:
                 }
             ),
             repository=object(),
-            static_framework_files=[],
             logger=_Logger(),
         )
         assert payload["total_count"] == 1
@@ -54,7 +53,6 @@ class TestGovernanceToolHandlers:
             validate_request_params=_validate,
             execute_get_framework_fn=_raise,
             repository=object(),
-            static_framework_files=[],
             format_yaml_content=lambda c, f: c,
             validate_resource_size=lambda c: None,
             safe_external_error=lambda e, m: m,
@@ -68,7 +66,6 @@ class TestGovernanceToolHandlers:
         payload = await list_documents_payload(
             document_type="risk",
             prefix="ri-",
-            static_files=[],
             discover_file_infos=lambda: _async_return([]),
             format_document_name=lambda f, p: f,
             apply_dos=_noop,
@@ -90,7 +87,6 @@ class TestGovernanceToolHandlers:
             requested_id="a",
             doc_type="risk",
             prefix="ri-",
-            static_files=[],
             discover_filenames=lambda: _async_return(["ri-a.md"]),
             get_document_by_filename=lambda d, f: _async_return({"content": "ok"}),
             format_document_name=lambda f, p: f,

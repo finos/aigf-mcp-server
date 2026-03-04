@@ -186,7 +186,7 @@ Lists all available risk documents.
 
 **Field Descriptions**:
 - `total_count` (integer): Total number of risk documents available
-- `source` (string): Data source ("github_api" or "static_fallback")
+- `source` (string): Data source ("github_api", "cache", or "unavailable")
 - `documents` (array): List of risk document objects
   - `id` (string): Risk identifier for use with get_risk
   - `name` (string): Human-readable risk name
@@ -284,7 +284,7 @@ Lists all available mitigation documents.
 
 **Field Descriptions**:
 - `total_count` (integer): Total number of mitigation documents available
-- `source` (string): Data source ("github_api" or "static_fallback")
+- `source` (string): Data source ("github_api", "cache", or "unavailable")
 - `documents` (array): List of mitigation document objects
   - `id` (string): Mitigation identifier for use with get_mitigation
   - `name` (string): Human-readable mitigation name

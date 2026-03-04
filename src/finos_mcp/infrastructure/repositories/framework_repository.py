@@ -18,10 +18,22 @@ class FrameworkRepository:
         self._discovery_manager = discovery_manager
         self._get_service = get_service
 
+    @staticmethod
+    def _assert_available(discovery_result: Any) -> None:
+        source = getattr(discovery_result, "source", "github_api")
+        if source == "unavailable":
+            message = getattr(
+                discovery_result,
+                "message",
+                "Framework discovery is currently unavailable.",
+            )
+            raise RuntimeError(message)
+
     async def discover_framework_file_infos(self) -> list[Any]:
         """Return discovered framework file info objects."""
         discovery_service = await self._discovery_manager.get_discovery_service()
         discovery_result = await discovery_service.discover_content()
+        self._assert_available(discovery_result)
         return discovery_result.framework_files
 
     async def discover_framework_filenames(self) -> list[str]:

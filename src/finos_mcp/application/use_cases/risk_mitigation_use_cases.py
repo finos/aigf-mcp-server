@@ -15,13 +15,13 @@ async def execute_list_documents(
     *,
     document_type: str,
     prefix: str,
-    static_files: list[str],
     discover_file_infos: Callable[[], Awaitable[list[Any]]],
     format_document_name: Callable[[str, str], str],
     logger: Any,
 ) -> dict[str, Any]:
-    """List risk/mitigation documents with static fallback."""
+    """List risk/mitigation documents from live discovery."""
     source = "github_api"
+    message = None
     try:
         file_infos = await discover_file_infos()
         filenames = [f.filename for f in file_infos]
@@ -31,9 +31,13 @@ async def execute_list_documents(
         }
     except Exception as exc:
         logger.error("Failed to list %s documents: %s", document_type, exc)
-        filenames = list(static_files)
+        filenames = []
         last_modified_map = {}
-        source = "static_fallback"
+        source = "unavailable"
+        message = (
+            f"{document_type.capitalize()} catalog unavailable. "
+            "Live repository discovery failed; please retry later."
+        )
 
     documents = []
     for filename in filenames:
@@ -56,6 +60,7 @@ async def execute_list_documents(
         "total_count": len(documents),
         "document_type": document_type,
         "source": source,
+        "message": message,
     }
 
 
@@ -64,7 +69,6 @@ async def execute_get_document(
     requested_id: str,
     doc_type: str,
     prefix: str,
-    static_files: list[str],
     discover_filenames: Callable[[], Awaitable[list[str]]],
     get_document_by_filename: Callable[[str, str], Awaitable[dict[str, Any] | None]],
     format_document_name: Callable[[str, str], str],
@@ -72,16 +76,22 @@ async def execute_get_document(
     safe_external_error: Callable[[Exception, str], str],
     logger: Any,
 ) -> dict[str, Any]:
-    """Get risk/mitigation content with static fallback discovery."""
+    """Get risk/mitigation content from live discovery."""
     try:
         filenames = await discover_filenames()
     except Exception as discovery_error:
         logger.warning(
-            "%s discovery failed, using static fallback list: %s",
-            doc_type.capitalize(),
-            discovery_error,
+            "%s discovery failed: %s", doc_type.capitalize(), discovery_error
         )
-        filenames = list(static_files)
+        return {
+            "document_id": requested_id,
+            "title": f"{doc_type.capitalize()} repository unavailable",
+            "content": (
+                f"Live {doc_type} repository is currently unavailable. "
+                "Please retry later."
+            ),
+            "sections": [],
+        }
 
     target_filename = None
     for filename in filenames:
@@ -153,6 +163,18 @@ async def execute_search_documents(
 ) -> dict[str, Any]:
     """Search risk/mitigation docs in parallel with ranked exact-match priority."""
     docs_list = await list_documents_fn()
+    if getattr(docs_list, "source", None) == "unavailable":
+        return {
+            "query": query,
+            "results": [],
+            "total_found": 0,
+            "message": getattr(
+                docs_list,
+                "message",
+                f"{label.capitalize()} search unavailable because discovery failed.",
+            )
+            or f"{label.capitalize()} search unavailable because discovery failed.",
+        }
     total_documents = len(docs_list.documents)
     logger.info(
         "Starting search across %d %s documents for query: %r",

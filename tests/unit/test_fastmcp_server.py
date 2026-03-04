@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import ValidationError
 
+import finos_mcp.fastmcp_server as fastmcp_server_module
 from finos_mcp.fastmcp_server import (
     CacheStats,
     DocumentContent,
@@ -252,6 +253,10 @@ class TestFastMCPTools:
         result = await _invoke_direct_tool(list_frameworks)
 
         assert isinstance(result, FrameworkList)
+        if result.source == "unavailable":
+            assert result.total_count == 0
+            assert result.message is not None
+            return
         assert result.total_count > 0
         assert len(result.frameworks) == result.total_count
 
@@ -279,7 +284,10 @@ class TestFastMCPTools:
 
         assert isinstance(result, FrameworkContent)
         assert result.framework_id == "invalid-framework"
-        assert "not found" in result.content.lower()
+        assert (
+            "not found" in result.content.lower()
+            or "unavailable" in result.content.lower()
+        )
         assert result.sections == 0
 
     @pytest.mark.asyncio
@@ -289,6 +297,10 @@ class TestFastMCPTools:
 
         assert isinstance(result, DocumentList)
         assert result.document_type == "risk"
+        if result.source == "unavailable":
+            assert result.total_count == 0
+            assert result.message is not None
+            return
         assert result.total_count > 0
         assert len(result.documents) == result.total_count
 
@@ -305,6 +317,10 @@ class TestFastMCPTools:
 
         assert isinstance(result, DocumentList)
         assert result.document_type == "mitigation"
+        if result.source == "unavailable":
+            assert result.total_count == 0
+            assert result.message is not None
+            return
         assert result.total_count > 0
         assert len(result.documents) == result.total_count
 
@@ -355,6 +371,10 @@ class TestFastMCPIntegration:
         assert isinstance(structured_data, dict)
         assert "frameworks" in structured_data
         assert "total_count" in structured_data
+        if structured_data.get("source") == "unavailable":
+            assert structured_data["total_count"] == 0
+            assert structured_data.get("message")
+            return
         assert structured_data["total_count"] > 0
 
     @pytest.mark.asyncio
@@ -455,7 +475,10 @@ class TestErrorHandling:
         result = await _invoke_direct_tool(get_framework, "nonexistent-framework")
 
         assert isinstance(result, FrameworkContent)
-        assert "not found" in result.content.lower()
+        assert (
+            "not found" in result.content.lower()
+            or "unavailable" in result.content.lower()
+        )
         assert result.sections == 0
 
     def test_pydantic_validation_errors(self):
@@ -525,18 +548,22 @@ class TestFormatDocumentName:
 
     def test_list_risks_names_are_clean(self):
         """Integration check: list_risks documents must not contain old-style names."""
-        from finos_mcp.content.discovery import STATIC_RISK_FILES
-
-        for filename in STATIC_RISK_FILES:
+        sample_risk_files = [
+            "ri-4_hallucination-and-inaccurate-outputs.md",
+            "ri-10_prompt-injection.md",
+        ]
+        for filename in sample_risk_files:
             name = _format_document_name(filename, "ri-")
             assert not name.startswith("Ri "), f"Old prefix in: {name}"
             assert "RI-" in name, f"Missing number badge in: {name}"
 
     def test_list_mitigations_names_are_clean(self):
         """Integration check: list_mitigations documents must not contain old-style names."""
-        from finos_mcp.content.discovery import STATIC_MITIGATION_FILES
-
-        for filename in STATIC_MITIGATION_FILES:
+        sample_mitigation_files = [
+            "mi-1_ai-data-leakage-prevention-and-detection.md",
+            "mi-20_mcp-server-security-governance.md",
+        ]
+        for filename in sample_mitigation_files:
             name = _format_document_name(filename, "mi-")
             assert not name.startswith("Mi "), f"Old prefix in: {name}"
             assert "MI-" in name, f"Missing number badge in: {name}"
@@ -692,10 +719,18 @@ class TestDocumentContentTitle:
     async def test_get_risk_title_is_formatted(self):
         mock_service = AsyncMock()
         mock_service.get_document.return_value = {"content": "Risk content here"}
-        with patch(
-            "finos_mcp.fastmcp_server.get_service",
-            new_callable=AsyncMock,
-            return_value=mock_service,
+        with (
+            patch(
+                "finos_mcp.fastmcp_server.get_service",
+                new_callable=AsyncMock,
+                return_value=mock_service,
+            ),
+            patch.object(
+                fastmcp_server_module._risk_mitigation_repository,
+                "discover_risk_filenames",
+                new_callable=AsyncMock,
+                return_value=["ri-9_data-poisoning.md"],
+            ),
         ):
             result = await _invoke_direct_tool(get_risk, "9_data-poisoning")
         assert isinstance(result, DocumentContent)
@@ -705,10 +740,18 @@ class TestDocumentContentTitle:
     async def test_get_mitigation_title_is_formatted(self):
         mock_service = AsyncMock()
         mock_service.get_document.return_value = {"content": "Mitigation content here"}
-        with patch(
-            "finos_mcp.fastmcp_server.get_service",
-            new_callable=AsyncMock,
-            return_value=mock_service,
+        with (
+            patch(
+                "finos_mcp.fastmcp_server.get_service",
+                new_callable=AsyncMock,
+                return_value=mock_service,
+            ),
+            patch.object(
+                fastmcp_server_module._risk_mitigation_repository,
+                "discover_mitigation_filenames",
+                new_callable=AsyncMock,
+                return_value=["mi-1_ai-data-leakage-prevention-and-detection.md"],
+            ),
         ):
             result = await _invoke_direct_tool(
                 get_mitigation, "1_ai-data-leakage-prevention-and-detection"
@@ -795,4 +838,7 @@ class TestSearchRanking:
             search_risks, "customer data privacy", limit=5
         )
         assert isinstance(result, SearchResults)
+        if result.message and "unavailable" in result.message.lower():
+            assert result.total_found == 0
+            return
         assert result.total_found >= 1

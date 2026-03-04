@@ -25,16 +25,20 @@ def format_framework_name(framework_id: str) -> str:
 async def execute_list_frameworks(
     *,
     repository: Any,
-    static_framework_files: list[str],
     logger: Any,
 ) -> dict[str, Any]:
-    """List frameworks using repository discovery with static fallback."""
+    """List frameworks using repository discovery."""
     try:
         framework_files = await repository.discover_framework_file_infos()
         filenames = [file_info.filename for file_info in framework_files]
     except Exception as exc:
         logger.error("Failed to list frameworks via discovery: %s", exc)
-        filenames = list(static_framework_files)
+        return {
+            "frameworks": [],
+            "total_count": 0,
+            "source": "unavailable",
+            "message": "Framework catalog unavailable. Please retry later.",
+        }
 
     frameworks: list[dict[str, Any]] = []
     for filename in filenames:
@@ -49,28 +53,33 @@ async def execute_list_frameworks(
             }
         )
 
-    return {"frameworks": frameworks, "total_count": len(frameworks)}
+    return {
+        "frameworks": frameworks,
+        "total_count": len(frameworks),
+        "source": "github_api",
+        "message": None,
+    }
 
 
 async def execute_get_framework(
     *,
     framework_id: str,
     repository: Any,
-    static_framework_files: list[str],
     format_yaml_content: Callable[[str, str], str],
     validate_resource_size: Callable[[str], None],
     safe_external_error: Callable[[Exception, str], str],
     logger: Any,
 ) -> dict[str, Any]:
-    """Get framework content with size-safe formatting and fallback behavior."""
+    """Get framework content with size-safe formatting."""
     try:
         framework_filenames = await repository.discover_framework_filenames()
     except Exception as discovery_error:
-        logger.warning(
-            "Framework discovery failed, using static fallback list: %s",
-            discovery_error,
-        )
-        framework_filenames = list(static_framework_files)
+        logger.warning("Framework discovery failed: %s", discovery_error)
+        return {
+            "framework_id": framework_id,
+            "content": "Framework repository is currently unavailable. Please retry later.",
+            "sections": 0,
+        }
 
     target_filename = None
     for filename in framework_filenames:
@@ -139,6 +148,18 @@ async def execute_search_frameworks(
 ) -> dict[str, Any]:
     """Search frameworks in parallel using provided search callbacks."""
     frameworks_list = await list_frameworks_fn()
+    if getattr(frameworks_list, "source", None) == "unavailable":
+        return {
+            "query": query,
+            "results": [],
+            "total_found": 0,
+            "message": getattr(
+                frameworks_list,
+                "message",
+                "Framework search unavailable because catalog discovery failed.",
+            )
+            or "Framework search unavailable because catalog discovery failed.",
+        }
 
     total_frameworks = len(frameworks_list.frameworks)
     logger.info(

@@ -11,14 +11,12 @@ async def list_frameworks_payload(
     apply_dos: Callable[[], Awaitable[None]],
     execute_list_frameworks_fn: Callable[..., Awaitable[dict[str, Any]]],
     repository: Any,
-    static_framework_files: list[str],
     logger: Any,
 ) -> dict[str, Any]:
     """Build payload for list_frameworks tool."""
     await apply_dos()
     return await execute_list_frameworks_fn(
         repository=repository,
-        static_framework_files=static_framework_files,
         logger=logger,
     )
 
@@ -30,7 +28,6 @@ async def get_framework_payload(
     validate_request_params: Callable[..., None],
     execute_get_framework_fn: Callable[..., Awaitable[dict[str, Any]]],
     repository: Any,
-    static_framework_files: list[str],
     format_yaml_content: Callable[[str, str], str],
     validate_resource_size: Callable[[str], None],
     safe_external_error: Callable[[Exception, str], str],
@@ -43,7 +40,6 @@ async def get_framework_payload(
         return await execute_get_framework_fn(
             framework_id=framework_id,
             repository=repository,
-            static_framework_files=static_framework_files,
             format_yaml_content=format_yaml_content,
             validate_resource_size=validate_resource_size,
             safe_external_error=safe_external_error,
@@ -91,7 +87,6 @@ async def list_documents_payload(
     *,
     document_type: str,
     prefix: str,
-    static_files: list[str],
     discover_file_infos: Callable[[], Awaitable[list[Any]]],
     format_document_name: Callable[[str, str], str],
     apply_dos: Callable[[], Awaitable[None]],
@@ -103,7 +98,6 @@ async def list_documents_payload(
     return await execute_list_documents_fn(
         document_type=document_type,
         prefix=prefix,
-        static_files=static_files,
         discover_file_infos=discover_file_infos,
         format_document_name=format_document_name,
         logger=logger,
@@ -115,7 +109,6 @@ async def get_document_payload(
     requested_id: str,
     doc_type: str,
     prefix: str,
-    static_files: list[str],
     discover_filenames: Callable[[], Awaitable[list[str]]],
     get_document_by_filename: Callable[[str, str], Awaitable[dict[str, Any] | None]],
     format_document_name: Callable[[str, str], str],
@@ -134,7 +127,6 @@ async def get_document_payload(
             requested_id=requested_id,
             doc_type=doc_type,
             prefix=prefix,
-            static_files=static_files,
             discover_filenames=discover_filenames,
             get_document_by_filename=get_document_by_filename,
             format_document_name=format_document_name,
