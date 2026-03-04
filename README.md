@@ -195,10 +195,12 @@ Cloud mapping examples:
 
 ### Components
 
-- **FastMCP Server Framework** (`src/finos_mcp/fastmcp_server.py`): Modern FastMCP-based server with decorator tools
+- **FastMCP Runtime Bootstrap** (`src/finos_mcp/fastmcp_server.py`): FastMCP server construction, model definitions, and tool registration wiring
+- **API Registration Modules** (`src/finos_mcp/api/`): Dedicated tool/resource/prompt registration and MCP payload mapping
 - **MCP Tools**: 11 tools organized in 3 categories (Framework Access, Risk & Mitigation, System Monitoring)
 - **MCP Prompts**: 3 prompt templates for framework analysis and risk assessment
 - **MCP Resources**: 3 resource types with finos:// URI scheme for structured access
+- **Application Services and Use-Cases** (`src/finos_mcp/application/`): Search text parsing, prompt composition, observability projection, and domain flows
 - **Content Management** (`src/finos_mcp/content/`): Dynamic content loading and caching
 - **Security Layer** (`src/finos_mcp/security/`): Request validation and protection
 - **Runtime Guardrails** (`src/finos_mcp/fastmcp_server.py`): Middleware-based rate limiting, safe error responses, and payload size enforcement
@@ -255,12 +257,13 @@ mcp list tools
 
 ### Adding New Tools
 
-The FastMCP architecture makes adding tools simple:
+Tool additions follow the layered runtime pattern:
 
-1. Add decorated async function in `src/finos_mcp/fastmcp_server.py`
-2. Use `@mcp.tool()` decorator with type hints and Pydantic return models
-3. Add tests in `tests/unit/test_fastmcp_server.py`
-4. Update tool documentation
+1. Add payload builder or registration wiring in `src/finos_mcp/api/tools/`
+2. Add or extend use-case logic in `src/finos_mcp/application/use_cases/`
+3. Register the MCP surface from `src/finos_mcp/fastmcp_server.py`
+4. Add or update tests in `tests/unit/` and integration coverage where needed
+5. Update tool documentation
 
 ---
 

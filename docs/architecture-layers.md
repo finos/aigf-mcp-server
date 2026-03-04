@@ -44,3 +44,4 @@ Automated checks enforce these boundaries:
 
 1. `tests/unit/test_architecture_guards.py` rejects direct `api -> infrastructure/content` imports.
 2. `tests/unit/test_architecture_guards.py` ensures prompt/resource registrations are not reintroduced inline in `fastmcp_server.py`.
+3. `tests/unit/test_architecture_guards.py` rejects runtime-layer imports of `openemcp` shim modules outside their compatibility facade.

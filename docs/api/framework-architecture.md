@@ -43,10 +43,13 @@ graph TD
 
 Defined in `src/finos_mcp/fastmcp_server.py`:
 
-- tool declarations (`@mcp.tool`)
-- resource declarations (`@mcp.resource`)
-- prompt declarations (`@mcp.prompt`)
+- FastMCP app creation and runtime wiring
 - structured output models (`FrameworkList`, `DocumentList`, `ServiceHealth`, `CacheStats`)
+- tool declarations (`@mcp.tool`) and registration calls for prompts/resources
+
+Prompt/resource declaration modules:
+- `src/finos_mcp/api/prompts/registry.py`
+- `src/finos_mcp/api/resources/registry.py`
 
 ### 2. API Handlers
 
@@ -101,8 +104,8 @@ Guardrails in runtime:
 ### 6. Internal OpenEMCP Compatibility Layer
 
 Compatibility primitives and projections:
-- `src/finos_mcp/openemcp/*`
 - `src/finos_mcp/compat/*`
+- `src/finos_mcp/openemcp/*` (compatibility facade)
 - `src/finos_mcp/application/services/compat_event_service.py`
 - `src/finos_mcp/application/services/observability_projection_service.py`
 
