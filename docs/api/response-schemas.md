@@ -41,11 +41,14 @@ Lists all available AI governance frameworks.
 ```json
 {
   "total_count": 5,
+  "source": "github_api",
+  "message": null,
   "frameworks": [
     {
       "id": "nist-ai-600-1",
       "name": "NIST AI Risk Management Framework",
-      "description": "US federal AI governance framework"
+      "description": "Framework definition: NIST AI Risk Management Framework",
+      "title": "NIST AI Risk Management Framework"
     },
     {
       "id": "eu-ai-act",
@@ -73,10 +76,13 @@ Lists all available AI governance frameworks.
 
 **Field Descriptions**:
 - `total_count` (integer): Total number of frameworks available
+- `source` (string | null): Discovery source (`github_api` or `unavailable`)
+- `message` (string | null): Discovery status detail for degraded scenarios
 - `frameworks` (array): List of framework objects
   - `id` (string): Framework identifier for use with get_framework
   - `name` (string): Human-readable framework name
   - `description` (string): Brief description of the framework
+  - `title` (string | null): Display-friendly framework title
 
 ---
 
@@ -88,19 +94,14 @@ Gets complete content of a specific framework.
 ```json
 {
   "framework_id": "nist-ai-600-1",
-  "sections": [
-    "Introduction",
-    "Core Principles",
-    "Implementation Guidance",
-    "References"
-  ],
+  "sections": 12,
   "content": "# NIST AI Risk Management Framework\n\n## Introduction\n\nThe NIST AI RMF provides guidance for managing AI risks..."
 }
 ```
 
 **Field Descriptions**:
 - `framework_id` (string): The framework identifier
-- `sections` (array of strings): List of section titles in the framework
+- `sections` (integer): Estimated count of top-level framework sections
 - `content` (string): Complete framework content in markdown format
 
 **Example**:
@@ -122,6 +123,7 @@ Searches for text within framework documents.
 {
   "query": "risk management",
   "total_found": 15,
+  "message": null,
   "results": [
     {
       "framework_id": "nist-ai-600-1",
@@ -140,6 +142,7 @@ Searches for text within framework documents.
 **Field Descriptions**:
 - `query` (string): The search query that was executed
 - `total_found` (integer): Total number of matching results
+- `message` (string | null): Optional message when discovery is unavailable
 - `results` (array): List of search result objects
   - `framework_id` (string): Framework where match was found
   - `section` (string): Section title containing the match
@@ -167,18 +170,31 @@ Lists all available risk documents.
 {
   "total_count": 23,
   "source": "github_api",
+  "message": null,
   "documents": [
     {
       "id": "1_information-leaked-to-hosted-model",
-      "name": "Ri 1 Information Leaked To Hosted Model"
+      "name": "Information Leaked to Hosted Model (RI-1)",
+      "filename": "ri-1_information-leaked-to-hosted-model.md",
+      "description": "AI governance risk: Information Leaked to Hosted Model (RI-1)",
+      "last_modified": "2026-03-04T15:20:10+00:00",
+      "title": "Information Leaked to Hosted Model (RI-1)"
     },
     {
       "id": "9_data-poisoning",
-      "name": "Ri 9 Data Poisoning"
+      "name": "Data Poisoning (RI-9)",
+      "filename": "ri-9_data-poisoning.md",
+      "description": "AI governance risk: Data Poisoning (RI-9)",
+      "last_modified": "2026-03-04T15:20:10+00:00",
+      "title": "Data Poisoning (RI-9)"
     },
     {
       "id": "10_prompt-injection",
-      "name": "Prompt Injection"
+      "name": "Prompt Injection (RI-10)",
+      "filename": "ri-10_prompt-injection.md",
+      "description": "AI governance risk: Prompt Injection (RI-10)",
+      "last_modified": "2026-03-04T15:20:10+00:00",
+      "title": "Prompt Injection (RI-10)"
     }
   ]
 }
@@ -187,9 +203,14 @@ Lists all available risk documents.
 **Field Descriptions**:
 - `total_count` (integer): Total number of risk documents available
 - `source` (string): Data source ("github_api", "cache", or "unavailable")
+- `message` (string | null): Discovery status detail when degraded
 - `documents` (array): List of risk document objects
   - `id` (string): Risk identifier for use with get_risk
   - `name` (string): Human-readable risk name
+  - `filename` (string): Canonical markdown filename in source repository
+  - `description` (string | null): Short document description
+  - `last_modified` (string | null): Last modified timestamp (ISO-8601)
+  - `title` (string | null): Display-friendly title
 
 ---
 
@@ -201,14 +222,14 @@ Gets complete content of a specific risk document.
 ```json
 {
   "document_id": "10_prompt-injection",
-  "title": "Ri 10 Prompt Injection",
+  "title": "Prompt Injection (RI-10)",
   "sections": [
     "Description",
     "Attack Vectors",
     "Impact Assessment",
     "Mitigation Strategies"
   ],
-  "content": "# Model Inversion Attacks\n\n## Description\n\nModel inversion attacks occur when..."
+  "content": "# Prompt Injection\n\n## Description\n\nPrompt injection attacks occur when..."
 }
 ```
 
@@ -231,6 +252,7 @@ Searches within risk documentation.
 {
   "query": "injection",
   "total_found": 3,
+  "message": null,
   "results": [
     {
       "framework_id": "risk-10_prompt-injection",
@@ -239,7 +261,7 @@ Searches within risk documentation.
     },
     {
       "framework_id": "risk-9_data-poisoning",
-      "section": "Ri 9 Data Poisoning",
+      "section": "Data Poisoning (RI-9)",
       "content": "...training data poisoning can compromise model behavior..."
     }
   ]
@@ -249,6 +271,7 @@ Searches within risk documentation.
 **Field Descriptions**:
 - `query` (string): The search query executed
 - `total_found` (integer): Total number of matching results
+- `message` (string | null): Optional message when discovery is unavailable
 - `results` (array): List of search result objects
   - `framework_id` (string): Prefixed risk ID where match was found (`risk-{id}`)
   - `section` (string): Risk name/title
@@ -265,18 +288,31 @@ Lists all available mitigation documents.
 {
   "total_count": 23,
   "source": "github_api",
+  "message": null,
   "documents": [
     {
       "id": "1_ai-data-leakage-prevention-and-detection",
-      "name": "Mi 1 Ai Data Leakage Prevention And Detection"
+      "name": "AI Data Leakage Prevention and Detection (MI-1)",
+      "filename": "mi-1_ai-data-leakage-prevention-and-detection.md",
+      "description": "AI governance mitigation: AI Data Leakage Prevention and Detection (MI-1)",
+      "last_modified": "2026-03-04T15:20:10+00:00",
+      "title": "AI Data Leakage Prevention and Detection (MI-1)"
     },
     {
       "id": "12_role-based-access-control-for-ai-data",
-      "name": "Mi 12 Role Based Access Control For Ai Data"
+      "name": "Role-based Access Control for AI Data (MI-12)",
+      "filename": "mi-12_role-based-access-control-for-ai-data.md",
+      "description": "AI governance mitigation: Role-based Access Control for AI Data (MI-12)",
+      "last_modified": "2026-03-04T15:20:10+00:00",
+      "title": "Role-based Access Control for AI Data (MI-12)"
     },
     {
       "id": "10_ai-model-version-pinning",
-      "name": "AI Model Version Pinning"
+      "name": "AI Model Version Pinning (MI-10)",
+      "filename": "mi-10_ai-model-version-pinning.md",
+      "description": "AI governance mitigation: AI Model Version Pinning (MI-10)",
+      "last_modified": "2026-03-04T15:20:10+00:00",
+      "title": "AI Model Version Pinning (MI-10)"
     }
   ]
 }
@@ -285,9 +321,14 @@ Lists all available mitigation documents.
 **Field Descriptions**:
 - `total_count` (integer): Total number of mitigation documents available
 - `source` (string): Data source ("github_api", "cache", or "unavailable")
+- `message` (string | null): Discovery status detail when degraded
 - `documents` (array): List of mitigation document objects
   - `id` (string): Mitigation identifier for use with get_mitigation
   - `name` (string): Human-readable mitigation name
+  - `filename` (string): Canonical markdown filename in source repository
+  - `description` (string | null): Short document description
+  - `last_modified` (string | null): Last modified timestamp (ISO-8601)
+  - `title` (string | null): Display-friendly title
 
 ---
 
@@ -299,7 +340,7 @@ Gets complete content of a specific mitigation document.
 ```json
 {
   "document_id": "1_ai-data-leakage-prevention-and-detection",
-  "title": "Mi 1 Ai Data Leakage Prevention And Detection",
+  "title": "AI Data Leakage Prevention and Detection (MI-1)",
   "sections": [
     "Overview",
     "Implementation Steps",
@@ -327,15 +368,16 @@ Searches within mitigation documentation.
 {
   "query": "encryption",
   "total_found": 5,
+  "message": null,
   "results": [
     {
       "framework_id": "mitigation-1_ai-data-leakage-prevention-and-detection",
-      "section": "Mi 1 Ai Data Leakage Prevention And Detection",
+      "section": "AI Data Leakage Prevention and Detection (MI-1)",
       "content": "...implement strong encryption algorithms for data at rest..."
     },
     {
       "framework_id": "mitigation-14_encryption-of-ai-data-at-rest",
-      "section": "Mi 14 Encryption Of Ai Data At Rest",
+      "section": "Encryption of AI Data at Rest (MI-14)",
       "content": "...implement strong encryption controls for AI data at rest..."
     }
   ]
@@ -345,6 +387,7 @@ Searches within mitigation documentation.
 **Field Descriptions**:
 - `query` (string): The search query executed
 - `total_found` (integer): Total number of matching results
+- `message` (string | null): Optional message when discovery is unavailable
 - `results` (array): List of search result objects
   - `framework_id` (string): Prefixed mitigation ID where match was found (`mitigation-{id}`)
   - `section` (string): Mitigation name/title
@@ -364,8 +407,29 @@ Gets service health status and metrics.
   "status": "healthy",
   "version": "1.0.0",
   "uptime_seconds": 345678,
-  "healthy_services": 5,
-  "total_services": 5
+  "healthy_services": 4,
+  "total_services": 4,
+  "observability": {
+    "openemcp": {
+      "phase": "context_state_management",
+      "correlation_id": "66a5506f-6f58-4dd1-af9e-269745b30271",
+      "validation_status": "approved",
+      "compatibility_enabled": true,
+      "compat_events_buffered": 12
+    },
+    "risk_context": {
+      "phase_assessed": "context_state_management",
+      "risk_tier": "low",
+      "risk_score": 0.2,
+      "signals": {
+        "boundary_open_count": 0,
+        "circuit_breaker_trips": 0,
+        "cache_hit_rate": 0.98,
+        "failed_requests": 0,
+        "total_requests": 100
+      }
+    }
+  }
 }
 ```
 
@@ -375,6 +439,13 @@ Gets service health status and metrics.
 - `uptime_seconds` (number): Server uptime in seconds
 - `healthy_services` (integer): Number of healthy service components
 - `total_services` (integer): Total number of service components
+- `observability` (object | null): Internal OpenEMCP compatibility projection
+  - `openemcp.phase` (string): Compatibility phase for this tool call
+  - `openemcp.correlation_id` (string): Correlation ID for tracing
+  - `openemcp.validation_status` (string): Canonical status enum (`approved`, `rejected`, `modified`)
+  - `openemcp.compatibility_enabled` (boolean): Compatibility layer status
+  - `openemcp.compat_events_buffered` (integer): Current in-memory event buffer count
+  - `risk_context` (object): Derived risk posture from runtime signals
 
 **Status Values**:
 - `healthy`: All services operational
@@ -391,8 +462,8 @@ mcp_client.call_tool("get_service_health", {})
   "status": "healthy",
   "version": "1.0.0",
   "uptime_seconds": 3600,
-  "healthy_services": 5,
-  "total_services": 5
+  "healthy_services": 4,
+  "total_services": 4
 }
 ```
 
@@ -408,7 +479,34 @@ Gets cache performance statistics.
   "total_requests": 10450,
   "cache_hits": 9932,
   "cache_misses": 518,
-  "hit_rate": 0.9504
+  "hit_rate": 0.9504,
+  "sets": 1500,
+  "deletes": 120,
+  "expires": 35,
+  "evictions": 4,
+  "clears": 1,
+  "current_size": 320,
+  "max_size": 1000,
+  "memory_usage_bytes": 2621440,
+  "observability": {
+    "openemcp": {
+      "phase": "execution_resilience",
+      "correlation_id": "8b9e888d-b563-49b8-94d2-6a75f6d6c614",
+      "validation_status": "approved",
+      "compatibility_enabled": true,
+      "compat_events_buffered": 18
+    },
+    "risk_context": {
+      "phase_assessed": "execution_resilience",
+      "risk_tier": "low",
+      "risk_score": 0.18,
+      "signals": {
+        "cache_hit_rate": 0.9504,
+        "failed_requests": 518,
+        "total_requests": 10450
+      }
+    }
+  }
 }
 ```
 
@@ -417,6 +515,10 @@ Gets cache performance statistics.
 - `cache_hits` (integer): Number of successful cache hits
 - `cache_misses` (integer): Number of cache misses (data not in cache)
 - `hit_rate` (number): Cache hit rate as decimal (0.0 to 1.0)
+- `sets`, `deletes`, `expires`, `evictions`, `clears` (integer | null): Cache operation counters
+- `current_size`, `max_size` (integer | null): Current and configured cache capacity
+- `memory_usage_bytes` (integer | null): Estimated memory usage
+- `observability` (object | null): Internal OpenEMCP compatibility projection
 
 **Performance Metrics**:
 - Hit rate > 0.90: Excellent cache performance
@@ -433,7 +535,15 @@ mcp_client.call_tool("get_cache_stats", {})
   "total_requests": 1000,
   "cache_hits": 950,
   "cache_misses": 50,
-  "hit_rate": 0.95  # 95% hit rate
+  "hit_rate": 0.95,
+  "sets": 120,
+  "deletes": 5,
+  "expires": 2,
+  "evictions": 0,
+  "clears": 0,
+  "current_size": 80,
+  "max_size": 1000,
+  "memory_usage_bytes": 524288
 }
 ```
 
@@ -503,8 +613,7 @@ Returned when service is temporarily unavailable.
     "message": "Content service temporarily unavailable",
     "details": {
       "service": "github_content_loader",
-      "retry_after": 30,
-      "fallback_available": true
+      "retry_after": 30
     }
   }
 }
@@ -512,7 +621,7 @@ Returned when service is temporarily unavailable.
 
 **Recovery Actions**:
 - Wait and retry after specified seconds
-- System may fall back to static content
+- Treat list/search responses with `source: "unavailable"` as retryable failures
 - Check get_service_health for status
 
 ---
@@ -527,13 +636,13 @@ Search tools support limit parameter for result pagination:
 # Get first 5 results
 search_frameworks("query", limit=5)
 
-# Get next 5 results (requires offset parameter in future versions)
-search_frameworks("query", limit=5, offset=5)
+# Get next results by issuing another query with the same limit
+search_frameworks("query", limit=5)
 ```
 
 **Current Limitations**:
-- Offset parameter not yet implemented
-- Maximum limit: 50 results per query
+- Offset parameter is not supported
+- Maximum limit: 20 results per query
 - Default limit: 5 results
 
 ### Content Format

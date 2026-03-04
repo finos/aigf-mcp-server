@@ -25,6 +25,7 @@ Run all scripts from the repository root.
 - `scripts/test-agent-cli-scenario.sh`
   - Runs a realistic AI-agent scenario through MCP Inspector CLI against all tools/resources/prompts.
   - Includes observability checks for `get_service_health` and `get_cache_stats`.
+  - Optional unavailable-discovery run: set `RUN_UNAVAILABLE_SCENARIO=1`.
   - Auto-provides `FINOS_MCP_CACHE_SECRET` for local runs (override via env var).
 - `scripts/bump_version.py`
   - Version bump helper.
@@ -32,7 +33,8 @@ Run all scripts from the repository root.
 ## Content Maintenance
 
 - `scripts/update-static-fallback.py`
-  - Refreshes static fallback lists from upstream content.
+  - Deprecated compatibility helper.
+  - Verifies live discovery availability and returns non-zero when discovery is unavailable.
 
 ## Notes
 

@@ -188,8 +188,7 @@ All errors follow a consistent JSON structure:
       "framework": "gdpr",
       "reason": "external_api_timeout",
       "retry_after": 30,
-      "estimated_recovery": "2024-01-15T16:35:00Z",
-      "fallback_available": true
+      "estimated_recovery": "2024-01-15T16:35:00Z"
     }
   }
 }
