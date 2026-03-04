@@ -32,6 +32,14 @@ from fastmcp.server.auth import JWTVerifier
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .api.tools import (
+    get_document_payload,
+    get_framework_payload,
+    list_documents_payload,
+    list_frameworks_payload,
+    search_documents_payload,
+    search_frameworks_payload,
+)
 from .application.services import CompatEventService, ObservabilityProjectionService
 from .application.use_cases import (
     execute_get_document,
@@ -407,8 +415,9 @@ async def list_frameworks() -> FrameworkList:
         FrameworkList: Structured list with framework IDs, names, and descriptions.
         Use the 'id' field from results with get_framework() for detailed content.
     """
-    await _apply_dos_protection()
-    payload = await execute_list_frameworks(
+    payload = await list_frameworks_payload(
+        apply_dos=_apply_dos_protection,
+        execute_list_frameworks_fn=execute_list_frameworks,
         repository=_framework_repository,
         static_framework_files=list(STATIC_FRAMEWORK_FILES),
         logger=logger,
@@ -571,28 +580,19 @@ async def get_framework(
         FrameworkContent: Complete framework content with sections count and metadata.
         Content is formatted for easy parsing and includes both structured data and raw text.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(framework=framework)
-        payload = await execute_get_framework(
-            framework_id=framework,
-            repository=_framework_repository,
-            static_framework_files=list(STATIC_FRAMEWORK_FILES),
-            format_yaml_content=_format_yaml_content,
-            validate_resource_size=request_size_validator.validate_resource_size,
-            safe_external_error=_safe_external_error,
-            logger=logger,
-        )
-        return FrameworkContent(**payload)
-    except Exception as e:
-        logger.error("Failed to get framework content: %s", e)
-        return FrameworkContent(
-            framework_id=framework,
-            content=_safe_external_error(
-                e, "Error loading framework. Please retry later."
-            ),
-            sections=0,
-        )
+    payload = await get_framework_payload(
+        framework_id=framework,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_get_framework_fn=execute_get_framework,
+        repository=_framework_repository,
+        static_framework_files=list(STATIC_FRAMEWORK_FILES),
+        format_yaml_content=_format_yaml_content,
+        validate_resource_size=request_size_validator.validate_resource_size,
+        safe_external_error=_safe_external_error,
+        logger=logger,
+    )
+    return FrameworkContent(**payload)
 
 
 @mcp.tool(
@@ -612,13 +612,14 @@ async def list_risks() -> DocumentList:
         DocumentList: Structured list of risk documents with metadata, descriptions, and file information.
         Perfect for risk cataloging, threat modeling, and security assessment workflows.
     """
-    await _apply_dos_protection()
-    payload = await execute_list_documents(
+    payload = await list_documents_payload(
         document_type="risk",
         prefix="ri-",
         static_files=list(STATIC_RISK_FILES),
         discover_file_infos=_risk_mitigation_repository.discover_risk_file_infos,
         format_document_name=_format_document_name,
+        apply_dos=_apply_dos_protection,
+        execute_list_documents_fn=execute_list_documents,
         logger=logger,
     )
     docs = [DocumentInfo(**item) for item in payload["documents"]]
@@ -647,13 +648,14 @@ async def list_mitigations() -> DocumentList:
         DocumentList: Structured list of mitigation documents with metadata, descriptions, and file information.
         Essential for security planning, control implementation, and compliance remediation.
     """
-    await _apply_dos_protection()
-    payload = await execute_list_documents(
+    payload = await list_documents_payload(
         document_type="mitigation",
         prefix="mi-",
         static_files=list(STATIC_MITIGATION_FILES),
         discover_file_infos=_risk_mitigation_repository.discover_mitigation_file_infos,
         format_document_name=_format_document_name,
+        apply_dos=_apply_dos_protection,
+        execute_list_documents_fn=execute_list_documents,
         logger=logger,
     )
     docs = [DocumentInfo(**item) for item in payload["documents"]]
@@ -695,32 +697,22 @@ async def get_risk(
         DocumentContent: Complete risk document with threat details, impact analysis, and assessment metadata.
         Includes structured content suitable for risk registers and security documentation.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(risk_id=risk_id)
-        payload = await execute_get_document(
-            requested_id=risk_id,
-            doc_type="risk",
-            prefix="ri-",
-            static_files=list(STATIC_RISK_FILES),
-            discover_filenames=_risk_mitigation_repository.discover_risk_filenames,
-            get_document_by_filename=_risk_mitigation_repository.get_document,
-            format_document_name=_format_document_name,
-            safe_document_content=_safe_document_content,
-            safe_external_error=_safe_external_error,
-            logger=logger,
-        )
-        return DocumentContent(**payload)
-    except Exception as e:
-        logger.error("Failed to get risk content for %s: %s", risk_id, e)
-        return DocumentContent(
-            document_id=risk_id,
-            title=f"Error loading risk {risk_id}",
-            content=_safe_external_error(
-                e, "Error loading risk document. Please retry later."
-            ),
-            sections=[],
-        )
+    payload = await get_document_payload(
+        requested_id=risk_id,
+        doc_type="risk",
+        prefix="ri-",
+        static_files=list(STATIC_RISK_FILES),
+        discover_filenames=_risk_mitigation_repository.discover_risk_filenames,
+        get_document_by_filename=_risk_mitigation_repository.get_document,
+        format_document_name=_format_document_name,
+        safe_document_content=_safe_document_content,
+        safe_external_error=_safe_external_error,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_get_document_fn=execute_get_document,
+        logger=logger,
+    )
+    return DocumentContent(**payload)
 
 
 @mcp.tool(
@@ -753,32 +745,22 @@ async def get_mitigation(
         DocumentContent: Complete mitigation strategy with implementation guidance, control procedures, and monitoring details.
         Includes actionable steps suitable for security implementation and compliance documentation.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(mitigation_id=mitigation_id)
-        payload = await execute_get_document(
-            requested_id=mitigation_id,
-            doc_type="mitigation",
-            prefix="mi-",
-            static_files=list(STATIC_MITIGATION_FILES),
-            discover_filenames=_risk_mitigation_repository.discover_mitigation_filenames,
-            get_document_by_filename=_risk_mitigation_repository.get_document,
-            format_document_name=_format_document_name,
-            safe_document_content=_safe_document_content,
-            safe_external_error=_safe_external_error,
-            logger=logger,
-        )
-        return DocumentContent(**payload)
-    except Exception as e:
-        logger.error("Failed to get mitigation content for %s: %s", mitigation_id, e)
-        return DocumentContent(
-            document_id=mitigation_id,
-            title=f"Error loading mitigation {mitigation_id}",
-            content=_safe_external_error(
-                e, "Error loading mitigation document. Please retry later."
-            ),
-            sections=[],
-        )
+    payload = await get_document_payload(
+        requested_id=mitigation_id,
+        doc_type="mitigation",
+        prefix="mi-",
+        static_files=list(STATIC_MITIGATION_FILES),
+        discover_filenames=_risk_mitigation_repository.discover_mitigation_filenames,
+        get_document_by_filename=_risk_mitigation_repository.get_document,
+        format_document_name=_format_document_name,
+        safe_document_content=_safe_document_content,
+        safe_external_error=_safe_external_error,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_get_document_fn=execute_get_document,
+        logger=logger,
+    )
+    return DocumentContent(**payload)
 
 
 @mcp.tool(
@@ -1221,21 +1203,17 @@ async def search_frameworks(
         SearchResults: Matching content snippets with framework source and context.
         Each result includes the framework ID, section, and relevant text excerpt.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(query=query, limit=limit)
-        payload = await execute_search_frameworks(
-            query=query,
-            limit=limit,
-            list_frameworks_fn=lambda: _call_registered_tool(list_frameworks),
-            search_single_framework_fn=_search_single_framework,
-            logger=logger,
-        )
-        return SearchResults(**payload)
-
-    except Exception as e:
-        logger.error("Failed to search frameworks: %s", e)
-        return SearchResults(query=query, results=[], total_found=0)
+    payload = await search_frameworks_payload(
+        query=query,
+        limit=limit,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_search_frameworks_fn=execute_search_frameworks,
+        list_frameworks_fn=lambda: _call_registered_tool(list_frameworks),
+        search_single_framework_fn=_search_single_framework,
+        logger=logger,
+    )
+    return SearchResults(**payload)
 
 
 async def _search_single_risk(
@@ -1319,22 +1297,18 @@ async def search_risks(
         SearchResults: Matching risk documents with content snippets highlighting threats and impacts.
         Essential for threat modeling and security risk assessments.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(query=query, limit=limit)
-        payload = await execute_search_documents(
-            query=query,
-            limit=limit,
-            list_documents_fn=lambda: _call_registered_tool(list_risks),
-            search_single_document_fn=_search_single_risk,
-            logger=logger,
-            label="risk",
-        )
-        return SearchResults(**payload)
-
-    except Exception as e:
-        logger.error("Failed to search risks: %s", e)
-        return SearchResults(query=query, results=[], total_found=0)
+    payload = await search_documents_payload(
+        query=query,
+        limit=limit,
+        label="risk",
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_search_documents_fn=execute_search_documents,
+        list_documents_fn=lambda: _call_registered_tool(list_risks),
+        search_single_document_fn=_search_single_risk,
+        logger=logger,
+    )
+    return SearchResults(**payload)
 
 
 async def _search_single_mitigation(
@@ -1420,22 +1394,18 @@ async def search_mitigations(
         SearchResults: Matching mitigation documents with content snippets highlighting controls and procedures.
         Critical for security implementation and compliance remediation planning.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(query=query, limit=limit)
-        payload = await execute_search_documents(
-            query=query,
-            limit=limit,
-            list_documents_fn=lambda: _call_registered_tool(list_mitigations),
-            search_single_document_fn=_search_single_mitigation,
-            logger=logger,
-            label="mitigation",
-        )
-        return SearchResults(**payload)
-
-    except Exception as e:
-        logger.error("Failed to search mitigations: %s", e)
-        return SearchResults(query=query, results=[], total_found=0)
+    payload = await search_documents_payload(
+        query=query,
+        limit=limit,
+        label="mitigation",
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_search_documents_fn=execute_search_documents,
+        list_documents_fn=lambda: _call_registered_tool(list_mitigations),
+        search_single_document_fn=_search_single_mitigation,
+        logger=logger,
+    )
+    return SearchResults(**payload)
 
 
 # MCP Resources Implementation
