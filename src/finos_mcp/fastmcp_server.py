@@ -32,7 +32,7 @@ from fastmcp.server.auth import JWTVerifier
 from pydantic import BaseModel, Field
 
 from . import __version__
-from .application.services import CompatEventService
+from .application.services import CompatEventService, ObservabilityProjectionService
 from .config import Settings, validate_settings_on_startup
 from .content.cache import get_cache
 from .content.discovery import (
@@ -105,6 +105,9 @@ def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
 mcp = FastMCP(settings.server_name, auth=_build_auth_provider(settings))
 _SERVER_START_TIME = time.monotonic()
 _compat_event_service = CompatEventService(max_events=256)
+_observability_projection_service = ObservabilityProjectionService(
+    _compat_event_service
+)
 
 
 def _record_compat_event(
@@ -1128,22 +1131,20 @@ async def get_service_health() -> ServiceHealth:
         metadata={"source": "tool"},
     )
 
+    observability = _observability_projection_service.build_health_observability(
+        phase=phase,
+        correlation_id=correlation_id,
+        service_status=overall_status,
+        risk_context=risk_context,
+    )
+
     return ServiceHealth(
         status=overall_status,
         uptime_seconds=time.monotonic() - _SERVER_START_TIME,
         version=__version__,
         healthy_services=healthy_services,
         total_services=total_services,
-        observability={
-            "openemcp": {
-                "phase": phase.value,
-                "correlation_id": correlation_id,
-                "validation_status": canonical_status.value,
-                "compatibility_enabled": True,
-                "compat_events_buffered": _compat_event_service.buffered_count(),
-            },
-            "risk_context": risk_context.model_dump(mode="json"),
-        },
+        observability=observability,
     )
 
 
@@ -1195,6 +1196,12 @@ async def get_cache_stats() -> CacheStats:
             },
             metadata={"source": "tool"},
         )
+        observability = _observability_projection_service.build_cache_observability(
+            phase=phase,
+            correlation_id=correlation_id,
+            cache_hit_rate=hit_rate,
+            risk_context=risk_context,
+        )
         return CacheStats(
             total_requests=total_requests,
             cache_hits=stats.hits,
@@ -1208,16 +1215,7 @@ async def get_cache_stats() -> CacheStats:
             current_size=stats.current_size,
             max_size=stats.max_size,
             memory_usage_bytes=stats.memory_usage_bytes,
-            observability={
-                "openemcp": {
-                    "phase": phase.value,
-                    "correlation_id": correlation_id,
-                    "validation_status": canonical_status.value,
-                    "compatibility_enabled": True,
-                    "compat_events_buffered": _compat_event_service.buffered_count(),
-                },
-                "risk_context": risk_context.model_dump(mode="json"),
-            },
+            observability=observability,
         )
     except Exception as e:
         logger.warning("Failed to get real cache stats, returning safe defaults: %s", e)
@@ -1239,21 +1237,18 @@ async def get_cache_stats() -> CacheStats:
             failed_requests=1,
             total_requests=1,
         )
+        observability = _observability_projection_service.build_cache_observability(
+            phase=phase,
+            correlation_id=correlation_id,
+            cache_hit_rate=0.0,
+            risk_context=risk_context,
+        )
         return CacheStats(
             total_requests=0,
             cache_hits=0,
             cache_misses=0,
             hit_rate=0.0,
-            observability={
-                "openemcp": {
-                    "phase": phase.value,
-                    "correlation_id": correlation_id,
-                    "validation_status": canonical_status.value,
-                    "compatibility_enabled": True,
-                    "compat_events_buffered": _compat_event_service.buffered_count(),
-                },
-                "risk_context": risk_context.model_dump(mode="json"),
-            },
+            observability=observability,
         )
 
 
