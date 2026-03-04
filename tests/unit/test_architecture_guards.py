@@ -76,3 +76,30 @@ def test_runtime_layers_import_compat_not_openemcp_shims() -> None:
         "Runtime modules import openemcp shim modules directly:\n"
         + "\n".join(violations)
     )
+
+
+def test_legacy_openemcp_shim_package_is_absent() -> None:
+    """Legacy openemcp shim package should have no Python source files."""
+    legacy_pkg = SRC_ROOT / "openemcp"
+    legacy_py_files = list(legacy_pkg.rglob("*.py")) if legacy_pkg.exists() else []
+    assert not legacy_py_files, (
+        "Legacy package src/finos_mcp/openemcp contains Python sources:\n"
+        + "\n".join(str(path) for path in legacy_py_files)
+    )
+
+
+def test_search_text_helpers_have_single_source_of_truth() -> None:
+    """Text helper implementations must remain centralized in search_text_service."""
+    source = FASTMCP_SERVER.read_text(encoding="utf-8")
+    prompt_registry = (SRC_ROOT / "api" / "prompts" / "registry.py").read_text(
+        encoding="utf-8"
+    )
+    helper_defs = (
+        "def _extract_section(",
+        "def _best_match_index(",
+        "def _clean_search_snippet(",
+    )
+
+    for helper_def in helper_defs:
+        assert helper_def not in source
+        assert helper_def not in prompt_registry
