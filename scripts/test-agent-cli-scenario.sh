@@ -7,6 +7,7 @@ CONFIG_FILE="${CONFIG_FILE:-/tmp/finos-inspector-config.json}"
 SERVER_NAME="${SERVER_NAME:-finos}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-60}"
 FILTER="${FILTER:-}"
+FINOS_MCP_CACHE_SECRET="${FINOS_MCP_CACHE_SECRET:-local-dev-cache-secret-0123456789abcdef}"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Python runtime not found at $PYTHON_BIN"
@@ -19,13 +20,17 @@ cat >"$CONFIG_FILE" <<JSON
   "mcpServers": {
     "${SERVER_NAME}": {
       "command": "${PYTHON_BIN}",
-      "args": ["-m", "finos_mcp.fastmcp_main"]
+      "args": ["-m", "finos_mcp.fastmcp_main"],
+      "env": {
+        "FINOS_MCP_CACHE_SECRET": "${FINOS_MCP_CACHE_SECRET}"
+      }
     }
   }
 }
 JSON
 
 echo "Generated inspector config: $CONFIG_FILE"
+echo "Using FINOS_MCP_CACHE_SECRET from environment or local default."
 echo "Running agent-style MCP scenario via Inspector CLI..."
 
 CMD=(
