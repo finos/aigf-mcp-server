@@ -1,8 +1,8 @@
-"""Unit tests for OpenEMCP status normalization."""
+"""Unit tests for compatibility status normalization."""
 
 import pytest
 
-from finos_mcp.openemcp.status import (
+from finos_mcp.compat import (
     OpenEMCPValidationStatus,
     normalize_validation_status,
 )

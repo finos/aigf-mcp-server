@@ -1,11 +1,11 @@
-"""Unit tests for internal OpenEMCP compatibility primitives."""
+"""Unit tests for internal compatibility envelope primitives."""
 
 from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
 
-from finos_mcp.openemcp.compat import (
+from finos_mcp.compat import (
     OpenEMCPEnvelope,
     OpenEMCPPhase,
     create_envelope,

@@ -1,9 +1,9 @@
-"""Unit tests for OpenEMCP risk context compatibility primitives."""
+"""Unit tests for compatibility risk context primitives."""
 
 import pytest
 from pydantic import ValidationError
 
-from finos_mcp.openemcp.risk import (
+from finos_mcp.compat import (
     OpenEMCPRiskContext,
     OpenEMCPRiskTier,
     build_risk_context_from_signals,

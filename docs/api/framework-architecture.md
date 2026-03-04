@@ -105,7 +105,6 @@ Guardrails in runtime:
 
 Compatibility primitives and projections:
 - `src/finos_mcp/compat/*`
-- `src/finos_mcp/openemcp/*` (compatibility facade)
 - `src/finos_mcp/application/services/compat_event_service.py`
 - `src/finos_mcp/application/services/observability_projection_service.py`
 

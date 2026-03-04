@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Search text parsing and matching helpers moved out of `fastmcp_server.py` into application services
 - Internal runtime imports now use `src/finos_mcp/compat/` directly for OpenEMCP compatibility primitives
 - README and architecture docs aligned to current layered runtime structure and registration flow
+- Removed legacy `src/finos_mcp/openemcp/` shim package; compatibility primitives now resolve only through `src/finos_mcp/compat/`
 
 ### Performance
 - **Response Times**: Achieved <0.1ms average response time across all framework tools
