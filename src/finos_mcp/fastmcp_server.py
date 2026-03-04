@@ -34,8 +34,11 @@ from pydantic import BaseModel, Field
 from . import __version__
 from .application.services import CompatEventService, ObservabilityProjectionService
 from .application.use_cases import (
+    execute_get_document,
     execute_get_framework,
+    execute_list_documents,
     execute_list_frameworks,
+    execute_search_documents,
     execute_search_frameworks,
     format_framework_name,
 )
@@ -48,7 +51,7 @@ from .content.discovery import (
     DiscoveryServiceManager,
 )
 from .content.service import get_content_service
-from .infrastructure.repositories import FrameworkRepository
+from .infrastructure.repositories import FrameworkRepository, RiskMitigationRepository
 from .logging import get_logger
 from .openemcp import (
     OpenEMCPPhase,
@@ -369,7 +372,11 @@ async def close_service():
 
 _framework_repository = FrameworkRepository(
     discovery_manager=_discovery_manager,
-    get_service=get_service,
+    get_service=lambda: get_service(),
+)
+_risk_mitigation_repository = RiskMitigationRepository(
+    discovery_manager=_discovery_manager,
+    get_service=lambda: get_service(),
 )
 
 
@@ -605,60 +612,22 @@ async def list_risks() -> DocumentList:
         DocumentList: Structured list of risk documents with metadata, descriptions, and file information.
         Perfect for risk cataloging, threat modeling, and security assessment workflows.
     """
-    try:
-        await _apply_dos_protection()
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
-
-        # Convert GitHub file info to DocumentInfo
-        risk_docs = []
-        for file_info in discovery_result.risk_files:
-            doc_id = file_info.filename.removesuffix(".md").removeprefix("ri-")
-            doc_name = _format_document_name(file_info.filename, "ri-")
-
-            risk_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=file_info.filename,
-                    description=f"AI governance risk: {doc_name}",
-                    last_modified=file_info.last_modified.isoformat()
-                    if file_info.last_modified
-                    else None,
-                    title=doc_name,
-                )
-            )
-
-        return DocumentList(
-            documents=risk_docs,
-            total_count=len(risk_docs),
-            document_type="risk",
-            source=discovery_result.source,
-        )
-    except Exception as e:
-        logger.error("Failed to list risks: %s", e)
-        # Fall back to static list for offline/network-constrained environments.
-        fallback_docs = []
-        for filename in STATIC_RISK_FILES:
-            doc_id = filename.removesuffix(".md").removeprefix("ri-")
-            doc_name = _format_document_name(filename, "ri-")
-            fallback_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=filename,
-                    description=f"AI governance risk: {doc_name}",
-                    last_modified=None,
-                    title=doc_name,
-                )
-            )
-        return DocumentList(
-            documents=fallback_docs,
-            total_count=len(fallback_docs),
-            document_type="risk",
-            source="static_fallback",
-        )
+    await _apply_dos_protection()
+    payload = await execute_list_documents(
+        document_type="risk",
+        prefix="ri-",
+        static_files=list(STATIC_RISK_FILES),
+        discover_file_infos=_risk_mitigation_repository.discover_risk_file_infos,
+        format_document_name=_format_document_name,
+        logger=logger,
+    )
+    docs = [DocumentInfo(**item) for item in payload["documents"]]
+    return DocumentList(
+        documents=docs,
+        total_count=payload["total_count"],
+        document_type=payload["document_type"],
+        source=payload["source"],
+    )
 
 
 @mcp.tool(
@@ -678,60 +647,22 @@ async def list_mitigations() -> DocumentList:
         DocumentList: Structured list of mitigation documents with metadata, descriptions, and file information.
         Essential for security planning, control implementation, and compliance remediation.
     """
-    try:
-        await _apply_dos_protection()
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
-
-        # Convert GitHub file info to DocumentInfo
-        mitigation_docs = []
-        for file_info in discovery_result.mitigation_files:
-            doc_id = file_info.filename.removesuffix(".md").removeprefix("mi-")
-            doc_name = _format_document_name(file_info.filename, "mi-")
-
-            mitigation_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=file_info.filename,
-                    description=f"AI governance mitigation: {doc_name}",
-                    last_modified=file_info.last_modified.isoformat()
-                    if file_info.last_modified
-                    else None,
-                    title=doc_name,
-                )
-            )
-
-        return DocumentList(
-            documents=mitigation_docs,
-            total_count=len(mitigation_docs),
-            document_type="mitigation",
-            source=discovery_result.source,
-        )
-    except Exception as e:
-        logger.error("Failed to list mitigations: %s", e)
-        # Fall back to static list for offline/network-constrained environments.
-        fallback_docs = []
-        for filename in STATIC_MITIGATION_FILES:
-            doc_id = filename.removesuffix(".md").removeprefix("mi-")
-            doc_name = _format_document_name(filename, "mi-")
-            fallback_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=filename,
-                    description=f"AI governance mitigation: {doc_name}",
-                    last_modified=None,
-                    title=doc_name,
-                )
-            )
-        return DocumentList(
-            documents=fallback_docs,
-            total_count=len(fallback_docs),
-            document_type="mitigation",
-            source="static_fallback",
-        )
+    await _apply_dos_protection()
+    payload = await execute_list_documents(
+        document_type="mitigation",
+        prefix="mi-",
+        static_files=list(STATIC_MITIGATION_FILES),
+        discover_file_infos=_risk_mitigation_repository.discover_mitigation_file_infos,
+        format_document_name=_format_document_name,
+        logger=logger,
+    )
+    docs = [DocumentInfo(**item) for item in payload["documents"]]
+    return DocumentList(
+        documents=docs,
+        total_count=payload["total_count"],
+        document_type=payload["document_type"],
+        source=payload["source"],
+    )
 
 
 @mcp.tool(
@@ -767,62 +698,19 @@ async def get_risk(
     try:
         await _apply_dos_protection()
         _validate_request_params(risk_id=risk_id)
-        service = await get_service()
-
-        # First, discover to find the correct filename.
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        try:
-            discovery_result = await discovery_service.discover_content()
-            risk_filenames = [
-                file_info.filename for file_info in discovery_result.risk_files
-            ]
-        except Exception as discovery_error:
-            logger.warning(
-                "Risk discovery failed, using static fallback list: %s",
-                discovery_error,
-            )
-            risk_filenames = list(STATIC_RISK_FILES)
-
-        # Find the risk file by ID
-        target_filename = None
-        for filename in risk_filenames:
-            file_id = filename.replace(".md", "").replace("ri-", "")
-            if file_id == risk_id:
-                target_filename = filename
-                break
-
-        if not target_filename:
-            return DocumentContent(
-                document_id=risk_id,
-                title=f"Risk {risk_id} not found",
-                content=f"Risk document with ID '{risk_id}' was not found in the repository.",
-                sections=[],
-            )
-
-        # Get the document content
-        doc = await service.get_document("risk", target_filename)
-
-        if doc:
-            content = doc.get("content", "")
-            title = doc.get("title") or _format_document_name(target_filename, "ri-")
-            content, sections = _safe_document_content(
-                content,
-                f"risk:{risk_id}",
-                "Risk document exceeded allowed size limits. Please narrow your query.",
-            )
-
-            return DocumentContent(
-                document_id=risk_id, title=title, content=content, sections=sections
-            )
-        else:
-            return DocumentContent(
-                document_id=risk_id,
-                title=f"Error loading risk {risk_id}",
-                content=f"Failed to load content for risk document '{risk_id}'.",
-                sections=[],
-            )
-
+        payload = await execute_get_document(
+            requested_id=risk_id,
+            doc_type="risk",
+            prefix="ri-",
+            static_files=list(STATIC_RISK_FILES),
+            discover_filenames=_risk_mitigation_repository.discover_risk_filenames,
+            get_document_by_filename=_risk_mitigation_repository.get_document,
+            format_document_name=_format_document_name,
+            safe_document_content=_safe_document_content,
+            safe_external_error=_safe_external_error,
+            logger=logger,
+        )
+        return DocumentContent(**payload)
     except Exception as e:
         logger.error("Failed to get risk content for %s: %s", risk_id, e)
         return DocumentContent(
@@ -868,65 +756,19 @@ async def get_mitigation(
     try:
         await _apply_dos_protection()
         _validate_request_params(mitigation_id=mitigation_id)
-        service = await get_service()
-
-        # First, discover to find the correct filename.
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        try:
-            discovery_result = await discovery_service.discover_content()
-            mitigation_filenames = [
-                file_info.filename for file_info in discovery_result.mitigation_files
-            ]
-        except Exception as discovery_error:
-            logger.warning(
-                "Mitigation discovery failed, using static fallback list: %s",
-                discovery_error,
-            )
-            mitigation_filenames = list(STATIC_MITIGATION_FILES)
-
-        # Find the mitigation file by ID
-        target_filename = None
-        for filename in mitigation_filenames:
-            file_id = filename.replace(".md", "").replace("mi-", "")
-            if file_id == mitigation_id:
-                target_filename = filename
-                break
-
-        if not target_filename:
-            return DocumentContent(
-                document_id=mitigation_id,
-                title=f"Mitigation {mitigation_id} not found",
-                content=f"Mitigation document with ID '{mitigation_id}' was not found in the repository.",
-                sections=[],
-            )
-
-        # Get the document content
-        doc = await service.get_document("mitigation", target_filename)
-
-        if doc:
-            content = doc.get("content", "")
-            title = doc.get("title") or _format_document_name(target_filename, "mi-")
-            content, sections = _safe_document_content(
-                content,
-                f"mitigation:{mitigation_id}",
-                "Mitigation document exceeded allowed size limits. Please narrow your query.",
-            )
-
-            return DocumentContent(
-                document_id=mitigation_id,
-                title=title,
-                content=content,
-                sections=sections,
-            )
-        else:
-            return DocumentContent(
-                document_id=mitigation_id,
-                title=f"Error loading mitigation {mitigation_id}",
-                content=f"Failed to load content for mitigation document '{mitigation_id}'.",
-                sections=[],
-            )
-
+        payload = await execute_get_document(
+            requested_id=mitigation_id,
+            doc_type="mitigation",
+            prefix="mi-",
+            static_files=list(STATIC_MITIGATION_FILES),
+            discover_filenames=_risk_mitigation_repository.discover_mitigation_filenames,
+            get_document_by_filename=_risk_mitigation_repository.get_document,
+            format_document_name=_format_document_name,
+            safe_document_content=_safe_document_content,
+            safe_external_error=_safe_external_error,
+            logger=logger,
+        )
+        return DocumentContent(**payload)
     except Exception as e:
         logger.error("Failed to get mitigation content for %s: %s", mitigation_id, e)
         return DocumentContent(
@@ -1480,44 +1322,15 @@ async def search_risks(
     try:
         await _apply_dos_protection()
         _validate_request_params(query=query, limit=limit)
-        # Get all risks first
-        risks_list = await _call_registered_tool(list_risks)
-
-        total_risks = len(risks_list.documents)
-        logger.info(
-            "Starting search across %d risk documents for query: %r",
-            total_risks,
-            query,
+        payload = await execute_search_documents(
+            query=query,
+            limit=limit,
+            list_documents_fn=lambda: _call_registered_tool(list_risks),
+            search_single_document_fn=_search_single_risk,
+            logger=logger,
+            label="risk",
         )
-
-        # Use asyncio.gather for parallel processing (official MCP best practice)
-        search_tasks = [
-            _search_single_risk(risk_doc, query) for risk_doc in risks_list.documents
-        ]
-
-        # Execute all searches in parallel with progress reporting
-        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-        logger.info("Completed parallel search across %d risk documents", total_risks)
-
-        # Flatten results and filter out exceptions.
-        # Each item is (SearchResult, is_exact_phrase, match_index).
-        tagged: list[tuple[SearchResult, bool, int]] = []
-        for result in search_results:
-            if isinstance(result, list):
-                tagged.extend(result)
-            elif isinstance(result, Exception):
-                logger.warning("Search task failed: %s", result)
-
-        # Primary key: exact-phrase matches first (is_exact=True → 0, False → 1).
-        # Secondary key: earlier match position means the topic is more central.
-        tagged.sort(key=lambda x: (not x[1], x[2]))
-        results = [r for r, _, __ in tagged]
-        limited_results = results[:limit]
-
-        return SearchResults(
-            query=query, results=limited_results, total_found=len(results)
-        )
+        return SearchResults(**payload)
 
     except Exception as e:
         logger.error("Failed to search risks: %s", e)
@@ -1610,48 +1423,15 @@ async def search_mitigations(
     try:
         await _apply_dos_protection()
         _validate_request_params(query=query, limit=limit)
-        # Get all mitigations first
-        mitigations_list = await _call_registered_tool(list_mitigations)
-
-        total_mitigations = len(mitigations_list.documents)
-        logger.info(
-            "Starting search across %d mitigation documents for query: %r",
-            total_mitigations,
-            query,
+        payload = await execute_search_documents(
+            query=query,
+            limit=limit,
+            list_documents_fn=lambda: _call_registered_tool(list_mitigations),
+            search_single_document_fn=_search_single_mitigation,
+            logger=logger,
+            label="mitigation",
         )
-
-        # Use asyncio.gather for parallel processing (official MCP best practice)
-        search_tasks = [
-            _search_single_mitigation(mitigation_doc, query)
-            for mitigation_doc in mitigations_list.documents
-        ]
-
-        # Execute all searches in parallel with progress reporting
-        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-        logger.info(
-            "Completed parallel search across %d mitigation documents",
-            total_mitigations,
-        )
-
-        # Flatten results and filter out exceptions.
-        # Each item is (SearchResult, is_exact_phrase, match_index).
-        tagged: list[tuple[SearchResult, bool, int]] = []
-        for result in search_results:
-            if isinstance(result, list):
-                tagged.extend(result)
-            elif isinstance(result, Exception):
-                logger.warning("Search task failed: %s", result)
-
-        # Primary key: exact-phrase matches first (is_exact=True → 0, False → 1).
-        # Secondary key: earlier match position means the topic is more central.
-        tagged.sort(key=lambda x: (not x[1], x[2]))
-        results = [r for r, _, __ in tagged]
-        limited_results = results[:limit]
-
-        return SearchResults(
-            query=query, results=limited_results, total_found=len(results)
-        )
+        return SearchResults(**payload)
 
     except Exception as e:
         logger.error("Failed to search mitigations: %s", e)
