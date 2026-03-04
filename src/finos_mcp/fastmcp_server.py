@@ -23,7 +23,6 @@ import asyncio
 import inspect
 import re
 import time
-from collections import deque
 from typing import Annotated
 from uuid import uuid4
 
@@ -33,6 +32,7 @@ from fastmcp.server.auth import JWTVerifier
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .application.services import CompatEventService
 from .config import Settings, validate_settings_on_startup
 from .content.cache import get_cache
 from .content.discovery import (
@@ -46,7 +46,6 @@ from .logging import get_logger
 from .openemcp import (
     OpenEMCPPhase,
     build_risk_context_from_signals,
-    create_envelope,
     normalize_validation_status,
 )
 from .security.error_handler import secure_error_handler
@@ -105,7 +104,7 @@ def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
 # Create FastMCP server instance
 mcp = FastMCP(settings.server_name, auth=_build_auth_provider(settings))
 _SERVER_START_TIME = time.monotonic()
-_COMPAT_EVENTS: deque = deque(maxlen=256)
+_compat_event_service = CompatEventService(max_events=256)
 
 
 def _record_compat_event(
@@ -116,13 +115,12 @@ def _record_compat_event(
     metadata: dict[str, object] | None = None,
 ) -> None:
     """Record an internal OpenEMCP compatibility envelope."""
-    envelope = create_envelope(
+    _compat_event_service.record_event(
         phase=phase,
         payload=payload,
         correlation_id=correlation_id,
-        metadata=metadata or {},
+        metadata=metadata,
     )
-    _COMPAT_EVENTS.append(envelope)
 
 
 def _tool_annotations(*, title: str, open_world: bool) -> dict[str, bool | str]:
@@ -1142,7 +1140,7 @@ async def get_service_health() -> ServiceHealth:
                 "correlation_id": correlation_id,
                 "validation_status": canonical_status.value,
                 "compatibility_enabled": True,
-                "compat_events_buffered": len(_COMPAT_EVENTS),
+                "compat_events_buffered": _compat_event_service.buffered_count(),
             },
             "risk_context": risk_context.model_dump(mode="json"),
         },
@@ -1216,7 +1214,7 @@ async def get_cache_stats() -> CacheStats:
                     "correlation_id": correlation_id,
                     "validation_status": canonical_status.value,
                     "compatibility_enabled": True,
-                    "compat_events_buffered": len(_COMPAT_EVENTS),
+                    "compat_events_buffered": _compat_event_service.buffered_count(),
                 },
                 "risk_context": risk_context.model_dump(mode="json"),
             },
@@ -1252,7 +1250,7 @@ async def get_cache_stats() -> CacheStats:
                     "correlation_id": correlation_id,
                     "validation_status": canonical_status.value,
                     "compatibility_enabled": True,
-                    "compat_events_buffered": len(_COMPAT_EVENTS),
+                    "compat_events_buffered": _compat_event_service.buffered_count(),
                 },
                 "risk_context": risk_context.model_dump(mode="json"),
             },
