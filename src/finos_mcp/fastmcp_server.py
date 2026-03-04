@@ -21,7 +21,6 @@ Provides structured output and decorator-based tool registration.
 
 import asyncio
 import inspect
-import re
 import time
 from typing import Annotated, Any
 from uuid import uuid4
@@ -46,6 +45,8 @@ from .application.services import (
     CompatEventService,
     ObservabilityProjectionService,
     PromptCompositionService,
+    best_match_index,
+    clean_search_snippet,
 )
 from .application.use_cases import (
     execute_get_document,
@@ -56,6 +57,11 @@ from .application.use_cases import (
     execute_search_frameworks,
     format_framework_name,
 )
+from .compat import (
+    OpenEMCPPhase,
+    build_risk_context_from_signals,
+    normalize_validation_status,
+)
 from .config import Settings, validate_settings_on_startup
 from .content.cache import get_cache
 from .content.discovery import (
@@ -64,11 +70,6 @@ from .content.discovery import (
 from .content.service import get_content_service
 from .infrastructure.repositories import FrameworkRepository, RiskMitigationRepository
 from .logging import get_logger
-from .openemcp import (
-    OpenEMCPPhase,
-    build_risk_context_from_signals,
-    normalize_validation_status,
-)
 from .security.error_handler import secure_error_handler
 from .security.request_validator import dos_protector, request_size_validator
 
@@ -451,37 +452,6 @@ _KNOWN_ACRONYMS: frozenset[str] = frozenset(
 # Common English function words that stay lowercase in title case (except when first).
 _LOWERCASE_WORDS: frozenset[str] = frozenset(
     {"and", "or", "the", "a", "an", "of", "for", "in", "to", "with", "as"}
-)
-
-# Stop words filtered out during multi-token search fallback.
-_SEARCH_STOP_WORDS: frozenset[str] = frozenset(
-    {
-        "a",
-        "an",
-        "the",
-        "is",
-        "are",
-        "was",
-        "were",
-        "be",
-        "been",
-        "for",
-        "of",
-        "in",
-        "to",
-        "and",
-        "or",
-        "with",
-        "at",
-        "by",
-        "from",
-        "that",
-        "this",
-        "it",
-        "on",
-        "as",
-        "not",
-    }
 )
 
 
@@ -989,104 +959,6 @@ async def get_cache_stats() -> CacheStats:
 # Simple Search Tools
 
 
-_SNIPPET_URL_LINE = re.compile(r"^\s*(url|reference|href)\s*:", re.IGNORECASE)
-_SNIPPET_BARE_URL = re.compile(r"^\s*https?://\S+\s*$")
-_SECTION_HEADER = re.compile(r"^#{1,3}\s+", re.MULTILINE)
-
-
-def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
-    """Extract the text body of the first matching markdown section.
-
-    Kept here for backward-compatible internal imports used by tests and
-    prompt registration internals.
-    """
-    for header in headers:
-        pattern = re.compile(
-            r"^#{1,3}\s+" + re.escape(header) + r"\s*$", re.IGNORECASE | re.MULTILINE
-        )
-        match = pattern.search(content)
-        if not match:
-            continue
-        start = match.end()
-        next_header = _SECTION_HEADER.search(content, start)
-        body = content[
-            start : next_header.start() if next_header else len(content)
-        ].strip()
-        if body:
-            return body[:max_chars]
-    return ""
-
-
-def _best_match_index(content: str, query: str) -> tuple[int, bool]:
-    """Return (char_index, is_exact_phrase) for the best match of query in content.
-
-    Tries the full phrase first (fast path) — is_exact_phrase=True.
-    If no match, splits the query into tokens, filters stop words and
-    very short tokens (≤2 chars), then tries each token longest-first
-    (more specific tokens preferred) — is_exact_phrase=False.
-    Returns (-1, False) if nothing matches.
-    """
-    lower = content.lower()
-
-    # Fast path: exact phrase
-    idx = lower.find(query.lower())
-    if idx != -1:
-        return idx, True
-
-    # Fallback: individual tokens, longest first
-    tokens = sorted(
-        (
-            t
-            for t in query.lower().split()
-            if len(t) > 2 and t not in _SEARCH_STOP_WORDS
-        ),
-        key=len,
-        reverse=True,
-    )
-    for token in tokens:
-        idx = lower.find(token)
-        if idx != -1:
-            return idx, False
-
-    return -1, False
-
-
-def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
-    """Extract a clean prose snippet around a search match.
-
-    Works line-by-line to avoid returning raw YAML field lines or bare
-    URLs as snippet content.  Collects up to 4 lines of context either
-    side of the match line, filtering out non-prose lines.
-    """
-    lines = text.splitlines()
-
-    # Locate the line that contains match_index.
-    offset = 0
-    match_line = 0
-    for i, line in enumerate(lines):
-        if offset + len(line) >= match_index:
-            match_line = i
-            break
-        offset += len(line) + 1  # +1 for the newline character
-
-    def _is_prose(line: str) -> bool:
-        s = line.strip()
-        return (
-            bool(s)
-            and not _SNIPPET_URL_LINE.match(s)
-            and not _SNIPPET_BARE_URL.match(s)
-            and not s.startswith("```")
-        )
-
-    context = lines[max(0, match_line - 4) : match_line + 5]
-    prose = [ln.strip() for ln in context if _is_prose(ln)]
-
-    snippet = " ".join(prose)
-    if len(snippet) > 280:
-        snippet = snippet[:280] + "..."
-    return snippet or f"Found '{query}' in document content"
-
-
 async def _call_registered_tool(tool_obj, *args, **kwargs):
     """Invoke a registered FastMCP FunctionTool via its wrapped function.
 
@@ -1127,7 +999,7 @@ async def _search_single_framework(
                 break
 
             # Extract clean snippet around match
-            snippet = _clean_search_snippet(content.content, query, match_index)
+            snippet = clean_search_snippet(content.content, query, match_index)
 
             # Skip if snippet is empty or too short
             if len(snippet.strip()) < 10:
@@ -1239,7 +1111,7 @@ async def _search_single_document(
     try:
         doc = await _call_registered_tool(get_document_fn, document.id)
         content = doc.content
-        match_index, is_exact = _best_match_index(content, query)
+        match_index, is_exact = best_match_index(content, query)
         if match_index == -1:
             return []
 
@@ -1249,7 +1121,7 @@ async def _search_single_document(
                 section = line.strip("#").strip()
                 break
 
-        snippet = _clean_search_snippet(content, query, match_index)
+        snippet = clean_search_snippet(content, query, match_index)
         return [
             (
                 SearchResult(

@@ -2,32 +2,12 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
 from pydantic import Field
 
-_SECTION_HEADER = re.compile(r"^#{1,3}\s+", re.MULTILINE)
-
-
-def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
-    """Extract the text body of the first matching markdown section."""
-    for header in headers:
-        pattern = re.compile(
-            r"^#{1,3}\s+" + re.escape(header) + r"\s*$", re.IGNORECASE | re.MULTILINE
-        )
-        match = pattern.search(content)
-        if not match:
-            continue
-        start = match.end()
-        next_header = _SECTION_HEADER.search(content, start)
-        body = content[
-            start : next_header.start() if next_header else len(content)
-        ].strip()
-        if body:
-            return body[:max_chars]
-    return ""
+from ...application.services import extract_section
 
 
 def register_prompts(
@@ -105,7 +85,7 @@ def register_prompts(
             risk_id = result.framework_id.removeprefix("risk-")
             try:
                 doc = await call_registered_tool(get_risk_tool, risk_id)
-                summary = _extract_section(
+                summary = extract_section(
                     doc.content, "Summary", "Overview", "Description"
                 )
                 if summary:
@@ -158,9 +138,7 @@ def register_prompts(
             mitigation_id = result.framework_id.removeprefix("mitigation-")
             try:
                 doc = await call_registered_tool(get_mitigation_tool, mitigation_id)
-                purpose = _extract_section(
-                    doc.content, "Purpose", "Summary", "Overview"
-                )
+                purpose = extract_section(doc.content, "Purpose", "Summary", "Overview")
                 if purpose:
                     mitigation_sections.append(
                         f"### {doc.title} ({mitigation_id})\n{purpose}"

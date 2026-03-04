@@ -9,6 +9,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 API_ROOT = PROJECT_ROOT / "src" / "finos_mcp" / "api"
 FASTMCP_SERVER = PROJECT_ROOT / "src" / "finos_mcp" / "fastmcp_server.py"
+SRC_ROOT = PROJECT_ROOT / "src" / "finos_mcp"
 
 
 def _imports_for_file(path: Path) -> list[str]:
@@ -53,3 +54,25 @@ def test_fastmcp_server_has_no_inline_prompt_or_resource_handlers() -> None:
     content = FASTMCP_SERVER.read_text(encoding="utf-8")
     assert re.search(r"(?m)^@mcp\.prompt\(", content) is None
     assert re.search(r"(?m)^@mcp\.resource\(", content) is None
+
+
+def test_runtime_layers_import_compat_not_openemcp_shims() -> None:
+    """Internal runtime code should import compat directly, not openemcp shims."""
+    target_files = sorted(
+        p
+        for p in SRC_ROOT.rglob("*.py")
+        if "__pycache__" not in p.parts
+        and "openemcp" not in p.parts
+        and p.name != "__init__.py"
+    )
+
+    violations: list[str] = []
+    for file_path in target_files:
+        for imported in _imports_for_file(file_path):
+            if "finos_mcp.openemcp" in imported or imported.startswith(".openemcp"):
+                violations.append(f"{file_path}: {imported}")
+
+    assert not violations, (
+        "Runtime modules import openemcp shim modules directly:\n"
+        + "\n".join(violations)
+    )

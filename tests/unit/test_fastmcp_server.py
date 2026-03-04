@@ -11,6 +11,11 @@ import pytest
 from pydantic import ValidationError
 
 import finos_mcp.fastmcp_server as fastmcp_server_module
+from finos_mcp.application.services.search_text_service import (
+    best_match_index,
+    clean_search_snippet,
+    extract_section,
+)
 from finos_mcp.fastmcp_server import (
     CacheStats,
     DocumentContent,
@@ -21,9 +26,6 @@ from finos_mcp.fastmcp_server import (
     FrameworkList,
     SearchResults,
     ServiceHealth,
-    _best_match_index,
-    _clean_search_snippet,
-    _extract_section,
     _format_document_name,
     get_cache_stats,
     get_framework,
@@ -571,39 +573,39 @@ class TestFormatDocumentName:
 
 @pytest.mark.unit
 class TestCleanSearchSnippet:
-    """Tests for the _clean_search_snippet helper."""
+    """Tests for the clean_search_snippet helper."""
 
     def test_returns_prose_around_match(self):
         text = "## Summary\n\nData poisoning occurs when adversaries tamper with training data.\n\n## Description\n\nMore detail here."
-        snippet = _clean_search_snippet(text, "poisoning", text.index("poisoning"))
+        snippet = clean_search_snippet(text, "poisoning", text.index("poisoning"))
         assert "poisoning" in snippet.lower()
         assert len(snippet) > 20
 
     def test_skips_url_field_lines(self):
         text = "## Links\n\nurl: https://example.com/path\nSome prose content here about the topic.\nurl: https://other.com"
-        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        snippet = clean_search_snippet(text, "prose", text.index("prose"))
         assert "https://" not in snippet
         assert "prose" in snippet.lower()
 
     def test_skips_bare_url_lines(self):
         text = "Before text.\nhttps://example.com/very/long/url\nAfter prose text with the query term."
-        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        snippet = clean_search_snippet(text, "prose", text.index("prose"))
         assert "https://" not in snippet
 
     def test_truncates_long_snippets(self):
         long_text = "word " * 200
-        snippet = _clean_search_snippet(long_text, "word", 0)
+        snippet = clean_search_snippet(long_text, "word", 0)
         assert len(snippet) <= 283  # 280 + "..."
 
     def test_fallback_when_no_prose(self):
         text = "url: https://a.com\nurl: https://b.com"
-        snippet = _clean_search_snippet(text, "query", 0)
+        snippet = clean_search_snippet(text, "query", 0)
         assert len(snippet) > 0  # never empty
 
 
 @pytest.mark.unit
 class TestExtractSection:
-    """Tests for the _extract_section helper."""
+    """Tests for the extract_section helper."""
 
     _DOC = (
         "## Summary\n\nThis is the summary text describing the risk.\n\n"
@@ -612,31 +614,31 @@ class TestExtractSection:
     )
 
     def test_extracts_named_section(self):
-        result = _extract_section(self._DOC, "Summary")
+        result = extract_section(self._DOC, "Summary")
         assert "summary text" in result.lower()
         assert "Description" not in result
 
     def test_first_matching_header_wins(self):
-        result = _extract_section(self._DOC, "Summary", "Description")
+        result = extract_section(self._DOC, "Summary", "Description")
         assert "summary text" in result.lower()
 
     def test_falls_back_to_second_header(self):
-        result = _extract_section(self._DOC, "Overview", "Description")
+        result = extract_section(self._DOC, "Overview", "Description")
         assert "Detailed description" in result
 
     def test_returns_empty_when_no_match(self):
-        result = _extract_section(self._DOC, "NonExistent")
+        result = extract_section(self._DOC, "NonExistent")
         assert result == ""
 
     def test_respects_max_chars(self):
         long_body = "x " * 1000
         doc = f"## Summary\n\n{long_body}"
-        result = _extract_section(doc, "Summary", max_chars=50)
+        result = extract_section(doc, "Summary", max_chars=50)
         assert len(result) <= 50
 
     def test_purpose_header(self):
         doc = "## Purpose\n\nThis mitigation addresses the risk by applying controls.\n\n## Implementation\n\nSteps here."
-        result = _extract_section(doc, "Purpose")
+        result = extract_section(doc, "Purpose")
         assert "controls" in result
         assert "Steps" not in result
 
@@ -762,40 +764,40 @@ class TestDocumentContentTitle:
 
 @pytest.mark.unit
 class TestBestMatchIndex:
-    """Tests for the _best_match_index search helper.
+    """Tests for the best_match_index search helper.
 
     Return type is (int, bool) — (char_index, is_exact_phrase).
     """
 
     def test_exact_phrase_match_index(self):
-        idx, is_exact = _best_match_index("data poisoning occurs", "data poisoning")
+        idx, is_exact = best_match_index("data poisoning occurs", "data poisoning")
         assert idx >= 0
         assert is_exact is True
 
     def test_exact_phrase_is_flagged_exact(self):
-        _, is_exact = _best_match_index("model hallucination risk", "hallucination")
+        _, is_exact = best_match_index("model hallucination risk", "hallucination")
         assert is_exact is True
 
     def test_token_fallback_finds_match(self):
         # "customer data privacy" -> tokens ["customer","data","privacy"]
         # "data" is in the content
-        idx, is_exact = _best_match_index(
+        idx, is_exact = best_match_index(
             "sensitive data leakage", "customer data privacy"
         )
         assert idx >= 0
         assert is_exact is False
 
     def test_token_fallback_is_not_flagged_exact(self):
-        _, is_exact = _best_match_index("only data here", "customer data privacy")
+        _, is_exact = best_match_index("only data here", "customer data privacy")
         assert is_exact is False
 
     def test_stop_words_only_returns_minus_one(self):
-        idx, is_exact = _best_match_index("some content here", "the is are")
+        idx, is_exact = best_match_index("some content here", "the is are")
         assert idx == -1
         assert is_exact is False
 
     def test_no_match_returns_minus_one(self):
-        idx, is_exact = _best_match_index("hello world", "xyzzy foobar")
+        idx, is_exact = best_match_index("hello world", "xyzzy foobar")
         assert idx == -1
         assert is_exact is False
 
