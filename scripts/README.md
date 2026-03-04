@@ -22,6 +22,9 @@ Run all scripts from the repository root.
   - Live HTTP transport test.
 - `scripts/test-auth-http-transport.sh`
   - Live HTTP auth-boundary transport test.
+- `scripts/test-agent-cli-scenario.sh`
+  - Runs a realistic AI-agent scenario through MCP Inspector CLI against all tools/resources/prompts.
+  - Includes observability checks for `get_service_health` and `get_cache_stats`.
 - `scripts/bump_version.py`
   - Version bump helper.
 

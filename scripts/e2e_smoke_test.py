@@ -206,6 +206,34 @@ def build_test_suite() -> list[TestCase]:
                     "version is non-empty string",
                     lambda d: isinstance(d, dict) and bool(d.get("version")),
                 ),
+                Check(
+                    "observability.openemcp exists",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and isinstance(d.get("observability"), dict)
+                        and isinstance(d["observability"].get("openemcp"), dict)
+                    ),
+                ),
+                Check(
+                    "observability.openemcp.validation_status is canonical",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("openemcp", {})
+                        .get("validation_status")
+                        in {"approved", "rejected", "modified"}
+                    ),
+                ),
+                Check(
+                    "observability.risk_context has risk_tier",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("risk_context", {})
+                        .get("risk_tier")
+                        in {"low", "medium", "high", "critical"}
+                    ),
+                ),
             ],
         ),
         TestCase(
@@ -223,6 +251,43 @@ def build_test_suite() -> list[TestCase]:
                     "hit_rate in [0.0, 1.0]",
                     lambda d: (
                         isinstance(d, dict) and 0.0 <= d.get("hit_rate", -1) <= 1.0
+                    ),
+                ),
+                Check(
+                    "extended cache counters are present",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and isinstance(d.get("sets"), int)
+                        and isinstance(d.get("evictions"), int)
+                        and isinstance(d.get("memory_usage_bytes"), int)
+                    ),
+                ),
+                Check(
+                    "observability.openemcp exists",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and isinstance(d.get("observability"), dict)
+                        and isinstance(d["observability"].get("openemcp"), dict)
+                    ),
+                ),
+                Check(
+                    "observability.openemcp.validation_status is canonical",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("openemcp", {})
+                        .get("validation_status")
+                        in {"approved", "rejected", "modified"}
+                    ),
+                ),
+                Check(
+                    "observability.risk_context has risk_tier",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("risk_context", {})
+                        .get("risk_tier")
+                        in {"low", "medium", "high", "critical"}
                     ),
                 ),
             ],
