@@ -406,6 +406,7 @@ Includes:
 ### Support & Troubleshooting
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 - **[Tools Reference](docs/tools-reference.md)** - Complete guide to all 11 MCP tools
+- **[Architecture Decision Records](docs/adr/README.md)** - Key architecture rationale and policy decisions
 - **[GitHub Repository](https://github.com/finos/aigf-mcp-server)** - Source code and issues
 
 ---
