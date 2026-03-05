@@ -171,6 +171,8 @@ audit-temp.log
 *.log
 debug.log
 error.log
+scripts/e2e_report_*.md
+.venv-semgrep/
 
 # Backup files
 *.bak
