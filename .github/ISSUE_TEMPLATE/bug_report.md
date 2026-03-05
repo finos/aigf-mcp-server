@@ -1,38 +1,24 @@
 ---
-name: Bug Report
-about: Create a report to help us improve
-title: '[BUG] '
-labels: ['bug']
-assignees: ''
+name: 🐛 Bug Report
+about: If something isn't working as expected 🤔.
+
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Bug Report
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Run command '...'
-2. Use configuration '...'
-3. See error
+### Steps to Reproduce:
+ 1. ...step 1 description...
+ 2. ...step 2 description...
+ 3. ...step 3 description...
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+### Expected Result:
+...description of what you expected to see...
 
-**Environment (please complete the following information):**
- - OS: [e.g. macOS, Linux, Windows]
- - Python version: [e.g. 3.11]
- - Package version: [e.g. 0.1.0-dev]
+### Actual Result:
+...what actually happened, including full exceptions (please include the entire stack trace, including "caused by" entries), log entries, screen shots etc. where appropriate...
 
-**Configuration**
-If applicable, share your configuration (remove any secrets):
-```env
-FINOS_MCP_LOG_LEVEL=...
-```
+### Environment:
+...version and build of the project, OS and runtime versions, virtualised environment (if any), etc. ...
 
-**Error logs**
-```
-Paste error logs here
-```
-
-**Additional context**
-Add any other context about the problem here.
+### Additional Context:
+...add any other context about the problem here. If applicable, add screenshots to help explain...
