@@ -10,6 +10,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import ValidationError
 
+import finos_mcp.fastmcp_server as fastmcp_server_module
+from finos_mcp.application.services.search_text_service import (
+    best_match_index,
+    clean_search_snippet,
+    extract_section,
+)
 from finos_mcp.fastmcp_server import (
     CacheStats,
     DocumentContent,
@@ -20,9 +26,6 @@ from finos_mcp.fastmcp_server import (
     FrameworkList,
     SearchResults,
     ServiceHealth,
-    _best_match_index,
-    _clean_search_snippet,
-    _extract_section,
     _format_document_name,
     get_cache_stats,
     get_framework,
@@ -252,6 +255,10 @@ class TestFastMCPTools:
         result = await _invoke_direct_tool(list_frameworks)
 
         assert isinstance(result, FrameworkList)
+        if result.source == "unavailable":
+            assert result.total_count == 0
+            assert result.message is not None
+            return
         assert result.total_count > 0
         assert len(result.frameworks) == result.total_count
 
@@ -279,7 +286,10 @@ class TestFastMCPTools:
 
         assert isinstance(result, FrameworkContent)
         assert result.framework_id == "invalid-framework"
-        assert "not found" in result.content.lower()
+        assert (
+            "not found" in result.content.lower()
+            or "unavailable" in result.content.lower()
+        )
         assert result.sections == 0
 
     @pytest.mark.asyncio
@@ -289,6 +299,10 @@ class TestFastMCPTools:
 
         assert isinstance(result, DocumentList)
         assert result.document_type == "risk"
+        if result.source == "unavailable":
+            assert result.total_count == 0
+            assert result.message is not None
+            return
         assert result.total_count > 0
         assert len(result.documents) == result.total_count
 
@@ -305,6 +319,10 @@ class TestFastMCPTools:
 
         assert isinstance(result, DocumentList)
         assert result.document_type == "mitigation"
+        if result.source == "unavailable":
+            assert result.total_count == 0
+            assert result.message is not None
+            return
         assert result.total_count > 0
         assert len(result.documents) == result.total_count
 
@@ -319,6 +337,9 @@ class TestFastMCPTools:
         assert result.version
         assert result.healthy_services > 0
         assert result.total_services > 0
+        assert result.observability is not None
+        assert "openemcp" in result.observability
+        assert "risk_context" in result.observability
 
     @pytest.mark.asyncio
     async def test_get_cache_stats(self):
@@ -330,6 +351,10 @@ class TestFastMCPTools:
         assert result.cache_hits >= 0
         assert result.cache_misses >= 0
         assert 0 <= result.hit_rate <= 1
+        assert result.observability is not None
+        assert result.sets is not None
+        assert result.current_size is not None
+        assert result.memory_usage_bytes is not None
 
 
 @pytest.mark.unit
@@ -348,6 +373,10 @@ class TestFastMCPIntegration:
         assert isinstance(structured_data, dict)
         assert "frameworks" in structured_data
         assert "total_count" in structured_data
+        if structured_data.get("source") == "unavailable":
+            assert structured_data["total_count"] == 0
+            assert structured_data.get("message")
+            return
         assert structured_data["total_count"] > 0
 
     @pytest.mark.asyncio
@@ -361,6 +390,63 @@ class TestFastMCPIntegration:
         assert structured_data["status"] == "healthy"
         assert "version" in structured_data
         assert "uptime_seconds" in structured_data
+        assert "observability" in structured_data
+        assert "openemcp" in structured_data["observability"]
+        assert structured_data["observability"]["openemcp"]["validation_status"] in {
+            "approved",
+            "rejected",
+            "modified",
+        }
+
+    @pytest.mark.asyncio
+    async def test_health_contract_required_fields_are_stable(self):
+        """Guardrail: required health fields/types remain backward compatible."""
+        _, structured_data = await _call_tool("get_service_health", {})
+
+        required_fields = {
+            "status": str,
+            "uptime_seconds": float,
+            "version": str,
+            "healthy_services": int,
+            "total_services": int,
+        }
+
+        for field, expected_type in required_fields.items():
+            assert field in structured_data
+            assert isinstance(structured_data[field], expected_type)
+
+        assert "observability" in structured_data
+        assert "risk_context" in structured_data["observability"]
+        assert structured_data["observability"]["openemcp"]["validation_status"] in {
+            "approved",
+            "rejected",
+            "modified",
+        }
+
+    @pytest.mark.asyncio
+    async def test_cache_contract_required_fields_are_stable(self):
+        """Guardrail: required cache fields/types remain backward compatible."""
+        _, structured_data = await _call_tool("get_cache_stats", {})
+
+        required_fields = {
+            "total_requests": int,
+            "cache_hits": int,
+            "cache_misses": int,
+            "hit_rate": float,
+        }
+
+        for field, expected_type in required_fields.items():
+            assert field in structured_data
+            assert isinstance(structured_data[field], expected_type)
+
+        assert "sets" in structured_data
+        assert "evictions" in structured_data
+        assert "observability" in structured_data
+        assert structured_data["observability"]["openemcp"]["validation_status"] in {
+            "approved",
+            "rejected",
+            "modified",
+        }
 
     @pytest.mark.asyncio
     async def test_mcp_call_tool_with_parameters(self):
@@ -391,7 +477,10 @@ class TestErrorHandling:
         result = await _invoke_direct_tool(get_framework, "nonexistent-framework")
 
         assert isinstance(result, FrameworkContent)
-        assert "not found" in result.content.lower()
+        assert (
+            "not found" in result.content.lower()
+            or "unavailable" in result.content.lower()
+        )
         assert result.sections == 0
 
     def test_pydantic_validation_errors(self):
@@ -461,18 +550,22 @@ class TestFormatDocumentName:
 
     def test_list_risks_names_are_clean(self):
         """Integration check: list_risks documents must not contain old-style names."""
-        from finos_mcp.content.discovery import STATIC_RISK_FILES
-
-        for filename in STATIC_RISK_FILES:
+        sample_risk_files = [
+            "ri-4_hallucination-and-inaccurate-outputs.md",
+            "ri-10_prompt-injection.md",
+        ]
+        for filename in sample_risk_files:
             name = _format_document_name(filename, "ri-")
             assert not name.startswith("Ri "), f"Old prefix in: {name}"
             assert "RI-" in name, f"Missing number badge in: {name}"
 
     def test_list_mitigations_names_are_clean(self):
         """Integration check: list_mitigations documents must not contain old-style names."""
-        from finos_mcp.content.discovery import STATIC_MITIGATION_FILES
-
-        for filename in STATIC_MITIGATION_FILES:
+        sample_mitigation_files = [
+            "mi-1_ai-data-leakage-prevention-and-detection.md",
+            "mi-20_mcp-server-security-governance.md",
+        ]
+        for filename in sample_mitigation_files:
             name = _format_document_name(filename, "mi-")
             assert not name.startswith("Mi "), f"Old prefix in: {name}"
             assert "MI-" in name, f"Missing number badge in: {name}"
@@ -480,39 +573,39 @@ class TestFormatDocumentName:
 
 @pytest.mark.unit
 class TestCleanSearchSnippet:
-    """Tests for the _clean_search_snippet helper."""
+    """Tests for the clean_search_snippet helper."""
 
     def test_returns_prose_around_match(self):
         text = "## Summary\n\nData poisoning occurs when adversaries tamper with training data.\n\n## Description\n\nMore detail here."
-        snippet = _clean_search_snippet(text, "poisoning", text.index("poisoning"))
+        snippet = clean_search_snippet(text, "poisoning", text.index("poisoning"))
         assert "poisoning" in snippet.lower()
         assert len(snippet) > 20
 
     def test_skips_url_field_lines(self):
         text = "## Links\n\nurl: https://example.com/path\nSome prose content here about the topic.\nurl: https://other.com"
-        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        snippet = clean_search_snippet(text, "prose", text.index("prose"))
         assert "https://" not in snippet
         assert "prose" in snippet.lower()
 
     def test_skips_bare_url_lines(self):
         text = "Before text.\nhttps://example.com/very/long/url\nAfter prose text with the query term."
-        snippet = _clean_search_snippet(text, "prose", text.index("prose"))
+        snippet = clean_search_snippet(text, "prose", text.index("prose"))
         assert "https://" not in snippet
 
     def test_truncates_long_snippets(self):
         long_text = "word " * 200
-        snippet = _clean_search_snippet(long_text, "word", 0)
+        snippet = clean_search_snippet(long_text, "word", 0)
         assert len(snippet) <= 283  # 280 + "..."
 
     def test_fallback_when_no_prose(self):
         text = "url: https://a.com\nurl: https://b.com"
-        snippet = _clean_search_snippet(text, "query", 0)
+        snippet = clean_search_snippet(text, "query", 0)
         assert len(snippet) > 0  # never empty
 
 
 @pytest.mark.unit
 class TestExtractSection:
-    """Tests for the _extract_section helper."""
+    """Tests for the extract_section helper."""
 
     _DOC = (
         "## Summary\n\nThis is the summary text describing the risk.\n\n"
@@ -521,31 +614,31 @@ class TestExtractSection:
     )
 
     def test_extracts_named_section(self):
-        result = _extract_section(self._DOC, "Summary")
+        result = extract_section(self._DOC, "Summary")
         assert "summary text" in result.lower()
         assert "Description" not in result
 
     def test_first_matching_header_wins(self):
-        result = _extract_section(self._DOC, "Summary", "Description")
+        result = extract_section(self._DOC, "Summary", "Description")
         assert "summary text" in result.lower()
 
     def test_falls_back_to_second_header(self):
-        result = _extract_section(self._DOC, "Overview", "Description")
+        result = extract_section(self._DOC, "Overview", "Description")
         assert "Detailed description" in result
 
     def test_returns_empty_when_no_match(self):
-        result = _extract_section(self._DOC, "NonExistent")
+        result = extract_section(self._DOC, "NonExistent")
         assert result == ""
 
     def test_respects_max_chars(self):
         long_body = "x " * 1000
         doc = f"## Summary\n\n{long_body}"
-        result = _extract_section(doc, "Summary", max_chars=50)
+        result = extract_section(doc, "Summary", max_chars=50)
         assert len(result) <= 50
 
     def test_purpose_header(self):
         doc = "## Purpose\n\nThis mitigation addresses the risk by applying controls.\n\n## Implementation\n\nSteps here."
-        result = _extract_section(doc, "Purpose")
+        result = extract_section(doc, "Purpose")
         assert "controls" in result
         assert "Steps" not in result
 
@@ -628,10 +721,18 @@ class TestDocumentContentTitle:
     async def test_get_risk_title_is_formatted(self):
         mock_service = AsyncMock()
         mock_service.get_document.return_value = {"content": "Risk content here"}
-        with patch(
-            "finos_mcp.fastmcp_server.get_service",
-            new_callable=AsyncMock,
-            return_value=mock_service,
+        with (
+            patch(
+                "finos_mcp.fastmcp_server.get_service",
+                new_callable=AsyncMock,
+                return_value=mock_service,
+            ),
+            patch.object(
+                fastmcp_server_module._risk_mitigation_repository,
+                "discover_risk_filenames",
+                new_callable=AsyncMock,
+                return_value=["ri-9_data-poisoning.md"],
+            ),
         ):
             result = await _invoke_direct_tool(get_risk, "9_data-poisoning")
         assert isinstance(result, DocumentContent)
@@ -641,10 +742,18 @@ class TestDocumentContentTitle:
     async def test_get_mitigation_title_is_formatted(self):
         mock_service = AsyncMock()
         mock_service.get_document.return_value = {"content": "Mitigation content here"}
-        with patch(
-            "finos_mcp.fastmcp_server.get_service",
-            new_callable=AsyncMock,
-            return_value=mock_service,
+        with (
+            patch(
+                "finos_mcp.fastmcp_server.get_service",
+                new_callable=AsyncMock,
+                return_value=mock_service,
+            ),
+            patch.object(
+                fastmcp_server_module._risk_mitigation_repository,
+                "discover_mitigation_filenames",
+                new_callable=AsyncMock,
+                return_value=["mi-1_ai-data-leakage-prevention-and-detection.md"],
+            ),
         ):
             result = await _invoke_direct_tool(
                 get_mitigation, "1_ai-data-leakage-prevention-and-detection"
@@ -655,40 +764,40 @@ class TestDocumentContentTitle:
 
 @pytest.mark.unit
 class TestBestMatchIndex:
-    """Tests for the _best_match_index search helper.
+    """Tests for the best_match_index search helper.
 
     Return type is (int, bool) — (char_index, is_exact_phrase).
     """
 
     def test_exact_phrase_match_index(self):
-        idx, is_exact = _best_match_index("data poisoning occurs", "data poisoning")
+        idx, is_exact = best_match_index("data poisoning occurs", "data poisoning")
         assert idx >= 0
         assert is_exact is True
 
     def test_exact_phrase_is_flagged_exact(self):
-        _, is_exact = _best_match_index("model hallucination risk", "hallucination")
+        _, is_exact = best_match_index("model hallucination risk", "hallucination")
         assert is_exact is True
 
     def test_token_fallback_finds_match(self):
         # "customer data privacy" -> tokens ["customer","data","privacy"]
         # "data" is in the content
-        idx, is_exact = _best_match_index(
+        idx, is_exact = best_match_index(
             "sensitive data leakage", "customer data privacy"
         )
         assert idx >= 0
         assert is_exact is False
 
     def test_token_fallback_is_not_flagged_exact(self):
-        _, is_exact = _best_match_index("only data here", "customer data privacy")
+        _, is_exact = best_match_index("only data here", "customer data privacy")
         assert is_exact is False
 
     def test_stop_words_only_returns_minus_one(self):
-        idx, is_exact = _best_match_index("some content here", "the is are")
+        idx, is_exact = best_match_index("some content here", "the is are")
         assert idx == -1
         assert is_exact is False
 
     def test_no_match_returns_minus_one(self):
-        idx, is_exact = _best_match_index("hello world", "xyzzy foobar")
+        idx, is_exact = best_match_index("hello world", "xyzzy foobar")
         assert idx == -1
         assert is_exact is False
 
@@ -731,4 +840,7 @@ class TestSearchRanking:
             search_risks, "customer data privacy", limit=5
         )
         assert isinstance(result, SearchResults)
+        if result.message and "unavailable" in result.message.lower():
+            assert result.total_found == 0
+            return
         assert result.total_found >= 1

@@ -88,7 +88,7 @@ This server works with any MCP-compatible client. See [MCP Client Directory](htt
 | Tool | What it does | Example |
 |------|--------------|---------|
 | **Framework Access Tools (5)** | | |
-| `list_frameworks` | List all available AI governance frameworks | Browse supported frameworks (NIST, EU AI Act, ISO 42001, etc.) |
+| `list_frameworks` | List all available AI governance frameworks | Browse the runtime-discovered framework catalog |
 | `get_framework` | Get complete content of a specific framework | Retrieve complete framework document |
 | `search_frameworks` | Search for text within framework documents | Find "risk management" across frameworks |
 | `list_risks` | List all available risk documents | Get overview of AI governance risks |
@@ -164,14 +164,12 @@ For full production-grade settings (auth, transport, cache, timeouts, logging), 
 ## Content Details
 
 **Framework Support:**
-- **NIST AI Risk Management Framework** (6 references, 4 sections)
-- **EU AI Act** (5 references, 4 sections)
-- **OWASP LLM Top 10** (5 references, 4 sections)
-- **Total**: 200+ governance references across multiple frameworks
+- Framework content is discovered dynamically from upstream sources.
+- Use `list_frameworks()` to retrieve the current framework catalog for your environment.
 
 **FINOS Content:**
-- **23 AI Governance Mitigations** (current repository snapshot; may grow over time)
-- **23 AI Risk Assessments** (current repository snapshot; may grow over time)
+- Risk and mitigation document catalogs are discovered dynamically at runtime.
+- Use `list_risks()` and `list_mitigations()` to retrieve current counts and IDs.
 - Content from [FINOS AI Governance Framework](https://github.com/finos/ai-governance-framework)
 - Licensed under CC BY 4.0
 

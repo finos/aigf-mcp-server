@@ -15,7 +15,7 @@
 <!-- Tools & Features -->
 ![MCP Tools](https://img.shields.io/badge/MCP%20tools-11-blue)
 ![Document Access](https://img.shields.io/badge/document%20access-direct-blue)
-![Framework Support](https://img.shields.io/badge/frameworks-7%20supported-green)
+![Framework Support](https://img.shields.io/badge/frameworks-runtime%20discovery-green)
 ![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen)
 
 **AI governance framework document access through the Model Context Protocol.**
@@ -119,7 +119,7 @@ Cloud mapping examples:
 ### Framework Access Tools (5)
 | Tool Name | Description | Use Case |
 |-----------|-------------|----------|
-| `list_frameworks` | List all available AI governance frameworks | Get overview of supported frameworks (NIST AI 600-1, EU AI Act, ISO 42001, etc.) |
+| `list_frameworks` | List all available AI governance frameworks | Get overview of the runtime-discovered framework catalog |
 | `get_framework` | Get complete content of a specific framework | Retrieve complete framework document content |
 | `search_frameworks` | Search for text within framework documents | Find specific content within framework documents |
 | `list_risks` | List all available risk documents | Get overview of AI governance risks |
@@ -144,15 +144,8 @@ Cloud mapping examples:
 ## Supported Content
 
 ### AI Governance Frameworks
-| Framework | Description | Focus Area |
-|-----------|-------------|------------|
-| NIST AI 600-1 | NIST Artificial Intelligence Risk Management Framework | Comprehensive AI risk management |
-| EU AI Act | European Union Artificial Intelligence Act | AI regulation and compliance in EU |
-| ISO 42001 | AI Management Systems Standard | AI management and governance |
-| FFIEC IT Booklets | Federal Financial Institutions Examination Council IT guidance | Financial services IT risk management |
-| NIST SP 800-53 | Security and Privacy Controls for Information Systems | Cybersecurity controls and privacy |
-| OWASP LLM Top 10 | Top 10 security vulnerabilities for LLM applications | AI/LLM security risks |
-| OWASP ML Top 10 | Top 10 risks for machine learning systems | ML security and operational risks |
+- Framework definitions are discovered from the configured upstream repository at runtime.
+- Use `list_frameworks` to see the current catalog available to your deployment.
 
 ---
 
@@ -202,10 +195,12 @@ Cloud mapping examples:
 
 ### Components
 
-- **FastMCP Server Framework** (`src/finos_mcp/fastmcp_server.py`): Modern FastMCP-based server with decorator tools
+- **FastMCP Runtime Bootstrap** (`src/finos_mcp/fastmcp_server.py`): FastMCP server construction, model definitions, and tool registration wiring
+- **API Registration Modules** (`src/finos_mcp/api/`): Dedicated tool/resource/prompt registration and MCP payload mapping
 - **MCP Tools**: 11 tools organized in 3 categories (Framework Access, Risk & Mitigation, System Monitoring)
 - **MCP Prompts**: 3 prompt templates for framework analysis and risk assessment
 - **MCP Resources**: 3 resource types with finos:// URI scheme for structured access
+- **Application Services and Use-Cases** (`src/finos_mcp/application/`): Search text parsing, prompt composition, observability projection, and domain flows
 - **Content Management** (`src/finos_mcp/content/`): Dynamic content loading and caching
 - **Security Layer** (`src/finos_mcp/security/`): Request validation and protection
 - **Runtime Guardrails** (`src/finos_mcp/fastmcp_server.py`): Middleware-based rate limiting, safe error responses, and payload size enforcement
@@ -224,7 +219,7 @@ Cloud mapping examples:
 - **Input Limits**: Tool, prompt, and resource parameters enforce max lengths and request-size checks
 - **Output Limits**: Resource/document payloads are size-validated before returning to clients
 - **Error Disclosure Control**: External errors are sanitized and correlation-tagged
-- **Fallback Strategy**: Dynamic GitHub discovery with static fallback lists for risk/mitigation/framework catalogs
+- **Failure Signaling Strategy**: Dynamic GitHub discovery with explicit `unavailable` responses when upstream content cannot be reached
 - **Boundary Authentication (Optional)**: JWT validation at MCP boundary with issuer/audience/scope enforcement
 
 ---
@@ -262,12 +257,13 @@ mcp list tools
 
 ### Adding New Tools
 
-The FastMCP architecture makes adding tools simple:
+Tool additions follow the layered runtime pattern:
 
-1. Add decorated async function in `src/finos_mcp/fastmcp_server.py`
-2. Use `@mcp.tool()` decorator with type hints and Pydantic return models
-3. Add tests in `tests/unit/test_fastmcp_server.py`
-4. Update tool documentation
+1. Add payload builder or registration wiring in `src/finos_mcp/api/tools/`
+2. Add or extend use-case logic in `src/finos_mcp/application/use_cases/`
+3. Register the MCP surface from `src/finos_mcp/fastmcp_server.py`
+4. Add or update tests in `tests/unit/` and integration coverage where needed
+5. Update tool documentation
 
 ---
 
@@ -408,10 +404,12 @@ Includes:
 ### API & Integration
 - **[API Documentation](docs/api/)** - Complete API reference for all 11 MCP tools
 - **[Framework Architecture](docs/api/framework-architecture.md)** - System design and patterns
+- **[MCP Conformance Matrix](docs/mcp-conformance-2025-11-25.md)** - Implemented/partial/out-of-scope capability map
 
 ### Support & Troubleshooting
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 - **[Tools Reference](docs/tools-reference.md)** - Complete guide to all 11 MCP tools
+- **[Architecture Decision Records](docs/adr/README.md)** - Key architecture rationale and policy decisions
 - **[GitHub Repository](https://github.com/finos/aigf-mcp-server)** - Source code and issues
 
 ---

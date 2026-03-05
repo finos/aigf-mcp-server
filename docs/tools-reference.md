@@ -9,14 +9,9 @@ Quick reference for all 11 available MCP tools organized in 3 categories.
 **Usage**: `list_frameworks()`
 **Returns**: Structured list of available frameworks with descriptions
 
-**Supported Frameworks**:
-- NIST AI 600-1 (Artificial Intelligence Risk Management Framework)
-- EU AI Act (European Union Artificial Intelligence Act)
-- ISO 42001 (AI Management Systems Standard)
-- FFIEC IT Booklets (Federal Financial Institutions Examination Council IT guidance)
-- NIST SP 800-53 (Security and Privacy Controls for Information Systems)
-- OWASP LLM Top 10 (Top 10 security vulnerabilities for LLM applications)
-- OWASP ML Top 10 (Top 10 risks for machine learning systems)
+**Catalog Behavior**:
+- Frameworks are discovered at runtime from the configured upstream repository.
+- Use this tool to obtain the current IDs before calling `get_framework`.
 
 ### `get_framework`
 **Purpose**: Get complete content of a specific framework
@@ -27,7 +22,7 @@ Quick reference for all 11 available MCP tools organized in 3 categories.
 **Example Usage**:
 ```
 get_framework("eu-ai-act")
-get_framework("iso-42001")
+get_framework("nist-ai-600-1")
 get_framework("owasp-llm")
 ```
 
@@ -91,6 +86,7 @@ get_framework("owasp-llm")
 - Uptime in seconds
 - Server version
 - Service component health
+- OpenEMCP observability projection (`observability.openemcp`, `observability.risk_context`)
 
 ### `get_cache_stats`
 **Purpose**: Get cache performance statistics
@@ -101,7 +97,9 @@ get_framework("owasp-llm")
 - Total requests processed
 - Cache hits and misses
 - Hit rate percentage
-- Performance statistics
+- Operation counters (`sets`, `deletes`, `expires`, `evictions`, `clears`)
+- Capacity and memory (`current_size`, `max_size`, `memory_usage_bytes`)
+- OpenEMCP observability projection (`observability.openemcp`, `observability.risk_context`)
 
 ---
 
@@ -135,7 +133,7 @@ get_framework("owasp-llm")
 **Examples**:
 - `finos://frameworks/nist-ai-600-1`
 - `finos://frameworks/eu-ai-act`
-- `finos://frameworks/iso-42001`
+- `finos://frameworks/owasp-llm`
 
 ### `finos://risks/{id}`
 **Purpose**: URI-based access to risk documents

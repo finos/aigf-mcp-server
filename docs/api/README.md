@@ -43,32 +43,25 @@ This directory contains comprehensive API documentation for the FINOS AI Governa
 ### Authentication & Rate Limiting
 
 - **Authentication**: Optional JWT boundary auth via `FINOS_MCP_MCP_AUTH_*` environment variables (recommended for production)
-- **Rate Limiting**:
-  - Tool calls: 50 requests/minute
-  - Resource access: 200 requests/minute
-- **Content Limits**: 10MB per resource, 50MB per tool response
+- **Rate Limiting**: Configurable DoS protection (`FINOS_MCP_DOS_*`)
+  - Default: 600 requests/minute per client
+  - Default: 10 concurrent requests per client
+- **Content Limits**:
+  - Tool result size validation: 5MB default
+  - Resource/document payload validation: 1MB default
 
 ## Framework Support
 
-The server provides access to 7 governance frameworks:
+Framework catalog entries are discovered dynamically from the configured upstream
+repository at runtime. Use `list_frameworks` to retrieve the current available set.
 
-| Framework | Type | Status | Description |
-|-----------|------|--------|-------------|
-| **NIST AI 600-1** | Active | Production | US federal AI governance framework |
-| **EU AI Act** | Active | Production | European Union AI regulation |
-| **ISO 42001** | Active | Production | AI management systems standard |
-| **FFIEC IT Booklets** | Active | Production | Financial services IT guidance |
-| **NIST SP 800-53r5** | Active | Production | Security and privacy control catalog |
-| **OWASP LLM Top 10** | Active | Production | AI/LLM security best practices |
-| **OWASP ML Top 10** | Active | Production | ML security and operational risks |
+## Runtime Characteristics
 
-## Performance Characteristics
-
-- **Response Time**: Sub-0.1ms for cached content
-- **Concurrent Users**: Supports 100+ simultaneous connections
-- **Memory Usage**: <500MB base memory footprint
-- **Cache Hit Rate**: >95% for framework data
-- **Uptime**: >99.9% availability target
+- Cached responses are typically fast; exact latency depends on host and load.
+- Uncached/discovery requests depend on upstream GitHub API/network conditions.
+- Health and cache tools expose runtime metrics via:
+  - `get_service_health`
+  - `get_cache_stats`
 
 ## Getting Started
 
@@ -79,7 +72,7 @@ The server provides access to 7 governance frameworks:
 
 ## Version Compatibility
 
-- **MCP Protocol**: 1.0+
+- **MCP Protocol**: FastMCP-based implementation aligned with current project runtime
 - **Python**: 3.10+
 - **Clients**: Claude, VS Code, Cursor, and other MCP-compatible tools
 

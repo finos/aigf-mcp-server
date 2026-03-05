@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Legal foundation with Apache 2.0 license and contributor guidelines
 - Automated release pipeline with semantic versioning
 - Production-ready containerization
+- Prompt composition service in `src/finos_mcp/application/services/prompt_composition_service.py`
+- Shared search text service in `src/finos_mcp/application/services/search_text_service.py`
+- Architecture guard ensuring runtime modules depend on `compat` instead of `openemcp` shim imports
 
 ### Changed
 - FastMCP runtime transport is now configuration-driven:
@@ -41,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tool Count**: Expanded from 10 to 15 total tools
 - **Content Focus**: From AI-specific to comprehensive governance framework coverage
 - **Architecture**: Enhanced with framework data loader and advanced search capabilities
+- Prompt registrations moved to `src/finos_mcp/api/prompts/registry.py`
+- Resource registrations moved to `src/finos_mcp/api/resources/registry.py`
+- Search text parsing and matching helpers moved out of `fastmcp_server.py` into application services
+- Internal runtime imports now use `src/finos_mcp/compat/` directly for OpenEMCP compatibility primitives
+- README and architecture docs aligned to current layered runtime structure and registration flow
+- Removed legacy `src/finos_mcp/openemcp/` shim package; compatibility primitives now resolve only through `src/finos_mcp/compat/`
 
 ### Performance
 - **Response Times**: Achieved <0.1ms average response time across all framework tools

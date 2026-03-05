@@ -345,87 +345,17 @@ class TestSHAValidation:
 
 
 @pytest.mark.unit
-class TestStaticFallbackSync:
-    """Test static fallback synchronization checking."""
+class TestDiscoveryUnavailableResult:
+    """Test explicit unavailable-result behavior."""
 
-    def test_check_static_fallback_sync_all_match(self):
-        """Test that no warnings when static lists match."""
+    def test_create_unavailable_result(self):
         service = GitHubDiscoveryService()
-
-        # Get current static lists
-        from finos_mcp.content.discovery import (
-            STATIC_FRAMEWORK_FILES,
-            STATIC_MITIGATION_FILES,
-            STATIC_RISK_FILES,
-        )
-
-        # Create result that matches static lists exactly
-        current_result = DiscoveryResult(
-            mitigation_files=[
-                GitHubFileInfo(
-                    filename=f,
-                    path=f"docs/_mitigations/{f}",
-                    sha="test",
-                    size=100,
-                    download_url=f"https://example.com/{f}",
-                )
-                for f in STATIC_MITIGATION_FILES
-            ],
-            risk_files=[
-                GitHubFileInfo(
-                    filename=f,
-                    path=f"docs/_risks/{f}",
-                    sha="test",
-                    size=100,
-                    download_url=f"https://example.com/{f}",
-                )
-                for f in STATIC_RISK_FILES
-            ],
-            framework_files=[
-                GitHubFileInfo(
-                    filename=f,
-                    path=f"docs/_data/{f}",
-                    sha="test",
-                    size=100,
-                    download_url=f"https://example.com/{f}",
-                )
-                for f in STATIC_FRAMEWORK_FILES
-            ],
-            source="github_api",
-        )
-
-        # Should not raise any warnings
-        with patch("finos_mcp.content.discovery.logger") as mock_logger:
-            service._check_static_fallback_sync(current_result)
-
-            # Should log debug (not warning) when synchronized
-            mock_logger.debug.assert_called_once()
-            mock_logger.warning.assert_not_called()
-
-    def test_check_static_fallback_sync_mitigation_mismatch(self):
-        """Test that warnings are logged when mitigations don't match."""
-        service = GitHubDiscoveryService()
-
-        current_result = DiscoveryResult(
-            mitigation_files=[
-                GitHubFileInfo(
-                    filename="mi-99_new_mitigation.md",  # Not in static list
-                    path="docs/_mitigations/mi-99_new_mitigation.md",
-                    sha="test",
-                    size=100,
-                    download_url="https://example.com/mi99",
-                )
-            ],
-            risk_files=[],
-            framework_files=[],
-            source="github_api",
-        )
-
-        with patch("finos_mcp.content.discovery.logger") as mock_logger:
-            service._check_static_fallback_sync(current_result)
-
-            # Should log warnings about mismatch
-            assert mock_logger.warning.call_count >= 2  # Mismatch + update message
+        result = service._create_unavailable_result("upstream unavailable")
+        assert result.source == "unavailable"
+        assert result.message == "upstream unavailable"
+        assert result.mitigation_files == []
+        assert result.risk_files == []
+        assert result.framework_files == []
 
 
 @pytest.mark.unit

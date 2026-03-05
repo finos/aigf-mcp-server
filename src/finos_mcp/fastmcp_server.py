@@ -21,9 +21,9 @@ Provides structured output and decorator-based tool registration.
 
 import asyncio
 import inspect
-import re
 import time
-from typing import Annotated
+from typing import Annotated, Any
+from uuid import uuid4
 
 import yaml
 from fastmcp import FastMCP
@@ -31,15 +31,44 @@ from fastmcp.server.auth import JWTVerifier
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .api.prompts import register_prompts
+from .api.resources import register_resources
+from .api.tools import (
+    get_document_payload,
+    get_framework_payload,
+    list_documents_payload,
+    list_frameworks_payload,
+    search_documents_payload,
+    search_frameworks_payload,
+)
+from .application.services import (
+    CompatEventService,
+    ObservabilityProjectionService,
+    PromptCompositionService,
+    best_match_index,
+    clean_search_snippet,
+)
+from .application.use_cases import (
+    execute_get_document,
+    execute_get_framework,
+    execute_list_documents,
+    execute_list_frameworks,
+    execute_search_documents,
+    execute_search_frameworks,
+    format_framework_name,
+)
+from .compat import (
+    OpenEMCPPhase,
+    build_risk_context_from_signals,
+    normalize_validation_status,
+)
 from .config import Settings, validate_settings_on_startup
 from .content.cache import get_cache
 from .content.discovery import (
-    STATIC_FRAMEWORK_FILES,
-    STATIC_MITIGATION_FILES,
-    STATIC_RISK_FILES,
     DiscoveryServiceManager,
 )
 from .content.service import get_content_service
+from .infrastructure.repositories import FrameworkRepository, RiskMitigationRepository
 from .logging import get_logger
 from .security.error_handler import secure_error_handler
 from .security.request_validator import dos_protector, request_size_validator
@@ -97,6 +126,27 @@ def _build_auth_provider(app_settings: Settings) -> JWTVerifier | None:
 # Create FastMCP server instance
 mcp = FastMCP(settings.server_name, auth=_build_auth_provider(settings))
 _SERVER_START_TIME = time.monotonic()
+_compat_event_service = CompatEventService(max_events=256)
+_observability_projection_service = ObservabilityProjectionService(
+    _compat_event_service
+)
+_prompt_composition_service = PromptCompositionService()
+
+
+def _record_compat_event(
+    *,
+    phase: OpenEMCPPhase,
+    payload: dict[str, object],
+    correlation_id: str,
+    metadata: dict[str, object] | None = None,
+) -> None:
+    """Record an internal OpenEMCP compatibility envelope."""
+    _compat_event_service.record_event(
+        phase=phase,
+        payload=payload,
+        correlation_id=correlation_id,
+        metadata=metadata,
+    )
 
 
 def _tool_annotations(*, title: str, open_world: bool) -> dict[str, bool | str]:
@@ -133,6 +183,8 @@ class FrameworkList(BaseModel):
 
     frameworks: list[Framework]
     total_count: int
+    source: str | None = None
+    message: str | None = None
 
 
 class FrameworkContent(BaseModel):
@@ -158,6 +210,7 @@ class SearchResults(BaseModel):
     query: str
     results: list[SearchResult]
     total_found: int
+    message: str | None = None
 
 
 class DocumentInfo(BaseModel):
@@ -177,7 +230,8 @@ class DocumentList(BaseModel):
     documents: list[DocumentInfo]
     total_count: int
     document_type: str
-    source: str  # "github_api", "cache", or "static_fallback"
+    source: str  # "github_api", "cache", or "unavailable"
+    message: str | None = None
 
 
 class DocumentContent(BaseModel):
@@ -197,6 +251,7 @@ class ServiceHealth(BaseModel):
     version: str
     healthy_services: int
     total_services: int
+    observability: dict[str, object] | None = None
 
 
 class CacheStats(BaseModel):
@@ -206,6 +261,15 @@ class CacheStats(BaseModel):
     cache_hits: int
     cache_misses: int
     hit_rate: float
+    sets: int | None = None
+    deletes: int | None = None
+    expires: int | None = None
+    evictions: int | None = None
+    clears: int | None = None
+    current_size: int | None = None
+    max_size: int | None = None
+    memory_usage_bytes: int | None = None
+    observability: dict[str, object] | None = None
 
 
 def _safe_external_error(error: Exception, fallback_message: str) -> str:
@@ -323,6 +387,16 @@ async def close_service():
     await _service_manager.close_service()
 
 
+_framework_repository = FrameworkRepository(
+    discovery_manager=_discovery_manager,
+    get_service=lambda: get_service(),
+)
+_risk_mitigation_repository = RiskMitigationRepository(
+    discovery_manager=_discovery_manager,
+    get_service=lambda: get_service(),
+)
+
+
 # Repository Tools with Structured Output
 
 
@@ -350,66 +424,24 @@ async def list_frameworks() -> FrameworkList:
         FrameworkList: Structured list with framework IDs, names, and descriptions.
         Use the 'id' field from results with get_framework() for detailed content.
     """
-    try:
-        await _apply_dos_protection()
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
-
-        # Convert framework YAML files to Framework objects
-        frameworks = []
-        for file_info in discovery_result.framework_files:
-            # Extract ID from filename (remove extension)
-            framework_id = file_info.filename.replace(".yml", "").replace(".yaml", "")
-
-            # Create readable name from filename
-            framework_name = _format_framework_name(framework_id)
-
-            # Create basic description
-            description = f"Framework definition: {framework_name}"
-
-            frameworks.append(
-                Framework(
-                    id=framework_id,
-                    name=framework_name,
-                    description=description,
-                    title=framework_name,
-                )
-            )
-
-        return FrameworkList(frameworks=frameworks, total_count=len(frameworks))
-    except Exception as e:
-        logger.error("Failed to list frameworks: %s", e)
-        # Fall back to static framework list for offline/network-constrained environments.
-        fallback_frameworks = []
-        for filename in STATIC_FRAMEWORK_FILES:
-            framework_id = filename.replace(".yml", "").replace(".yaml", "")
-            framework_name = _format_framework_name(framework_id)
-            fallback_frameworks.append(
-                Framework(
-                    id=framework_id,
-                    name=framework_name,
-                    description=f"Framework definition: {framework_name}",
-                    title=framework_name,
-                )
-            )
-
-        return FrameworkList(
-            frameworks=fallback_frameworks, total_count=len(fallback_frameworks)
-        )
+    payload = await list_frameworks_payload(
+        apply_dos=_apply_dos_protection,
+        execute_list_frameworks_fn=execute_list_frameworks,
+        repository=_framework_repository,
+        logger=logger,
+    )
+    frameworks = [Framework(**item) for item in payload["frameworks"]]
+    return FrameworkList(
+        frameworks=frameworks,
+        total_count=payload["total_count"],
+        source=payload.get("source"),
+        message=payload.get("message"),
+    )
 
 
 def _format_framework_name(framework_id: str) -> str:
     """Format framework ID into a readable name."""
-    name_map = {
-        "nist-ai-600-1": "NIST AI 600-1 Framework",
-        "eu-ai-act": "EU AI Act 2024",
-        "gdpr": "General Data Protection Regulation (GDPR)",
-        "owasp-llm": "OWASP LLM Top 10",
-        "iso-23053": "ISO/IEC 23053 Framework",
-    }
-
-    return name_map.get(framework_id, framework_id.replace("-", " ").title())
+    return format_framework_name(framework_id)
 
 
 # Acronyms that should be fully uppercased when they appear as words in a name.
@@ -420,37 +452,6 @@ _KNOWN_ACRONYMS: frozenset[str] = frozenset(
 # Common English function words that stay lowercase in title case (except when first).
 _LOWERCASE_WORDS: frozenset[str] = frozenset(
     {"and", "or", "the", "a", "an", "of", "for", "in", "to", "with", "as"}
-)
-
-# Stop words filtered out during multi-token search fallback.
-_SEARCH_STOP_WORDS: frozenset[str] = frozenset(
-    {
-        "a",
-        "an",
-        "the",
-        "is",
-        "are",
-        "was",
-        "were",
-        "be",
-        "been",
-        "for",
-        "of",
-        "in",
-        "to",
-        "and",
-        "or",
-        "with",
-        "at",
-        "by",
-        "from",
-        "that",
-        "this",
-        "it",
-        "on",
-        "as",
-        "not",
-    }
 )
 
 
@@ -561,93 +562,18 @@ async def get_framework(
         FrameworkContent: Complete framework content with sections count and metadata.
         Content is formatted for easy parsing and includes both structured data and raw text.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(framework=framework)
-        service = await get_service()
-
-        # First, discover to find the correct filename.
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        try:
-            discovery_result = await discovery_service.discover_content()
-            framework_filenames = [
-                file_info.filename for file_info in discovery_result.framework_files
-            ]
-        except Exception as discovery_error:
-            logger.warning(
-                "Framework discovery failed, using static fallback list: %s",
-                discovery_error,
-            )
-            framework_filenames = list(STATIC_FRAMEWORK_FILES)
-
-        # Find the framework file by ID
-        target_filename = None
-        for filename in framework_filenames:
-            file_id = filename.replace(".yml", "").replace(".yaml", "")
-            if file_id == framework:
-                target_filename = filename
-                break
-
-        if not target_filename:
-            return FrameworkContent(
-                framework_id=framework,
-                content=f"Framework '{framework}' was not found in the repository.",
-                sections=0,
-            )
-
-        # Get the document content
-        doc = await service.get_document("framework", target_filename)
-
-        if doc:
-            content = doc.get("content", "")
-            # Format YAML content for display
-            if content.strip():
-                formatted_content = _format_yaml_content(content, framework)
-                try:
-                    request_size_validator.validate_resource_size(formatted_content)
-                except ValueError as e:
-                    logger.warning(
-                        "Framework payload exceeded size limit for %s: %s", framework, e
-                    )
-                    formatted_content = _safe_external_error(
-                        e,
-                        "Framework content exceeded allowed size limits. Please narrow your query.",
-                    )
-                # Count sections by YAML keys
-                sections = len(
-                    [
-                        line
-                        for line in content.split("\n")
-                        if line.strip() and not line.startswith(" ") and ":" in line
-                    ]
-                )
-            else:
-                formatted_content = (
-                    f"Framework {framework} content is empty or not accessible."
-                )
-                sections = 0
-
-            return FrameworkContent(
-                framework_id=framework,
-                content=formatted_content,
-                sections=sections,
-            )
-        else:
-            return FrameworkContent(
-                framework_id=framework,
-                content=f"Failed to load content for framework '{framework}'.",
-                sections=0,
-            )
-    except Exception as e:
-        logger.error("Failed to get framework content: %s", e)
-        return FrameworkContent(
-            framework_id=framework,
-            content=_safe_external_error(
-                e, "Error loading framework. Please retry later."
-            ),
-            sections=0,
-        )
+    payload = await get_framework_payload(
+        framework_id=framework,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_get_framework_fn=execute_get_framework,
+        repository=_framework_repository,
+        format_yaml_content=_format_yaml_content,
+        validate_resource_size=request_size_validator.validate_resource_size,
+        safe_external_error=_safe_external_error,
+        logger=logger,
+    )
+    return FrameworkContent(**payload)
 
 
 @mcp.tool(
@@ -667,60 +593,23 @@ async def list_risks() -> DocumentList:
         DocumentList: Structured list of risk documents with metadata, descriptions, and file information.
         Perfect for risk cataloging, threat modeling, and security assessment workflows.
     """
-    try:
-        await _apply_dos_protection()
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
-
-        # Convert GitHub file info to DocumentInfo
-        risk_docs = []
-        for file_info in discovery_result.risk_files:
-            doc_id = file_info.filename.removesuffix(".md").removeprefix("ri-")
-            doc_name = _format_document_name(file_info.filename, "ri-")
-
-            risk_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=file_info.filename,
-                    description=f"AI governance risk: {doc_name}",
-                    last_modified=file_info.last_modified.isoformat()
-                    if file_info.last_modified
-                    else None,
-                    title=doc_name,
-                )
-            )
-
-        return DocumentList(
-            documents=risk_docs,
-            total_count=len(risk_docs),
-            document_type="risk",
-            source=discovery_result.source,
-        )
-    except Exception as e:
-        logger.error("Failed to list risks: %s", e)
-        # Fall back to static list for offline/network-constrained environments.
-        fallback_docs = []
-        for filename in STATIC_RISK_FILES:
-            doc_id = filename.removesuffix(".md").removeprefix("ri-")
-            doc_name = _format_document_name(filename, "ri-")
-            fallback_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=filename,
-                    description=f"AI governance risk: {doc_name}",
-                    last_modified=None,
-                    title=doc_name,
-                )
-            )
-        return DocumentList(
-            documents=fallback_docs,
-            total_count=len(fallback_docs),
-            document_type="risk",
-            source="static_fallback",
-        )
+    payload = await list_documents_payload(
+        document_type="risk",
+        prefix="ri-",
+        discover_file_infos=_risk_mitigation_repository.discover_risk_file_infos,
+        format_document_name=_format_document_name,
+        apply_dos=_apply_dos_protection,
+        execute_list_documents_fn=execute_list_documents,
+        logger=logger,
+    )
+    docs = [DocumentInfo(**item) for item in payload["documents"]]
+    return DocumentList(
+        documents=docs,
+        total_count=payload["total_count"],
+        document_type=payload["document_type"],
+        source=payload["source"],
+        message=payload.get("message"),
+    )
 
 
 @mcp.tool(
@@ -740,60 +629,23 @@ async def list_mitigations() -> DocumentList:
         DocumentList: Structured list of mitigation documents with metadata, descriptions, and file information.
         Essential for security planning, control implementation, and compliance remediation.
     """
-    try:
-        await _apply_dos_protection()
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        discovery_result = await discovery_service.discover_content()
-
-        # Convert GitHub file info to DocumentInfo
-        mitigation_docs = []
-        for file_info in discovery_result.mitigation_files:
-            doc_id = file_info.filename.removesuffix(".md").removeprefix("mi-")
-            doc_name = _format_document_name(file_info.filename, "mi-")
-
-            mitigation_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=file_info.filename,
-                    description=f"AI governance mitigation: {doc_name}",
-                    last_modified=file_info.last_modified.isoformat()
-                    if file_info.last_modified
-                    else None,
-                    title=doc_name,
-                )
-            )
-
-        return DocumentList(
-            documents=mitigation_docs,
-            total_count=len(mitigation_docs),
-            document_type="mitigation",
-            source=discovery_result.source,
-        )
-    except Exception as e:
-        logger.error("Failed to list mitigations: %s", e)
-        # Fall back to static list for offline/network-constrained environments.
-        fallback_docs = []
-        for filename in STATIC_MITIGATION_FILES:
-            doc_id = filename.removesuffix(".md").removeprefix("mi-")
-            doc_name = _format_document_name(filename, "mi-")
-            fallback_docs.append(
-                DocumentInfo(
-                    id=doc_id,
-                    name=doc_name,
-                    filename=filename,
-                    description=f"AI governance mitigation: {doc_name}",
-                    last_modified=None,
-                    title=doc_name,
-                )
-            )
-        return DocumentList(
-            documents=fallback_docs,
-            total_count=len(fallback_docs),
-            document_type="mitigation",
-            source="static_fallback",
-        )
+    payload = await list_documents_payload(
+        document_type="mitigation",
+        prefix="mi-",
+        discover_file_infos=_risk_mitigation_repository.discover_mitigation_file_infos,
+        format_document_name=_format_document_name,
+        apply_dos=_apply_dos_protection,
+        execute_list_documents_fn=execute_list_documents,
+        logger=logger,
+    )
+    docs = [DocumentInfo(**item) for item in payload["documents"]]
+    return DocumentList(
+        documents=docs,
+        total_count=payload["total_count"],
+        document_type=payload["document_type"],
+        source=payload["source"],
+        message=payload.get("message"),
+    )
 
 
 @mcp.tool(
@@ -826,75 +678,21 @@ async def get_risk(
         DocumentContent: Complete risk document with threat details, impact analysis, and assessment metadata.
         Includes structured content suitable for risk registers and security documentation.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(risk_id=risk_id)
-        service = await get_service()
-
-        # First, discover to find the correct filename.
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        try:
-            discovery_result = await discovery_service.discover_content()
-            risk_filenames = [
-                file_info.filename for file_info in discovery_result.risk_files
-            ]
-        except Exception as discovery_error:
-            logger.warning(
-                "Risk discovery failed, using static fallback list: %s",
-                discovery_error,
-            )
-            risk_filenames = list(STATIC_RISK_FILES)
-
-        # Find the risk file by ID
-        target_filename = None
-        for filename in risk_filenames:
-            file_id = filename.replace(".md", "").replace("ri-", "")
-            if file_id == risk_id:
-                target_filename = filename
-                break
-
-        if not target_filename:
-            return DocumentContent(
-                document_id=risk_id,
-                title=f"Risk {risk_id} not found",
-                content=f"Risk document with ID '{risk_id}' was not found in the repository.",
-                sections=[],
-            )
-
-        # Get the document content
-        doc = await service.get_document("risk", target_filename)
-
-        if doc:
-            content = doc.get("content", "")
-            title = doc.get("title") or _format_document_name(target_filename, "ri-")
-            content, sections = _safe_document_content(
-                content,
-                f"risk:{risk_id}",
-                "Risk document exceeded allowed size limits. Please narrow your query.",
-            )
-
-            return DocumentContent(
-                document_id=risk_id, title=title, content=content, sections=sections
-            )
-        else:
-            return DocumentContent(
-                document_id=risk_id,
-                title=f"Error loading risk {risk_id}",
-                content=f"Failed to load content for risk document '{risk_id}'.",
-                sections=[],
-            )
-
-    except Exception as e:
-        logger.error("Failed to get risk content for %s: %s", risk_id, e)
-        return DocumentContent(
-            document_id=risk_id,
-            title=f"Error loading risk {risk_id}",
-            content=_safe_external_error(
-                e, "Error loading risk document. Please retry later."
-            ),
-            sections=[],
-        )
+    payload = await get_document_payload(
+        requested_id=risk_id,
+        doc_type="risk",
+        prefix="ri-",
+        discover_filenames=_risk_mitigation_repository.discover_risk_filenames,
+        get_document_by_filename=_risk_mitigation_repository.get_document,
+        format_document_name=_format_document_name,
+        safe_document_content=_safe_document_content,
+        safe_external_error=_safe_external_error,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_get_document_fn=execute_get_document,
+        logger=logger,
+    )
+    return DocumentContent(**payload)
 
 
 @mcp.tool(
@@ -927,78 +725,21 @@ async def get_mitigation(
         DocumentContent: Complete mitigation strategy with implementation guidance, control procedures, and monitoring details.
         Includes actionable steps suitable for security implementation and compliance documentation.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(mitigation_id=mitigation_id)
-        service = await get_service()
-
-        # First, discover to find the correct filename.
-        discovery_manager = _discovery_manager
-        discovery_service = await discovery_manager.get_discovery_service()
-        try:
-            discovery_result = await discovery_service.discover_content()
-            mitigation_filenames = [
-                file_info.filename for file_info in discovery_result.mitigation_files
-            ]
-        except Exception as discovery_error:
-            logger.warning(
-                "Mitigation discovery failed, using static fallback list: %s",
-                discovery_error,
-            )
-            mitigation_filenames = list(STATIC_MITIGATION_FILES)
-
-        # Find the mitigation file by ID
-        target_filename = None
-        for filename in mitigation_filenames:
-            file_id = filename.replace(".md", "").replace("mi-", "")
-            if file_id == mitigation_id:
-                target_filename = filename
-                break
-
-        if not target_filename:
-            return DocumentContent(
-                document_id=mitigation_id,
-                title=f"Mitigation {mitigation_id} not found",
-                content=f"Mitigation document with ID '{mitigation_id}' was not found in the repository.",
-                sections=[],
-            )
-
-        # Get the document content
-        doc = await service.get_document("mitigation", target_filename)
-
-        if doc:
-            content = doc.get("content", "")
-            title = doc.get("title") or _format_document_name(target_filename, "mi-")
-            content, sections = _safe_document_content(
-                content,
-                f"mitigation:{mitigation_id}",
-                "Mitigation document exceeded allowed size limits. Please narrow your query.",
-            )
-
-            return DocumentContent(
-                document_id=mitigation_id,
-                title=title,
-                content=content,
-                sections=sections,
-            )
-        else:
-            return DocumentContent(
-                document_id=mitigation_id,
-                title=f"Error loading mitigation {mitigation_id}",
-                content=f"Failed to load content for mitigation document '{mitigation_id}'.",
-                sections=[],
-            )
-
-    except Exception as e:
-        logger.error("Failed to get mitigation content for %s: %s", mitigation_id, e)
-        return DocumentContent(
-            document_id=mitigation_id,
-            title=f"Error loading mitigation {mitigation_id}",
-            content=_safe_external_error(
-                e, "Error loading mitigation document. Please retry later."
-            ),
-            sections=[],
-        )
+    payload = await get_document_payload(
+        requested_id=mitigation_id,
+        doc_type="mitigation",
+        prefix="mi-",
+        discover_filenames=_risk_mitigation_repository.discover_mitigation_filenames,
+        get_document_by_filename=_risk_mitigation_repository.get_document,
+        format_document_name=_format_document_name,
+        safe_document_content=_safe_document_content,
+        safe_external_error=_safe_external_error,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_get_document_fn=execute_get_document,
+        logger=logger,
+    )
+    return DocumentContent(**payload)
 
 
 @mcp.tool(
@@ -1019,6 +760,19 @@ async def get_service_health() -> ServiceHealth:
     total_services = 4  # fetch, cache, parser, config
     healthy_services = 0
     overall_status = "healthy"
+    correlation_id = str(uuid4())
+    phase = OpenEMCPPhase.CONTEXT_STATE_MANAGEMENT
+    boundaries: dict[str, dict[str, object]] = {}
+    failure_count = 0
+    total_requests = 0
+    cache_hit_rate: float | None = None
+
+    _record_compat_event(
+        phase=phase,
+        correlation_id=correlation_id,
+        payload={"event": "start", "tool": "get_service_health"},
+        metadata={"source": "tool"},
+    )
 
     try:
         service = await get_service()
@@ -1039,6 +793,11 @@ async def get_service_health() -> ServiceHealth:
         # Config subsystem is always healthy if we reached this point
         healthy_services += 1
 
+        service_health = diagnostics.get("service_health", {})
+        failure_count = int(service_health.get("failed_requests", 0))
+        total_requests = int(service_health.get("total_requests", 0))
+        cache_hit_rate = service_health.get("cache_hit_rate")
+
         if healthy_services < total_services:
             overall_status = "degraded"
 
@@ -1048,12 +807,48 @@ async def get_service_health() -> ServiceHealth:
         overall_status = "degraded"
         healthy_services = 0
 
+    boundary_open_count = sum(
+        1 for b in boundaries.values() if b.get("status") != "closed"
+    )
+    risk_context = build_risk_context_from_signals(
+        phase_assessed=phase.value,
+        boundary_open_count=boundary_open_count,
+        circuit_breaker_trips=boundary_open_count,
+        cache_hit_rate=cache_hit_rate,
+        failed_requests=failure_count,
+        total_requests=total_requests,
+    )
+    canonical_status = normalize_validation_status(
+        "approved" if overall_status == "healthy" else "modified"
+    )
+
+    _record_compat_event(
+        phase=phase,
+        correlation_id=correlation_id,
+        payload={
+            "event": "success",
+            "tool": "get_service_health",
+            "status": overall_status,
+            "validation_status": canonical_status.value,
+            "risk_tier": risk_context.risk_tier.value,
+        },
+        metadata={"source": "tool"},
+    )
+
+    observability = _observability_projection_service.build_health_observability(
+        phase=phase,
+        correlation_id=correlation_id,
+        service_status=overall_status,
+        risk_context=risk_context,
+    )
+
     return ServiceHealth(
         status=overall_status,
         uptime_seconds=time.monotonic() - _SERVER_START_TIME,
         version=__version__,
         healthy_services=healthy_services,
         total_services=total_services,
+        observability=observability,
     )
 
 
@@ -1069,120 +864,99 @@ async def get_cache_stats() -> CacheStats:
     Returns:
         Structured cache performance information.
     """
+    correlation_id = str(uuid4())
+    phase = OpenEMCPPhase.EXECUTION_RESILIENCE
+    _record_compat_event(
+        phase=phase,
+        correlation_id=correlation_id,
+        payload={"event": "start", "tool": "get_cache_stats"},
+        metadata={"source": "tool"},
+    )
+
     try:
         await _apply_dos_protection()
         cache = await get_cache()
         stats = await cache.get_stats()
         total_requests = stats.hits + stats.misses
         hit_rate = (stats.hits / total_requests) if total_requests > 0 else 0.0
+        risk_context = build_risk_context_from_signals(
+            phase_assessed=phase.value,
+            cache_hit_rate=hit_rate,
+            failed_requests=stats.misses,
+            total_requests=total_requests,
+        )
+        canonical_status = normalize_validation_status(
+            "approved" if hit_rate >= 0.5 else "modified"
+        )
+        _record_compat_event(
+            phase=phase,
+            correlation_id=correlation_id,
+            payload={
+                "event": "success",
+                "tool": "get_cache_stats",
+                "validation_status": canonical_status.value,
+                "hit_rate": round(hit_rate, 4),
+                "risk_tier": risk_context.risk_tier.value,
+            },
+            metadata={"source": "tool"},
+        )
+        observability = _observability_projection_service.build_cache_observability(
+            phase=phase,
+            correlation_id=correlation_id,
+            cache_hit_rate=hit_rate,
+            risk_context=risk_context,
+        )
         return CacheStats(
             total_requests=total_requests,
             cache_hits=stats.hits,
             cache_misses=stats.misses,
             hit_rate=hit_rate,
+            sets=stats.sets,
+            deletes=stats.deletes,
+            expires=stats.expires,
+            evictions=stats.evictions,
+            clears=stats.clears,
+            current_size=stats.current_size,
+            max_size=stats.max_size,
+            memory_usage_bytes=stats.memory_usage_bytes,
+            observability=observability,
         )
     except Exception as e:
         logger.warning("Failed to get real cache stats, returning safe defaults: %s", e)
-        return CacheStats(total_requests=0, cache_hits=0, cache_misses=0, hit_rate=0.0)
+        canonical_status = normalize_validation_status("modified")
+        _record_compat_event(
+            phase=phase,
+            correlation_id=correlation_id,
+            payload={
+                "event": "error",
+                "tool": "get_cache_stats",
+                "validation_status": canonical_status.value,
+                "error_type": type(e).__name__,
+            },
+            metadata={"source": "tool"},
+        )
+        risk_context = build_risk_context_from_signals(
+            phase_assessed=phase.value,
+            cache_hit_rate=0.0,
+            failed_requests=1,
+            total_requests=1,
+        )
+        observability = _observability_projection_service.build_cache_observability(
+            phase=phase,
+            correlation_id=correlation_id,
+            cache_hit_rate=0.0,
+            risk_context=risk_context,
+        )
+        return CacheStats(
+            total_requests=0,
+            cache_hits=0,
+            cache_misses=0,
+            hit_rate=0.0,
+            observability=observability,
+        )
 
 
 # Simple Search Tools
-
-
-_SNIPPET_URL_LINE = re.compile(r"^\s*(url|reference|href)\s*:", re.IGNORECASE)
-_SNIPPET_BARE_URL = re.compile(r"^\s*https?://\S+\s*$")
-_SECTION_HEADER = re.compile(r"^#{1,3}\s+", re.MULTILINE)
-
-
-def _extract_section(content: str, *headers: str, max_chars: int = 800) -> str:
-    """Extract the text body of the first matching markdown section.
-
-    Tries each header name in order (case-insensitive).  Returns up to
-    max_chars of the section body, or an empty string if none is found.
-    """
-    for header in headers:
-        pattern = re.compile(
-            r"^#{1,3}\s+" + re.escape(header) + r"\s*$", re.IGNORECASE | re.MULTILINE
-        )
-        m = pattern.search(content)
-        if not m:
-            continue
-        start = m.end()
-        next_h = _SECTION_HEADER.search(content, start)
-        body = content[start : next_h.start() if next_h else len(content)].strip()
-        if body:
-            return body[:max_chars]
-    return ""
-
-
-def _best_match_index(content: str, query: str) -> tuple[int, bool]:
-    """Return (char_index, is_exact_phrase) for the best match of query in content.
-
-    Tries the full phrase first (fast path) — is_exact_phrase=True.
-    If no match, splits the query into tokens, filters stop words and
-    very short tokens (≤2 chars), then tries each token longest-first
-    (more specific tokens preferred) — is_exact_phrase=False.
-    Returns (-1, False) if nothing matches.
-    """
-    lower = content.lower()
-
-    # Fast path: exact phrase
-    idx = lower.find(query.lower())
-    if idx != -1:
-        return idx, True
-
-    # Fallback: individual tokens, longest first
-    tokens = sorted(
-        (
-            t
-            for t in query.lower().split()
-            if len(t) > 2 and t not in _SEARCH_STOP_WORDS
-        ),
-        key=len,
-        reverse=True,
-    )
-    for token in tokens:
-        idx = lower.find(token)
-        if idx != -1:
-            return idx, False
-
-    return -1, False
-
-
-def _clean_search_snippet(text: str, query: str, match_index: int) -> str:
-    """Extract a clean prose snippet around a search match.
-
-    Works line-by-line to avoid returning raw YAML field lines or bare
-    URLs as snippet content.  Collects up to 4 lines of context either
-    side of the match line, filtering out non-prose lines.
-    """
-    lines = text.splitlines()
-
-    # Locate the line that contains match_index.
-    offset = 0
-    match_line = 0
-    for i, line in enumerate(lines):
-        if offset + len(line) >= match_index:
-            match_line = i
-            break
-        offset += len(line) + 1  # +1 for the newline character
-
-    def _is_prose(line: str) -> bool:
-        s = line.strip()
-        return (
-            bool(s)
-            and not _SNIPPET_URL_LINE.match(s)
-            and not _SNIPPET_BARE_URL.match(s)
-            and not s.startswith("```")
-        )
-
-    context = lines[max(0, match_line - 4) : match_line + 5]
-    prose = [ln.strip() for ln in context if _is_prose(ln)]
-
-    snippet = " ".join(prose)
-    if len(snippet) > 280:
-        snippet = snippet[:280] + "..."
-    return snippet or f"Found '{query}' in document content"
 
 
 async def _call_registered_tool(tool_obj, *args, **kwargs):
@@ -1225,7 +999,7 @@ async def _search_single_framework(
                 break
 
             # Extract clean snippet around match
-            snippet = _clean_search_snippet(content.content, query, match_index)
+            snippet = clean_search_snippet(content.content, query, match_index)
 
             # Skip if snippet is empty or too short
             if len(snippet.strip()) < 10:
@@ -1312,87 +1086,69 @@ async def search_frameworks(
         SearchResults: Matching content snippets with framework source and context.
         Each result includes the framework ID, section, and relevant text excerpt.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(query=query, limit=limit)
-        # Get all frameworks first
-        frameworks_list = await _call_registered_tool(list_frameworks)
-
-        total_frameworks = len(frameworks_list.frameworks)
-        logger.info(
-            "Starting search across %d frameworks for query: %r",
-            total_frameworks,
-            query,
-        )
-
-        # Use asyncio.gather for parallel processing (official MCP best practice)
-        search_tasks = [
-            _search_single_framework(framework, query)
-            for framework in frameworks_list.frameworks
-        ]
-
-        # Execute all searches in parallel with progress reporting
-        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-        logger.info("Completed parallel search across %d frameworks", total_frameworks)
-
-        # Flatten results and filter out exceptions
-        results = []
-        for result in search_results:
-            if isinstance(result, list):
-                results.extend(result)
-            elif isinstance(result, Exception):
-                logger.warning("Search task failed: %s", result)
-
-        # Limit results (no sorting needed for simple search)
-        limited_results = results[:limit]
-
-        return SearchResults(
-            query=query, results=limited_results, total_found=len(results)
-        )
-
-    except Exception as e:
-        logger.error("Failed to search frameworks: %s", e)
-        return SearchResults(query=query, results=[], total_found=0)
+    payload = await search_frameworks_payload(
+        query=query,
+        limit=limit,
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_search_frameworks_fn=execute_search_frameworks,
+        list_frameworks_fn=lambda: _call_registered_tool(list_frameworks),
+        search_single_framework_fn=_search_single_framework,
+        logger=logger,
+    )
+    return SearchResults(**payload)
 
 
-async def _search_single_risk(
-    risk_doc: DocumentInfo, query: str
+async def _search_single_document(
+    *,
+    document: DocumentInfo,
+    query: str,
+    get_document_fn: Any,
+    framework_prefix: str,
+    log_label: str,
 ) -> list[tuple[SearchResult, bool, int]]:
-    """Search within a single risk document.
-
-    Fetches full document content (served from cache after first request) and
-    returns a list of (SearchResult, is_exact_phrase, match_index) tuples so
-    the caller can rank results: exact matches first, then by match position
-    (earlier = more topically central) before applying the limit.
-    """
+    """Search within a single risk/mitigation document."""
     try:
-        doc = await _call_registered_tool(get_risk, risk_doc.id)
+        doc = await _call_registered_tool(get_document_fn, document.id)
         content = doc.content
-        match_index, is_exact = _best_match_index(content, query)
+        match_index, is_exact = best_match_index(content, query)
         if match_index == -1:
             return []
 
-        section = risk_doc.name
+        section = document.name
         for line in reversed(content[:match_index].splitlines()[-10:]):
             if line.strip().startswith("#"):
                 section = line.strip("#").strip()
                 break
 
-        snippet = _clean_search_snippet(content, query, match_index)
+        snippet = clean_search_snippet(content, query, match_index)
         return [
             (
                 SearchResult(
-                    framework_id=f"risk-{risk_doc.id}", section=section, content=snippet
+                    framework_id=f"{framework_prefix}-{document.id}",
+                    section=section,
+                    content=snippet,
                 ),
                 is_exact,
                 match_index,
             )
         ]
-
     except Exception as e:
-        logger.warning("Failed to search risk %s: %s", risk_doc.id, e)
+        logger.warning("Failed to search %s %s: %s", log_label, document.id, e)
         return []
+
+
+async def _search_single_risk(
+    risk_doc: DocumentInfo, query: str
+) -> list[tuple[SearchResult, bool, int]]:
+    """Search wrapper for risk documents."""
+    return await _search_single_document(
+        document=risk_doc,
+        query=query,
+        get_document_fn=get_risk,
+        framework_prefix="risk",
+        log_label="risk",
+    )
 
 
 @mcp.tool(
@@ -1437,92 +1193,31 @@ async def search_risks(
         SearchResults: Matching risk documents with content snippets highlighting threats and impacts.
         Essential for threat modeling and security risk assessments.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(query=query, limit=limit)
-        # Get all risks first
-        risks_list = await _call_registered_tool(list_risks)
-
-        total_risks = len(risks_list.documents)
-        logger.info(
-            "Starting search across %d risk documents for query: %r",
-            total_risks,
-            query,
-        )
-
-        # Use asyncio.gather for parallel processing (official MCP best practice)
-        search_tasks = [
-            _search_single_risk(risk_doc, query) for risk_doc in risks_list.documents
-        ]
-
-        # Execute all searches in parallel with progress reporting
-        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-        logger.info("Completed parallel search across %d risk documents", total_risks)
-
-        # Flatten results and filter out exceptions.
-        # Each item is (SearchResult, is_exact_phrase, match_index).
-        tagged: list[tuple[SearchResult, bool, int]] = []
-        for result in search_results:
-            if isinstance(result, list):
-                tagged.extend(result)
-            elif isinstance(result, Exception):
-                logger.warning("Search task failed: %s", result)
-
-        # Primary key: exact-phrase matches first (is_exact=True → 0, False → 1).
-        # Secondary key: earlier match position means the topic is more central.
-        tagged.sort(key=lambda x: (not x[1], x[2]))
-        results = [r for r, _, __ in tagged]
-        limited_results = results[:limit]
-
-        return SearchResults(
-            query=query, results=limited_results, total_found=len(results)
-        )
-
-    except Exception as e:
-        logger.error("Failed to search risks: %s", e)
-        return SearchResults(query=query, results=[], total_found=0)
+    payload = await search_documents_payload(
+        query=query,
+        limit=limit,
+        label="risk",
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_search_documents_fn=execute_search_documents,
+        list_documents_fn=lambda: _call_registered_tool(list_risks),
+        search_single_document_fn=_search_single_risk,
+        logger=logger,
+    )
+    return SearchResults(**payload)
 
 
 async def _search_single_mitigation(
     mitigation_doc: DocumentInfo, query: str
 ) -> list[tuple[SearchResult, bool, int]]:
-    """Search within a single mitigation document.
-
-    Fetches full document content (served from cache after first request) and
-    returns a list of (SearchResult, is_exact_phrase, match_index) tuples so
-    the caller can rank results: exact matches first, then by match position
-    (earlier = more topically central) before applying the limit.
-    """
-    try:
-        doc = await _call_registered_tool(get_mitigation, mitigation_doc.id)
-        content = doc.content
-        match_index, is_exact = _best_match_index(content, query)
-        if match_index == -1:
-            return []
-
-        section = mitigation_doc.name
-        for line in reversed(content[:match_index].splitlines()[-10:]):
-            if line.strip().startswith("#"):
-                section = line.strip("#").strip()
-                break
-
-        snippet = _clean_search_snippet(content, query, match_index)
-        return [
-            (
-                SearchResult(
-                    framework_id=f"mitigation-{mitigation_doc.id}",
-                    section=section,
-                    content=snippet,
-                ),
-                is_exact,
-                match_index,
-            )
-        ]
-
-    except Exception as e:
-        logger.warning("Failed to search mitigation %s: %s", mitigation_doc.id, e)
-        return []
+    """Search wrapper for mitigation documents."""
+    return await _search_single_document(
+        document=mitigation_doc,
+        query=query,
+        get_document_fn=get_mitigation,
+        framework_prefix="mitigation",
+        log_label="mitigation",
+    )
 
 
 @mcp.tool(
@@ -1567,356 +1262,46 @@ async def search_mitigations(
         SearchResults: Matching mitigation documents with content snippets highlighting controls and procedures.
         Critical for security implementation and compliance remediation planning.
     """
-    try:
-        await _apply_dos_protection()
-        _validate_request_params(query=query, limit=limit)
-        # Get all mitigations first
-        mitigations_list = await _call_registered_tool(list_mitigations)
-
-        total_mitigations = len(mitigations_list.documents)
-        logger.info(
-            "Starting search across %d mitigation documents for query: %r",
-            total_mitigations,
-            query,
-        )
-
-        # Use asyncio.gather for parallel processing (official MCP best practice)
-        search_tasks = [
-            _search_single_mitigation(mitigation_doc, query)
-            for mitigation_doc in mitigations_list.documents
-        ]
-
-        # Execute all searches in parallel with progress reporting
-        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-        logger.info(
-            "Completed parallel search across %d mitigation documents",
-            total_mitigations,
-        )
-
-        # Flatten results and filter out exceptions.
-        # Each item is (SearchResult, is_exact_phrase, match_index).
-        tagged: list[tuple[SearchResult, bool, int]] = []
-        for result in search_results:
-            if isinstance(result, list):
-                tagged.extend(result)
-            elif isinstance(result, Exception):
-                logger.warning("Search task failed: %s", result)
-
-        # Primary key: exact-phrase matches first (is_exact=True → 0, False → 1).
-        # Secondary key: earlier match position means the topic is more central.
-        tagged.sort(key=lambda x: (not x[1], x[2]))
-        results = [r for r, _, __ in tagged]
-        limited_results = results[:limit]
-
-        return SearchResults(
-            query=query, results=limited_results, total_found=len(results)
-        )
-
-    except Exception as e:
-        logger.error("Failed to search mitigations: %s", e)
-        return SearchResults(query=query, results=[], total_found=0)
-
-
-# MCP Resources Implementation
-
-
-@mcp.resource(
-    "finos://frameworks/{framework_id}",
-    name="Framework Document",
-    title="Framework Resource",
-    description="Framework content from FINOS AI governance corpus.",
-    mime_type="text/markdown",
-    annotations=_resource_annotations(priority=0.9),
-)
-async def get_framework_resource(
-    framework_id: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=128,
-            description="Framework identifier from list_frameworks().",
-        ),
-    ],
-) -> str:
-    """Get framework content as a resource.
-
-    Args:
-        framework_id: Framework identifier
-
-    Returns:
-        Framework content as text.
-    """
-    try:
-        _validate_request_params(framework_id=framework_id)
-        content = await _call_registered_tool(get_framework, framework_id)
-        return _safe_resource_content(content.content, f"framework:{framework_id}")
-    except Exception as e:
-        logger.error("Failed to get framework resource %s: %s", framework_id, e)
-        return _safe_external_error(e, "Error loading framework resource.")
-
-
-@mcp.resource(
-    "finos://risks/{risk_id}",
-    name="Risk Document",
-    title="Risk Resource",
-    description="Risk documentation from FINOS AI governance corpus.",
-    mime_type="text/markdown",
-    annotations=_resource_annotations(priority=0.85),
-)
-async def get_risk_resource(
-    risk_id: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=256,
-            description="Risk identifier from list_risks().",
-        ),
-    ],
-) -> str:
-    """Get risk document as a resource.
-
-    Args:
-        risk_id: Risk document identifier
-
-    Returns:
-        Risk document content as text.
-    """
-    try:
-        _validate_request_params(risk_id=risk_id)
-        content = await _call_registered_tool(get_risk, risk_id)
-        return _safe_resource_content(content.content, f"risk:{risk_id}")
-    except Exception as e:
-        logger.error("Failed to get risk resource %s: %s", risk_id, e)
-        return _safe_external_error(e, "Error loading risk resource.")
-
-
-@mcp.resource(
-    "finos://mitigations/{mitigation_id}",
-    name="Mitigation Document",
-    title="Mitigation Resource",
-    description="Mitigation documentation from FINOS AI governance corpus.",
-    mime_type="text/markdown",
-    annotations=_resource_annotations(priority=0.85),
-)
-async def get_mitigation_resource(
-    mitigation_id: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=256,
-            description="Mitigation identifier from list_mitigations().",
-        ),
-    ],
-) -> str:
-    """Get mitigation document as a resource.
-
-    Args:
-        mitigation_id: Mitigation document identifier
-
-    Returns:
-        Mitigation document content as text.
-    """
-    try:
-        _validate_request_params(mitigation_id=mitigation_id)
-        content = await _call_registered_tool(get_mitigation, mitigation_id)
-        return _safe_resource_content(content.content, f"mitigation:{mitigation_id}")
-    except Exception as e:
-        logger.error("Failed to get mitigation resource %s: %s", mitigation_id, e)
-        return _safe_external_error(e, "Error loading mitigation resource.")
-
-
-# MCP Prompts Implementation
-
-
-@mcp.prompt(
-    title="Framework Compliance Analysis",
-    description="Generate a compliance analysis prompt for a use case against a framework.",
-)
-async def analyze_framework_compliance(
-    framework: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=128,
-            description="Framework identifier (e.g., eu-ai-act).",
-        ),
-    ],
-    use_case: Annotated[
-        str,
-        Field(min_length=1, max_length=4000, description="AI use case to analyze."),
-    ],
-) -> str:
-    """Analyze compliance requirements for a specific AI use case against a framework.
-
-    Args:
-        framework: Framework identifier (e.g., 'eu-ai-act', 'nist-ai-600-1')
-        use_case: Description of the AI use case to analyze
-
-    Returns:
-        Prompt for analyzing compliance requirements.
-    """
-    _validate_request_params(framework=framework, use_case=use_case)
-    framework_content = await _call_registered_tool(get_framework, framework)
-
-    return f"""You are an AI governance expert. Analyze the following AI use case for compliance with the {framework} framework.
-
-FRAMEWORK: {framework_content.framework_id}
-FRAMEWORK CONTENT:
-{framework_content.content[:2000]}...
-
-USE CASE TO ANALYZE:
-{use_case}
-
-Please provide:
-1. Key compliance requirements that apply to this use case
-2. Potential risks and mitigation strategies
-3. Specific sections of the framework that are most relevant
-4. Recommended next steps for ensuring compliance
-
-Focus on practical, actionable guidance."""
-
-
-@mcp.prompt(
-    title="Risk Assessment Analysis",
-    description="Generate a risk assessment prompt using risk category and scenario context.",
-)
-async def risk_assessment_analysis(
-    risk_category: Annotated[
-        str,
-        Field(min_length=1, max_length=128, description="Risk category to assess."),
-    ],
-    context: Annotated[
-        str,
-        Field(
-            min_length=1,
-            max_length=4000,
-            description="Scenario context for risk assessment.",
-        ),
-    ],
-) -> str:
-    """Generate a risk assessment prompt for a specific AI risk category.
-
-    Args:
-        risk_category: Type of risk to assess (e.g., 'bias', 'privacy', 'security')
-        context: Context or scenario for the risk assessment
-
-    Returns:
-        Prompt for conducting risk assessment.
-    """
-    _validate_request_params(risk_category=risk_category, context=context)
-
-    # Find relevant risk documents and extract their Summary sections.
-    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
-    search_query = risk_category.replace("-", " ")
-    search_results = await _call_registered_tool(search_risks, search_query, limit=3)
-
-    risk_sections: list[str] = []
-    for result in search_results.results:
-        risk_id = result.framework_id.removeprefix("risk-")
-        try:
-            doc = await _call_registered_tool(get_risk, risk_id)
-            summary = _extract_section(
-                doc.content, "Summary", "Overview", "Description"
-            )
-            if summary:
-                risk_sections.append(f"### {doc.title} ({risk_id})\n{summary}")
-        except Exception as exc:
-            logger.debug("Skipping risk doc %s in prompt: %s", risk_id, exc)
-
-    risk_info = (
-        "\n\n".join(risk_sections)
-        if risk_sections
-        else "No specific documentation found for this risk category."
+    payload = await search_documents_payload(
+        query=query,
+        limit=limit,
+        label="mitigation",
+        apply_dos=_apply_dos_protection,
+        validate_request_params=_validate_request_params,
+        execute_search_documents_fn=execute_search_documents,
+        list_documents_fn=lambda: _call_registered_tool(list_mitigations),
+        search_single_document_fn=_search_single_mitigation,
+        logger=logger,
     )
-
-    return f"""You are an AI risk assessment specialist. Conduct a thorough risk assessment for the following scenario.
-
-RISK CATEGORY: {risk_category}
-SCENARIO: {context}
-
-RELEVANT RISK DOCUMENTATION:
-{risk_info}
-
-Please provide:
-1. Likelihood assessment (High/Medium/Low) with justification
-2. Impact assessment (High/Medium/Low) with potential consequences
-3. Specific risk factors present in this scenario
-4. Recommended mitigation strategies
-5. Monitoring and detection approaches
-
-Be specific and actionable in your recommendations."""
+    return SearchResults(**payload)
 
 
-@mcp.prompt(
-    title="Mitigation Strategy Planning",
-    description="Generate a mitigation strategy prompt for a specific AI system risk.",
+# MCP Resources and Prompts registration (delegated modules)
+register_resources(
+    mcp=mcp,
+    resource_annotations=_resource_annotations,
+    validate_request_params=_validate_request_params,
+    call_registered_tool=_call_registered_tool,
+    safe_resource_content=_safe_resource_content,
+    safe_external_error=_safe_external_error,
+    get_framework_tool=get_framework,
+    get_risk_tool=get_risk,
+    get_mitigation_tool=get_mitigation,
+    logger=logger,
 )
-async def mitigation_strategy_prompt(
-    risk_type: Annotated[
-        str, Field(min_length=1, max_length=128, description="Risk type to mitigate.")
-    ],
-    system_description: Annotated[
-        str,
-        Field(
-            min_length=1, max_length=4000, description="Description of the AI system."
-        ),
-    ],
-) -> str:
-    """Generate a mitigation strategy prompt for a specific risk in an AI system.
 
-    Args:
-        risk_type: Type of risk to mitigate
-        system_description: Description of the AI system
-
-    Returns:
-        Prompt for developing mitigation strategies.
-    """
-    _validate_request_params(risk_type=risk_type, system_description=system_description)
-
-    # Find relevant mitigation documents and extract their Purpose sections.
-    # Normalise hyphens to spaces so "data-poisoning" matches "data poisoning" in content.
-    search_query = risk_type.replace("-", " ")
-    mitigation_results = await _call_registered_tool(
-        search_mitigations, search_query, limit=3
-    )
-
-    mitigation_sections: list[str] = []
-    for result in mitigation_results.results:
-        mitigation_id = result.framework_id.removeprefix("mitigation-")
-        try:
-            doc = await _call_registered_tool(get_mitigation, mitigation_id)
-            purpose = _extract_section(doc.content, "Purpose", "Summary", "Overview")
-            if purpose:
-                mitigation_sections.append(
-                    f"### {doc.title} ({mitigation_id})\n{purpose}"
-                )
-        except Exception as exc:
-            logger.debug("Skipping mitigation doc %s in prompt: %s", mitigation_id, exc)
-
-    mitigation_info = (
-        "\n\n".join(mitigation_sections)
-        if mitigation_sections
-        else "No specific mitigation documentation found for this risk type."
-    )
-
-    return f"""You are an AI safety engineer tasked with developing mitigation strategies.
-
-RISK TYPE: {risk_type}
-AI SYSTEM: {system_description}
-
-AVAILABLE MITIGATION STRATEGIES:
-{mitigation_info}
-
-Please develop a comprehensive mitigation plan that includes:
-1. Preventive measures to reduce risk likelihood
-2. Detective controls to identify when risks occur
-3. Corrective actions to respond to incidents
-4. Technical implementation details
-5. Monitoring and validation approaches
-6. Timeline and resource requirements
-
-Prioritize practical, implementable solutions."""
+register_prompts(
+    mcp=mcp,
+    validate_request_params=_validate_request_params,
+    call_registered_tool=_call_registered_tool,
+    prompt_service=_prompt_composition_service,
+    get_framework_tool=get_framework,
+    get_risk_tool=get_risk,
+    get_mitigation_tool=get_mitigation,
+    search_risks_tool=search_risks,
+    search_mitigations_tool=search_mitigations,
+    logger=logger,
+)
 
 
 # Export the FastMCP instance and models

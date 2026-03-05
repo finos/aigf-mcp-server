@@ -16,7 +16,7 @@ Verify the system is working:
 
 ```
 Tool: get_service_health()
-Returns: {status: "healthy", uptime_seconds: 3600, healthy_services: 5, total_services: 5}
+Returns: {status: "healthy", uptime_seconds: 3600, healthy_services: 4, total_services: 4, observability: {...}}
 ```
 
 ### Step 2: Explore Available Frameworks
@@ -25,7 +25,7 @@ See what governance frameworks are available:
 
 ```
 Tool: list_frameworks()
-Returns: 5 frameworks (NIST AI 600-1, EU AI Act 2024, GDPR, OWASP LLM Top 10, ISO/IEC 23053)
+Returns: current runtime-discovered framework catalog
 ```
 
 ### Step 3: Search Across Frameworks
@@ -52,7 +52,7 @@ Browse AI governance risks:
 
 ```
 Tool: list_risks()
-Returns: 17 risk documents from FINOS AI Governance Framework
+Returns: current runtime-discovered risk document catalog
 ```
 
 Search for specific risks:

@@ -28,6 +28,7 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 # ── ANSI colours ────────────────────────────────────────────────────────────────
@@ -166,7 +167,7 @@ def parse_response(raw: str, parse_path: str) -> tuple[bool, Any, str]:
 
 
 # ── Test suite ────────────────────────────────────────────────────────────────────
-def build_test_suite() -> list[TestCase]:
+def build_test_suite(*, include_unavailable: bool = False) -> list[TestCase]:
     """Return the ordered list of test cases."""
 
     # Shorthand builders
@@ -185,7 +186,7 @@ def build_test_suite() -> list[TestCase]:
             *args,
         ]
 
-    return [
+    suite = [
         # ── Category: Infrastructure ────────────────────────────────────────────
         TestCase(
             category="Infrastructure",
@@ -206,6 +207,34 @@ def build_test_suite() -> list[TestCase]:
                     "version is non-empty string",
                     lambda d: isinstance(d, dict) and bool(d.get("version")),
                 ),
+                Check(
+                    "observability.openemcp exists",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and isinstance(d.get("observability"), dict)
+                        and isinstance(d["observability"].get("openemcp"), dict)
+                    ),
+                ),
+                Check(
+                    "observability.openemcp.validation_status is canonical",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("openemcp", {})
+                        .get("validation_status")
+                        in {"approved", "rejected", "modified"}
+                    ),
+                ),
+                Check(
+                    "observability.risk_context has risk_tier",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("risk_context", {})
+                        .get("risk_tier")
+                        in {"low", "medium", "high", "critical"}
+                    ),
+                ),
             ],
         ),
         TestCase(
@@ -223,6 +252,43 @@ def build_test_suite() -> list[TestCase]:
                     "hit_rate in [0.0, 1.0]",
                     lambda d: (
                         isinstance(d, dict) and 0.0 <= d.get("hit_rate", -1) <= 1.0
+                    ),
+                ),
+                Check(
+                    "extended cache counters are present",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and isinstance(d.get("sets"), int)
+                        and isinstance(d.get("evictions"), int)
+                        and isinstance(d.get("memory_usage_bytes"), int)
+                    ),
+                ),
+                Check(
+                    "observability.openemcp exists",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and isinstance(d.get("observability"), dict)
+                        and isinstance(d["observability"].get("openemcp"), dict)
+                    ),
+                ),
+                Check(
+                    "observability.openemcp.validation_status is canonical",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("openemcp", {})
+                        .get("validation_status")
+                        in {"approved", "rejected", "modified"}
+                    ),
+                ),
+                Check(
+                    "observability.risk_context has risk_tier",
+                    lambda d: (
+                        isinstance(d, dict)
+                        and d.get("observability", {})
+                        .get("risk_context", {})
+                        .get("risk_tier")
+                        in {"low", "medium", "high", "critical"}
                     ),
                 ),
             ],
@@ -731,6 +797,88 @@ def build_test_suite() -> list[TestCase]:
         ),
     ]
 
+    if include_unavailable:
+        suite.extend(
+            [
+                TestCase(
+                    category="Resilience",
+                    name="TC-U1 • UNAVAILABLE list_risks failback message",
+                    description="When discovery is unavailable, list_risks returns source=unavailable with message",
+                    cli_args=tool("list_risks"),
+                    parse_path="structured",
+                    checks=[
+                        Check(
+                            "source == 'unavailable'",
+                            lambda d: (
+                                isinstance(d, dict) and d.get("source") == "unavailable"
+                            ),
+                        ),
+                        Check(
+                            "total_count == 0",
+                            lambda d: (
+                                isinstance(d, dict) and d.get("total_count", -1) == 0
+                            ),
+                        ),
+                        Check(
+                            "message is non-empty",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and isinstance(d.get("message"), str)
+                                and len(d.get("message", "").strip()) > 0
+                            ),
+                        ),
+                    ],
+                ),
+                TestCase(
+                    category="Resilience",
+                    name="TC-U2 • UNAVAILABLE get_risk failback message",
+                    description="When discovery is unavailable, get_risk returns explicit unavailable messaging",
+                    cli_args=tool("get_risk", ["risk_id=9_data-poisoning"]),
+                    parse_path="structured",
+                    checks=[
+                        Check(
+                            "title indicates unavailable",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and "unavailable" in d.get("title", "").lower()
+                            ),
+                        ),
+                        Check(
+                            "content indicates unavailable",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and "unavailable" in d.get("content", "").lower()
+                            ),
+                        ),
+                    ],
+                ),
+                TestCase(
+                    category="Resilience",
+                    name="TC-U3 • UNAVAILABLE search_risks failback message",
+                    description="When discovery is unavailable, search_risks returns 0 results with message",
+                    cli_args=tool("search_risks", ["query=data poisoning"]),
+                    parse_path="structured",
+                    checks=[
+                        Check(
+                            "total_found == 0",
+                            lambda d: (
+                                isinstance(d, dict) and d.get("total_found", -1) == 0
+                            ),
+                        ),
+                        Check(
+                            "message indicates unavailable",
+                            lambda d: (
+                                isinstance(d, dict)
+                                and "unavailable" in d.get("message", "").lower()
+                            ),
+                        ),
+                    ],
+                ),
+            ]
+        )
+
+    return suite
+
 
 # ── Runner ────────────────────────────────────────────────────────────────────────
 def run_test(tc: TestCase, config: str, server: str, timeout: int) -> TestResult:
@@ -896,9 +1044,14 @@ def main() -> None:
         default="",
         help="Only run tests whose name contains this string (case-insensitive)",
     )
+    parser.add_argument(
+        "--include-unavailable",
+        action="store_true",
+        help="Include additional resilience tests that expect discovery-unavailable failback messaging",
+    )
     args = parser.parse_args()
 
-    suite = build_test_suite()
+    suite = build_test_suite(include_unavailable=args.include_unavailable)
     if args.filter:
         suite = [tc for tc in suite if args.filter.lower() in tc.name.lower()]
         if not suite:
@@ -964,10 +1117,10 @@ def main() -> None:
     # Write report
     report_md = generate_markdown_report(results, args.config, args.server, total_ms)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_path = f"scripts/e2e_report_{ts}.md"
-    with open(report_path, "w") as fh:
+    report_path = Path(__file__).resolve().parent / f"e2e_report_{ts}.md"
+    with open(report_path, "w", encoding="utf-8") as fh:
         fh.write(report_md)
-    print(f"\n  Report written → {_c(CYAN, report_path)}\n")
+    print(f"\n  Report written → {_c(CYAN, str(report_path))}\n")
 
     sys.exit(0 if failed == 0 else 1)
 
