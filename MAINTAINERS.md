@@ -4,8 +4,8 @@ This file lists the maintainers of this repository.
 
 ## Current maintainers
 
-| GitHub Username | Name | Organization | Email |
-|----------------|------|--------------|-------|
+| GitHub Username | Name | Organization | Email (optional) |
+|----------------|------|--------------|------------------|
 | @ColinEberhardt | Colin Eberhardt | Scott Logic | colin.eberhardt@gmail.com |
 | @IamRavanan | Naresh Babu Deenadayalan | *please add organization* |  |
 | @aateeque | Asad Ateeque | *please add organization* |  |
