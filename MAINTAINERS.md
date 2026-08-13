@@ -7,13 +7,13 @@ This file lists the maintainers of this repository.
 | GitHub Username | Name | Organization | Email |
 |----------------|------|--------------|-------|
 | @ColinEberhardt | Colin Eberhardt | Scott Logic | colin.eberhardt@gmail.com |
-| @IamRavanan | Naresh Babu Deenadayalan | *please add organization* | *please add email* |
-| @aateeque | Asad Ateeque | *please add organization* | *please add email* |
-| @alvin-c-shih | Alvin Shih | *please add organization* | *please add email* |
-| @chamindra | Chamindra de Silva | Sahana Foundation | *please add email* |
-| @d1gital-f | Francesco Beltramini | *please add organization* | *please add email* |
-| @hugo-calderon | Hugo | *please add organization* | *please add email* |
-| @lucaborella89 | Luca Borella | *please add organization* | *please add email* |
+| @IamRavanan | Naresh Babu Deenadayalan | *please add organization* |  |
+| @aateeque | Asad Ateeque | *please add organization* |  |
+| @alvin-c-shih | Alvin Shih | *please add organization* |  |
+| @chamindra | Chamindra de Silva | Sahana Foundation |  |
+| @d1gital-f | Francesco Beltramini | *please add organization* |  |
+| @hugo-calderon | Hugo | *please add organization* |  |
+| @lucaborella89 | Luca Borella | *please add organization* |  |
 
 For information about maintainer responsibilities and resources, see the [FINOS Maintainers Cheatsheet](https://community.finos.org/docs/finos-maintainers-cheatsheet).
 
