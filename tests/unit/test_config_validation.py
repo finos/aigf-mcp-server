@@ -6,12 +6,12 @@ and startup validation with various configuration scenarios.
 """
 
 import os
+from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 
-from finos_mcp._version import __version__
 from finos_mcp.config import Settings, get_settings, validate_settings_on_startup
 
 
@@ -29,12 +29,17 @@ def clean_env():
         if key.startswith("FINOS_MCP_"):
             del os.environ[key]
 
-    # Required for startup validation after S-02 hardening.
-    os.environ["FINOS_MCP_CACHE_SECRET"] = (
-        "test_cache_secret_for_config_validation_32chars"
-    )
+    # A test here starts as a fresh process does: no settings built yet.
+    # validate_settings_on_startup() builds them once and no longer reloads
+    # (#300), so a singleton left by an earlier test would be what it reads.
+    from finos_mcp.config import _settings_manager
+
+    held = _settings_manager._settings
+    _settings_manager._settings = None
 
     yield
+
+    _settings_manager._settings = held
 
     # Restore original environment
     for key in list(os.environ.keys()):
@@ -63,7 +68,6 @@ class TestSettingsValidation:
         assert settings.cache_max_size == 1000
         assert settings.debug_mode is False
         assert settings.server_name == "finos-ai-governance"
-        assert settings.server_version == __version__
         assert settings.mcp_transport == "stdio"
         assert settings.mcp_host == "127.0.0.1"
         assert settings.mcp_port == 8000
@@ -151,7 +155,8 @@ class TestSettingsValidation:
             "https://",
             "",
             "file:///local/path",
-            # Note: localhost URLs are now allowed for development
+            # What the fetch client refuses is refused here too (#298);
+            # tests/unit/test_base_url_checked_at_startup.py lists those.
         ]
 
         for url in invalid_urls:
@@ -253,43 +258,6 @@ class TestSettingsValidation:
 
 
 @pytest.mark.unit
-class TestSettingsProperties:
-    """Test Settings derived properties."""
-
-    def test_mitigations_url(self, clean_env):
-        """Test mitigations URL property."""
-        settings = Settings()
-        expected = f"{settings.base_url}/_mitigations"
-        assert settings.mitigations_url == expected
-
-    def test_risks_url(self, clean_env):
-        """Test risks URL property."""
-        settings = Settings()
-        expected = f"{settings.base_url}/_risks"
-        assert settings.risks_url == expected
-
-    def test_logging_config_normal_mode(self, clean_env):
-        """Test logging configuration in normal mode."""
-        settings = Settings()
-        config = settings.logging_config
-
-        assert "level" in config
-        assert "format" in config
-        assert "datefmt" not in config or config["datefmt"] is None
-
-    def test_logging_config_debug_mode(self, clean_env):
-        """Test logging configuration in debug mode."""
-        os.environ["FINOS_MCP_DEBUG_MODE"] = "true"
-        settings = Settings()
-        config = settings.logging_config
-
-        assert "level" in config
-        assert "format" in config
-        assert "datefmt" in config
-        assert config["datefmt"] is not None
-
-
-@pytest.mark.unit
 class TestStartupValidation:
     """Test startup validation functions."""
 
@@ -308,11 +276,7 @@ class TestStartupValidation:
 
     def test_get_settings_singleton(self, clean_env):
         """Test that get_settings returns singleton."""
-        # Reset global settings
-        from finos_mcp import config
-
-        config.settings = None
-
+        # clean_env starts this test with no settings built.
         settings1 = get_settings()
         settings2 = get_settings()
 
@@ -321,10 +285,7 @@ class TestStartupValidation:
 
     def test_get_settings_reload(self, clean_env):
         """Test get_settings reload functionality."""
-        from finos_mcp import config
-
-        config.settings = None
-
+        # clean_env starts this test with no settings built.
         # Get initial settings
         settings1 = get_settings()
 
@@ -361,6 +322,160 @@ class TestStartupValidation:
 
 
 @pytest.mark.unit
+class TestNetworkTransportRequiresAuth:
+    """Networked transports must not start unauthenticated (AIGF-F2, #20)."""
+
+    NETWORK_TRANSPORTS: ClassVar[list[str]] = ["http", "streamable-http", "sse"]
+
+    @staticmethod
+    def _enable_auth():
+        """Set a complete, valid JWT verifier configuration."""
+        os.environ["FINOS_MCP_MCP_AUTH_ENABLED"] = "true"
+        os.environ["FINOS_MCP_MCP_AUTH_ISSUER"] = "https://auth.example.com"
+        os.environ["FINOS_MCP_MCP_AUTH_AUDIENCE"] = "finos-mcp-server"
+        os.environ["FINOS_MCP_MCP_AUTH_JWKS_URI"] = (
+            "https://auth.example.com/.well-known/jwks.json"
+        )
+
+    @pytest.mark.parametrize("transport", NETWORK_TRANSPORTS)
+    def test_network_transport_without_auth_fails_startup(self, transport, clean_env):
+        """Every networked transport is rejected when auth is disabled."""
+        os.environ["FINOS_MCP_MCP_TRANSPORT"] = transport
+
+        with pytest.raises(SystemExit):
+            validate_settings_on_startup()
+
+    @pytest.mark.parametrize("transport", NETWORK_TRANSPORTS)
+    def test_network_transport_with_auth_starts(self, transport, clean_env):
+        """Auth configured is the supported way to run a networked transport."""
+        os.environ["FINOS_MCP_MCP_TRANSPORT"] = transport
+        self._enable_auth()
+
+        settings = validate_settings_on_startup()
+
+        assert settings.mcp_transport == transport
+        assert settings.mcp_auth_enabled is True
+
+    @pytest.mark.parametrize("transport", NETWORK_TRANSPORTS)
+    def test_insecure_override_permits_unauthenticated_transport(
+        self, transport, clean_env
+    ):
+        """The documented development escape hatch works, on every transport."""
+        os.environ["FINOS_MCP_MCP_TRANSPORT"] = transport
+        os.environ["FINOS_MCP_ALLOW_INSECURE_HTTP"] = "true"
+
+        settings = validate_settings_on_startup()
+
+        assert settings.mcp_transport == transport
+        assert settings.mcp_auth_enabled is False
+        assert settings.allow_insecure_http is True
+
+    def test_stdio_without_auth_still_starts(self, clean_env):
+        """Regression guard: stdio has no network boundary and must be unaffected."""
+        os.environ["FINOS_MCP_MCP_TRANSPORT"] = "stdio"
+
+        settings = validate_settings_on_startup()
+
+        assert settings.mcp_transport == "stdio"
+        assert settings.mcp_auth_enabled is False
+        assert settings.allow_insecure_http is False
+
+    def test_default_configuration_still_starts(self, clean_env):
+        """Regression guard: the default (no transport set) is stdio and unaffected."""
+        settings = validate_settings_on_startup()
+
+        assert settings.mcp_transport == "stdio"
+
+    def test_error_message_names_both_environment_variables(self, clean_env):
+        """A fail-fast message is only useful if it says how to fix it."""
+        os.environ["FINOS_MCP_MCP_TRANSPORT"] = "http"
+
+        with pytest.raises(ValueError) as exc_info:
+            Settings().validate_startup()
+
+        error_msg = str(exc_info.value)
+        assert "FINOS_MCP_MCP_AUTH_ENABLED=true" in error_msg
+        assert "FINOS_MCP_ALLOW_INSECURE_HTTP=true" in error_msg
+        assert "http" in error_msg
+
+
+@pytest.mark.unit
+class TestTrustedProxyConfiguration:
+    """Trusted-proxy allowlist parsing and validation (AIGF-F1, #21).
+
+    An entry here is permission to believe a caller-supplied X-Forwarded-For
+    header, which decides whose rate-limit bucket a request lands in. Anything
+    that would let a caller choose their own bucket must fail at startup.
+    """
+
+    def test_unset_is_valid_and_yields_no_networks(self, clean_env):
+        """The default ignores X-Forwarded-For entirely."""
+        settings = validate_settings_on_startup()
+
+        assert settings.dos_trusted_proxies is None
+        assert settings.dos_trusted_proxy_entries == []
+        assert settings.dos_trusted_proxy_networks == []
+
+    def test_valid_cidrs_parse(self, clean_env):
+        """A comma-separated list parses to networks, whitespace tolerated."""
+        os.environ["FINOS_MCP_DOS_TRUSTED_PROXIES"] = "127.0.0.1/32, 10.0.0.0/8"
+
+        settings = validate_settings_on_startup()
+
+        assert settings.dos_trusted_proxy_entries == ["127.0.0.1/32", "10.0.0.0/8"]
+        assert [str(net) for net in settings.dos_trusted_proxy_networks] == [
+            "127.0.0.1/32",
+            "10.0.0.0/8",
+        ]
+
+    def test_bare_address_is_accepted(self, clean_env):
+        """A single host is the common case and should not require a /32."""
+        os.environ["FINOS_MCP_DOS_TRUSTED_PROXIES"] = "127.0.0.1"
+
+        settings = validate_settings_on_startup()
+
+        assert [str(net) for net in settings.dos_trusted_proxy_networks] == [
+            "127.0.0.1/32"
+        ]
+
+    def test_ipv6_cidr_is_accepted(self, clean_env):
+        """IPv6 proxies are as real as IPv4 ones."""
+        os.environ["FINOS_MCP_DOS_TRUSTED_PROXIES"] = "::1/128, fd00::/8"
+
+        settings = validate_settings_on_startup()
+
+        assert len(settings.dos_trusted_proxy_networks) == 2
+
+    def test_malformed_entry_fails_startup(self, clean_env):
+        """A typo must not silently drop a proxy from the allowlist."""
+        os.environ["FINOS_MCP_DOS_TRUSTED_PROXIES"] = "127.0.0.1/32, not-a-cidr"
+
+        with pytest.raises(ValueError) as exc_info:
+            Settings().validate_startup()
+
+        assert "not-a-cidr" in str(exc_info.value)
+
+    @pytest.mark.parametrize("catch_all", ["0.0.0.0/0", "::/0"])
+    def test_catch_all_range_fails_startup(self, catch_all, clean_env):
+        """Trusting every address would let any caller forge its own bucket."""
+        os.environ["FINOS_MCP_DOS_TRUSTED_PROXIES"] = catch_all
+
+        with pytest.raises(ValueError) as exc_info:
+            Settings().validate_startup()
+
+        error_msg = str(exc_info.value)
+        assert catch_all in error_msg
+        assert "FINOS_MCP_DOS_TRUSTED_PROXIES" in error_msg
+
+    def test_catch_all_rejected_even_alongside_valid_entries(self, clean_env):
+        """A catch-all is not redeemed by specific entries sitting next to it."""
+        os.environ["FINOS_MCP_DOS_TRUSTED_PROXIES"] = "127.0.0.1/32, 0.0.0.0/0"
+
+        with pytest.raises(ValueError):
+            Settings().validate_startup()
+
+
+@pytest.mark.unit
 class TestConfigValidationErrorMessages:
     """Test configuration error message quality."""
 
@@ -385,7 +500,10 @@ class TestConfigValidationErrorMessages:
             Settings()
 
         error_msg = str(exc_info.value)
-        assert "Base URL must be a valid HTTP or HTTPS URL" in error_msg
+        assert (
+            "Base URL 'not-a-url' is refused: documents are fetched over https only"
+            in (error_msg)
+        )
 
     def test_startup_validation_error_handling(self, clean_env):
         """Test startup validation error handling and messages."""

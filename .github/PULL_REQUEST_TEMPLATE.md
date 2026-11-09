@@ -35,7 +35,6 @@ Describe the tests that you ran to verify your changes. Provide instructions so 
 
 - [ ] No hardcoded secrets or credentials
 - [ ] Input validation implemented where needed
-- [ ] No SQL injection vulnerabilities
 - [ ] No unsafe deserialization
 - [ ] Security tests added/updated
 
@@ -55,6 +54,11 @@ Describe the tests that you ran to verify your changes. Provide instructions so 
 - [ ] Complex logic is commented
 - [ ] Error handling is appropriate
 - [ ] Performance impact considered
+
+## Contributor License Agreement
+
+- [ ] I, or my employer, have a CLA on file with FINOS; EasyCLA checks this
+  on the pull request ([contribution requirements](https://community.finos.org/docs/governance/Software-Projects/contribution-compliance-requirements))
 
 ## Related Issues
 

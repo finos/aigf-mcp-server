@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "finos-ai-governance": {
-      "command": "finos-mcp",
-      "args": []
-    }
-  }
-}

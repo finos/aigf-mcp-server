@@ -20,7 +20,7 @@ NOTE: All contributors must have a contributor license agreement (CLA) on file w
 The project community consists of Contributors and Maintainers:
 * A **Contributor** is anyone who submits a contribution to the project. (Contributions may include code, issues, comments, documentation, media, or any combination of the above.)
 * A **Maintainer** is a Contributor who, by virtue of their contribution history, has been given write access to project repositories and may merge approved contributions.
-* The **Lead Maintainer** is the project's interface with the FINOS team and Board. They are responsible for approving [quarterly project reports](https://community.finos.org/docs/governance/#project-governing-board-reporting) and communicating on behalf of the project. The Lead Maintainer is elected by a vote of the Maintainers. 
+* The **Lead Maintainer** is the project's interface with the FINOS team and Board. They are responsible for approving [quarterly project reports](https://community.finos.org/docs/governance/#project-governing-board-reporting) and communicating on behalf of the project. The Lead Maintainer is elected by a vote of the Maintainers.
 
 ### Contribution Rules
 
@@ -53,3 +53,10 @@ Any Contributor who has made a substantial contribution to the project MAY apply
 ### Changes to this Document
 
 This document MAY be amended by a vote of the Maintainers according to the Maintainer Voting process above.
+
+## Development
+
+The mechanics of working on this repository -- the functional gate that must be
+green before anything merges, which interpreter the gates run, the branch and
+commit-title conventions, and how to run everything CI runs locally -- are in
+[`docs/development.md`](docs/development.md).

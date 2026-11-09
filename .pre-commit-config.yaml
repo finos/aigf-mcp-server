@@ -1,102 +1,315 @@
 # Pre-commit hooks for FINOS MCP Server
 # Ensures code quality and security before commits
+#
+# Every hook that runs a tool this project already declares is a `repo: local`
+# + `language: system` hook, so it runs *the project's* copy of that tool with
+# the project's configuration. An upstream hook cannot do that: it builds its
+# own isolated environment from its own `rev`, which is a second version of the
+# tool drifting on its own schedule, and a second place its rules can be set.
+# Every failure this file has had was that one failure:
+#
+#   - mypy pinned v1.17.1 in an environment without fastmcp, so every
+#     `@mcp.tool` decorator was untyped and it passed on code it could not
+#     actually check (fixed in #40).
+#   - pip-audit was pinned twice, at v2.9.0 and v2.7.3, passing no suppressions
+#     at all and contradicting CI (fixed in #41).
+#   - semgrep pinned v1.135.0 while scripts/semgrep-isolated.sh pins 1.149.0,
+#     and its isolated py3.12 environment had no setuptools, so the hook died
+#     with `ModuleNotFoundError: No module named 'pkg_resources'` before it
+#     scanned a single line.
+#   - pylint pinned v3.3.8 in an environment missing fastmcp and bleach, and
+#     passed --fail-under=8.0 against a declared 8.5 -- a weaker gate than CI.
+#
+# tests/unit/test_ci_config_drift.py now fails if any of these hooks stops
+# being local/system, so a fifth recurrence is a test failure rather than a
+# discovery months later.
 repos:
-  # Python code formatting and linting - Ruff handles everything
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.11
+  # Python linting and formatting. Rules come from [tool.ruff] in pyproject.toml.
+  #
+  # Check-only, and deliberately so. This hook used to run `--fix` from its own
+  # pinned ruff, which meant a gate that rewrote the code it was judging, using
+  # a different ruff version than CI. `--fix` is still the right thing to run by
+  # hand -- `ruff check --fix src/ tests/ scripts/` -- but not inside the check
+  # that decides whether the tree is clean.
+  #
+  # --force-exclude is required, not optional. pre-commit hands ruff an explicit
+  # list of filenames, and ruff applies `extend-exclude` to discovered paths
+  # only -- an explicitly named file is linted regardless. Without the flag this
+  # hook checks src/finos_mcp/_version.py, which [tool.ruff] excludes because
+  # setuptools-scm generates it, and fails on formatting nobody wrote. It is
+  # what the upstream ruff-pre-commit hook puts in its own entry, and it makes
+  # the hook honour pyproject.toml rather than override it.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        name: "ruff check (rules from pyproject.toml)"
+        description: Lints with the project's own ruff and configuration
+        entry: scripts/project-python.sh -m ruff check --force-exclude
+        language: system
         types_or: [python, pyi]
+
       - id: ruff-format
+        name: "ruff format --check (rules from pyproject.toml)"
+        description: Verifies formatting with the project's own ruff
+        entry: scripts/project-python.sh -m ruff format --check --force-exclude
+        language: system
         types_or: [python, pyi]
 
   # Python type checking - STRICT (matches CI requirements)
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.1
+  #
+  # A local hook rather than pre-commit/mirrors-mypy, for the same reason the
+  # pip-audit hook below is local. The upstream hook runs mypy in an isolated
+  # venv built from `additional_dependencies`, which did not list `fastmcp` --
+  # so `fastmcp.server.dependencies` was unresolvable and every `@mcp.tool`
+  # decorator became untyped. That was invisible while the hook read the old
+  # .mypy.ini, whose global `ignore_missing_imports = True` and absent strict
+  # rules let it pass on an environment that could not actually type-check this
+  # code; under the declared `strict = true` it surfaces as 30 errors.
+  #
+  # It also pinned its own mypy rev (v1.17.1) while CI resolves mypy 2.x from
+  # pyproject.toml -- a second tool version, drifting on its own schedule, which
+  # is the same failure this change exists to remove. Running the project's own
+  # mypy against the project's own environment leaves one version and one set of
+  # rules. Flags here stay presentational; rules come from [tool.mypy].
+  #
+  # pass_filenames is off and the target is the package, which is what CI and
+  # ci-local.sh check.
+  #
+  # With filenames, pre-commit partitions them across concurrent invocations, so
+  # several mypy processes analyse different subsets of the same package through
+  # one .mypy_cache. On the first CI run of this job that produced two outcomes
+  # from one hook -- `Success: no issues found in 12 source files` for one
+  # partition (of 24) and `INTERNAL ERROR` for the other. It did not reproduce
+  # on macOS locally, with a cold cache or a warm one, which is precisely why
+  # the hook looked healthy until CI ran it.
+  #
+  # Passing no filenames runs mypy exactly once over the `files` declared in
+  # [tool.mypy] (src/finos_mcp and tests, #343), so there is no partitioning and
+  # no shared cache to race on. It is also what every other call site checks.
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [types-bleach, types-requests, httpx, mcp, types-PyYAML, pathvalidate, python-slugify, tenacity]
-        args: [--show-error-codes, --show-error-context, --strict-optional, --warn-redundant-casts, --warn-unused-ignores]
+        name: "mypy (rules from pyproject.toml)"
+        description: Type-checks src/finos_mcp and tests using the project's own mypy and configuration
+        entry: scripts/project-python.sh -m mypy
+        language: system
+        args: [--show-error-codes, --show-error-context]
+        pass_filenames: false
+        files: ^(src|tests)/.*\.py$
+
+  # Static security analysis with Bandit. Gate #1 in CI, and previously absent
+  # here entirely, so a finding CI treats as a build failure could be committed
+  # and only surface after a push.
+  #
+  # Flags match .github/workflows/security-analysis.yml and scripts/ci-local.sh
+  # exactly; rules come from config/security/bandit.yml. pass_filenames is off
+  # because -r src/ names the tree to scan, the same way CI names it.
+  - repo: local
+    hooks:
+      - id: bandit
+        name: "bandit (rules from config/security/bandit.yml)"
+        description: Scans src/ with the project's own bandit and configuration
+        entry: scripts/project-python.sh -m bandit
+        language: system
+        args: [-c, config/security/bandit.yml, -r, src/,
+               --severity-level, low, --confidence-level, medium]
+        pass_filenames: false
         files: ^src/.*\.py$
-        exclude: ^src/finos_mcp/internal/.*\.py$
 
   # Advanced security scanning with Semgrep (Ruff handles basic security via flake8-bandit)
-  - repo: https://github.com/semgrep/semgrep
-    rev: v1.135.0
+  #
+  # Delegates to the same wrapper as every other semgrep call site -- both
+  # workflows, ci-local.sh, ci-exact-simulation.sh and release.yml. Semgrep is
+  # deliberately not a project dependency (see the note in pyproject.toml): it
+  # brings a large, conflicting dependency tree, so the wrapper keeps it in its
+  # own .venv-semgrep and pins the version once.
+  #
+  # This also fixes the hook outright. The upstream hook built a py3.12
+  # environment, and py3.12 venvs no longer ship setuptools, so semgrep's
+  # opentelemetry import chain died on `pkg_resources` before scanning
+  # anything. The wrapper installs into a venv with pip, which provides it.
+  #
+  # --strict is not passed: it makes semgrep fail on unrelated rule-file
+  # warnings, which is a different gate than "this code has findings". --error
+  # is what makes findings non-zero, and it is what the workflows rely on.
+  - repo: local
     hooks:
       - id: semgrep
-        args: [--config, config/security/semgrep.yml, --error, --strict]
+        name: "semgrep (rules from config/security/semgrep.yml)"
+        description: Scans src/ via scripts/semgrep-isolated.sh, the single pinned semgrep
+        entry: scripts/semgrep-isolated.sh
+        language: system
+        args: [--config, config/security/semgrep.yml, --error, --metrics=off, src/]
+        pass_filenames: false
         files: ^src/.*\.py$
 
   # Additional code quality analysis with Pylint (Ruff handles most linting)
-  - repo: https://github.com/PyCQA/pylint
-    rev: v3.3.8
+  #
+  # Local for the same reason as mypy below. The upstream hook pinned v3.3.8 and
+  # listed five additional_dependencies -- without fastmcp, bleach or cachetools
+  # -- so it linted this package in an environment that could not import it.
+  #
+  # It also passed --rcfile=.pylintrc --fail-under=8.0. Both are gone: the rules
+  # and the 8.5 score gate now come from [tool.pylint.main] in pyproject.toml,
+  # and 8.0 was a weaker threshold than the one CI enforces. _version.py is
+  # excluded by ignore-paths in that same table, so no exclude is needed here.
+  - repo: local
     hooks:
       - id: pylint
-        args: [--rcfile=.pylintrc, --fail-under=8.0]
+        name: "pylint (rules from pyproject.toml)"
+        description: Analyses src/ using the project's own pylint and configuration
+        entry: scripts/project-python.sh -m pylint
+        language: system
+        args: [src/]
+        pass_filenames: false
         files: ^src/.*\.py$
-        exclude: ^src/finos_mcp/_version\.py$
-        additional_dependencies: [
-          mcp>=1.0.0,
-          httpx>=0.25.0,
-          PyYAML>=6.0.0,
-          pydantic>=2.0.0,
-          tenacity>=8.0.0
-        ]
 
-  # Dependency vulnerability scanning
-  - repo: https://github.com/pypa/pip-audit
-    rev: v2.9.0
+  # Dependency vulnerability scanning.
+  # A local hook rather than the pypa/pip-audit hook: the upstream hook takes
+  # its own pinned rev and its own args, which is exactly how this repo ended
+  # up with two pre-commit configs pinning v2.9.0 and v2.7.3 and passing no
+  # suppressions at all, contradicting CI. Delegating to the shared wrapper
+  # means the hook, both workflows and all four scripts read one policy.
+  - repo: local
     hooks:
-      - id: pip-audit
+      - id: pip-audit-scan
+        name: "pip-audit (suppressions from pyproject.toml)"
+        description: Audits dependencies using the single declared suppression list
+        entry: scripts/pip-audit-scan.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  # GitHub's schema for .github/dependabot.yml, from the copy check-jsonschema
+  # vendors. The file failed it in eight places and Dependabot never opened a
+  # pull request, while every check that ran stayed green (#76).
+  - repo: local
+    hooks:
+      - id: check-dependabot
+        name: "check-dependabot (GitHub's schema)"
+        description: Validates .github/dependabot.yml with the project's own check-jsonschema
+        entry: scripts/project-python.sh -m check_jsonschema --builtin-schema vendor.dependabot
+        language: system
+        files: ^\.github/dependabot\.ya?ml$
+
+  # The schemas for GitHub's issue forms and chooser config, from the copies
+  # check-jsonschema vendors. A form GitHub cannot read reports its error on the
+  # file's own page, not to someone opening an issue (#69). One spelling, .yml,
+  # as tests/unit/test_issue_templates.py requires.
+  - repo: local
+    hooks:
+      - id: check-issue-forms
+        name: "check-issue-forms (GitHub's schema)"
+        description: Validates the issue forms with the project's own check-jsonschema
+        entry: scripts/project-python.sh -m check_jsonschema --builtin-schema vendor.github-issue-forms
+        language: system
+        files: ^\.github/ISSUE_TEMPLATE/[^/]+\.yml$
+        exclude: ^\.github/ISSUE_TEMPLATE/config\.yml$
+      - id: check-issue-config
+        name: "check-issue-config (GitHub's schema)"
+        description: Validates the issue chooser config with the project's own check-jsonschema
+        entry: scripts/project-python.sh -m check_jsonschema --builtin-schema vendor.github-issue-config
+        language: system
+        files: ^\.github/ISSUE_TEMPLATE/config\.yml$
+
+  # The functional gate, run before code leaves the machine.
+  #
+  # main is production, and branch protection is unavailable on this repository
+  # (private, free plan), so a red CI check cannot physically block a merge.
+  # pre-push is therefore the one place enforcement actually happens: it runs the
+  # same command the functional-gate CI job runs, before the push exists.
+  #
+  # pre-push rather than pre-commit on purpose. The suite spawns the real server
+  # and reaches the network, which is far too slow and too failure-prone to sit
+  # in front of every commit, but is proportionate once per push.
+  #
+  # If the GitHub rate limit is spent this fails on `source != github_api`. That
+  # is the intended behaviour -- the static fallback ships the correct filenames
+  # even when discovery is misconfigured, so passing on fallback data would prove
+  # nothing. `git push --no-verify` is the escape hatch when you know why.
+  #
+  # The auth HTTP suite runs beside it. It needs no network and takes about five
+  # seconds; while nothing ran it, it failed unnoticed from #323 to #341 (#342).
+  - repo: local
+    hooks:
+      - id: functional-gate
+        name: "functional gate (live MCP, content assertions)"
+        description: Drives the real stdio server and asserts on answer content
+        entry: env FINOS_RUN_LIVE_MCP_TEST=1 FINOS_RUN_AUTH_HTTP_TEST=1 scripts/project-python.sh -m pytest -q tests/integration/test_live_mcp_server.py tests/integration/test_auth_http_transport.py
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
 
   # ===============================================================================
-  # CRITICAL PROTECTION: .claude content blocking (CANNOT be disabled)
+  # Assistant-tooling content must not reach a commit. Two rules: filenames,
+  # then file contents. See docs/development.md for the policy and the reason.
   # ===============================================================================
   - repo: local
     hooks:
       - id: validate-static-fallback
-        name: "Validate static fallback sync (Warning)"
-        description: Warns if static fallback lists may be out of sync with GitHub
-        entry: 'bash -c "if git diff --cached --name-only | grep -q \"src/finos_mcp/content/discovery.py\"; then echo \"⚠️  WARNING: discovery.py changed. If modifying static fallback lists, run: python scripts/update-static-fallback.py\"; fi; exit 0"'
+        name: "Static catalog is generated (Warning)"
+        description: Warns when the generated static catalog module is staged
+        entry: 'bash -c "if git diff --cached --name-only | grep -q \"src/finos_mcp/content/static_catalog.py\"; then echo \"⚠️  WARNING: static_catalog.py is generated. Write it with: python scripts/update-static-fallback.py\"; fi; exit 0"'
         language: system
         stages: [pre-commit]
         types: [python]
         pass_filenames: false
         always_run: false
 
-      - id: block-claude-content
-        name: "Block .claude content (CRITICAL SECURITY)"
-        description: Prevents any .claude content from being committed
-        entry: 'bash -c "if git diff --cached --name-only | grep -iE \"(^|/)\.?claude\"; then echo \"BLOCKED - .claude content detected in commit!\" && exit 1; fi"'
+      # Two rules, two hooks. This one matches on staged *filenames*; the
+      # scan-dev-only-references hook below matches on staged file *contents*.
+      #
+      # There were three until #84. The absorbed hook, named for content, was
+      # named for content while it checked names, and its rule -- a path segment
+      # starting with the token -- was a strict subset of this one's substring
+      # rule, so it could never fire on its own. It also had no allowlist, which
+      # made the one tracked file that matched permanently unmodifiable.
+      #
+      # The nine `-not -path` exclusions this hook used to carry are gone along
+      # with the `find` walk that needed them. They named directories that might
+      # hold vendored library files -- mcp/cli/claude.py ships with the mcp
+      # package -- and the list could never be complete, because it enumerated
+      # names: a virtualenv called anything else reopened the failure (#56, #84).
+      # The index cannot contain an ignored or untracked path, so reading it
+      # leaves nothing to exclude. Behaviour lives in
+      # scripts/scan-blocked-filenames.sh and is tested against a real index by
+      # tests/unit/test_blocked_filename_guard.py.
+      - id: block-dev-only-files
+        name: "Block staged filenames carrying the assistant-tooling token"
+        description: Refuses a commit that adds or renames such a file
+        entry: scripts/scan-blocked-filenames.sh
         language: system
         stages: [pre-commit]
         types: [file]
         pass_filenames: false
         always_run: true
 
-      - id: block-claude-files
-        name: "Block claude-related files (CRITICAL SECURITY)"
-        description: Prevents any claude-related files from being committed
-        entry: 'bash -c "if find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" | head -1 | grep -q .; then echo \"BLOCKED - Claude-related files detected!\" && find . -name \"*claude*\" -not -path \"./.git/*\" -not -path \"./.venv/*\" -not -path \"./config/examples/claude-desktop-config.json\" && exit 1; fi"'
-        language: system
-        stages: [pre-commit]
-        types: [file]
-        pass_filenames: false
-        always_run: true
-
-      - id: scan-claude-content
-        name: "Scan for .claude references (CRITICAL SECURITY)"
+      # Extracted to a script because the logic outgrew a `bash -c` one-liner,
+      # the same way pip-audit and semgrep did. Four tracked files must name the
+      # string this hook greps for, because excluding a thing means naming it --
+      # so with the hooks installed, every file implementing the block was
+      # itself unblockable, including this one. See the allowlist and its
+      # rationale in scripts/scan-blocked-references.sh; the drift test asserts
+      # every entry still exists and still needs the exemption.
+      - id: scan-dev-only-references
+        name: "Block staged file contents referencing the tooling directory"
         description: Scans file contents for .claude references
-        entry: 'bash -c "if git diff --cached --name-only | xargs grep -l \"\.claude\" 2>/dev/null; then echo \"BLOCKED - Files contain .claude references!\" && git diff --cached --name-only | xargs grep -n \"\.claude\" 2>/dev/null | head -10 && exit 1; fi"'
+        entry: scripts/scan-blocked-references.sh
         language: system
         stages: [pre-commit]
         types: [text]
         pass_filenames: false
         always_run: true
 
-  # General file formatting
+  # General file formatting.
+  #
+  # The one upstream repo left, and deliberately so. These are pre-commit's own
+  # utility hooks: this project declares no equivalent tool and no configuration
+  # for them in pyproject.toml, so there is no second version to drift against
+  # and nothing for a `rev` to contradict. Converting them would mean
+  # reimplementing them. They are excluded from _PROJECT_OWNED_HOOK_IDS in
+  # tests/unit/test_ci_config_drift.py for that reason.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
@@ -110,12 +323,23 @@ repos:
         args: ['--maxkb=1000']
       - id: detect-private-key
 
-  # Security scanning for secrets
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
+  # Security scanning for secrets.
+  #
+  # Local for the same reason as the tools above, and for one more: the
+  # behaviour this hook depends on is asserted in
+  # tests/unit/test_secrets_scanning.py, and a test that silently skips when
+  # detect-secrets is not importable is not a test. Declaring it in the dev
+  # extra makes it importable, so the control always runs. It brings no
+  # transitive dependencies.
+  - repo: local
     hooks:
       - id: detect-secrets
+        name: "detect-secrets (baseline in .secrets.baseline)"
+        description: Scans for committed secrets using the project's own detect-secrets
+        entry: scripts/project-python.sh -m detect_secrets.pre_commit_hook
+        language: system
         args: ['--baseline', '.secrets.baseline']
+        types: [text]
         exclude: package.lock.json
 
 # Configuration

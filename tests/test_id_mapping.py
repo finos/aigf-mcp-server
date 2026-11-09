@@ -1,181 +1,377 @@
-#!/usr/bin/env python3
-"""Test ID mapping between search results and get operations.
+"""Identifiers from list_* and search_frameworks must work with get_*.
 
-This test verifies that IDs returned from search can be used directly
-with get_risk() and get_mitigation() operations.
+The round-trip is what makes the toolset usable: a caller lists or searches, takes
+an id from the answer, and asks for that document. If the two sides disagree about
+what an id looks like, every workflow built on these tools breaks at step two --
+and "list, choose, then fetch" is the workflow an assistant performs.
+
+This file used to describe exactly that property in 167 lines of prints, with zero
+assertions and six ``return True``/``return False`` statements. It even printed
+``✗ FAILED: ...`` on a mismatch and then returned, which pytest treats as a pass.
+While it sat there reporting success, the risk search that existed then was
+returning ``risk-19_data-quality-and-drift`` and ``get_risk`` was answering
+``Risk risk-19_data-quality-and-drift not found``.
+
+Content bodies come from raw.githubusercontent.com, so the get_* half needs
+network. It skips when a body cannot be fetched, rather than failing for the wrong
+reason; the non-skippable end-to-end coverage is
+tests/integration/test_live_mcp_server.py, the functional gate.
+
+Since #216 a get_* tool raises when a body cannot be fetched, where it used to
+return a record saying so, and this file went on reading the record: without
+network every test here failed (#245). ``call`` now reads the exceptions. The
+tests at the end of the file stub the backend and check each decision ``call``
+and ``get_by_id`` make, so they run without network.
 """
 
-import asyncio
-import sys
-from pathlib import Path
+from __future__ import annotations
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+import importlib
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from finos_mcp.fastmcp_server import (
-    get_mitigation,
-    get_risk,
-    list_mitigations,
-    list_risks,
-    search_mitigations,
-    search_risks,
+import pytest
+
+from finos_mcp.content.discovery import (
+    DiscoveryResult,
+    DiscoveryServiceManager,
+    GitHubFileInfo,
 )
+from finos_mcp.exceptions import (
+    DocumentUnavailableError,
+    GitHubRateLimitError,
+    SearchFailedError,
+    UnknownDocumentError,
+)
+from finos_mcp.fastmcp_server import mcp
+from tests.helpers import a_skip_is_a_failure
 
 
-def _unwrap_tool(tool):
-    """Return callable implementation for both function and FunctionTool exports."""
-    return tool.fn if hasattr(tool, "fn") else tool
+async def call(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Run a tool, skipping when this environment cannot reach the documents.
+
+    Three errors say that and nothing about identifiers: GitHub's request
+    budget is spent, a body could not be loaded, and a search in which no
+    framework could be read. Every other error is raised, a document that is
+    empty or too large among them.
+
+    A body that "could not be loaded" is also what a get_* tool raises for an
+    exception nobody planned for, so a tool broken in that way skips here
+    instead of failing. tests/unit/test_unservable_document.py and the
+    functional gate are where that fails.
+    """
+    tool = await mcp.get_tool(name)
+    assert tool is not None, f"tool {name!r} is not registered"
+    try:
+        result = await tool.run(arguments or {})
+    except GitHubRateLimitError as error:
+        pytest.skip(f"GitHub's request budget is spent: {error}")
+    except DocumentUnavailableError as error:
+        if not error.message.endswith(DocumentUnavailableError.NOT_LOADED):
+            raise
+        pytest.skip(f"cannot fetch document bodies here: {error}")
+    except SearchFailedError as error:
+        if error.message != SearchFailedError.NOTHING_READ:
+            raise
+        pytest.skip(f"cannot fetch document bodies here: {error}")
+    payload = result.structured_content
+    assert isinstance(payload, dict), (
+        f"{name} returned {type(payload).__name__}, not a structured payload"
+    )
+    return payload
 
 
-# FastMCP 2.14+ exposes decorated tools as FunctionTool objects.
-list_risks = _unwrap_tool(list_risks)
-get_risk = _unwrap_tool(get_risk)
-search_risks = _unwrap_tool(search_risks)
-list_mitigations = _unwrap_tool(list_mitigations)
-get_mitigation = _unwrap_tool(get_mitigation)
-search_mitigations = _unwrap_tool(search_mitigations)
+async def get_by_id(
+    get_tool: str, id_argument: str, document_id: str, source_tool: str
+) -> dict[str, Any]:
+    """Fetch the document ``source_tool`` named, and assert a body came back.
+
+    An id the get_* tool does not know is the defect this module exists to
+    catch: the two tools disagree about what an id looks like.
+    """
+    try:
+        payload = await call(get_tool, {id_argument: document_id})
+    except UnknownDocumentError as error:
+        pytest.fail(
+            f"the id {document_id!r} came from {source_tool}, but {get_tool} "
+            f"reports it does not exist -- the two disagree about identifier "
+            f"format. {error}"
+        )
+    body = payload.get("content") or ""
+    assert len(body) > 100, (
+        f"{document_id!r} returned only {len(body)} characters of content"
+    )
+    return payload
 
 
-async def test_risk_id_mapping():
-    """Test that risk IDs from search work with get_risk()."""
-    print("\n" + "=" * 80)
-    print("Testing Risk ID Mapping (Search → Get)")
-    print("=" * 80)
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("list_tool", "collection_key", "get_tool", "id_argument"),
+    [
+        ("list_risks", "documents", "get_risk", "risk_id"),
+        ("list_mitigations", "documents", "get_mitigation", "mitigation_id"),
+        ("list_frameworks", "frameworks", "get_framework", "framework_id"),
+    ],
+)
+async def test_ids_from_list_work_with_get(
+    list_tool: str, collection_key: str, get_tool: str, id_argument: str
+) -> None:
+    """Every id a catalog returns must be accepted by its get_* tool."""
+    listing = await call(list_tool)
+    entries = listing[collection_key]
+    assert entries, f"{list_tool} returned nothing to round-trip"
 
-    # Step 1: List all risks to see actual IDs
-    print("\n1. Listing all risks...")
-    risks_list = await list_risks()
-    print(f"   Found {len(risks_list.documents)} risks")
-    print(f"   Source: {risks_list.source}")
+    document_id = entries[0]["id"]
+    payload = await get_by_id(get_tool, id_argument, document_id, list_tool)
 
-    if risks_list.documents:
-        first_risk = risks_list.documents[0]
-        print("\n   First risk from list:")
-        print(f"   - ID: {first_risk.id}")
-        print(f"   - Name: {first_risk.name}")
-
-        # Step 2: Try to get the risk using the ID from list
-        print(f"\n2. Trying get_risk('{first_risk.id}')...")
-        risk_content = await get_risk(first_risk.id)
-        print(f"   - Title: {risk_content.title}")
-        print(f"   - Content length: {len(risk_content.content)}")
-
-        if "Failed to load" in risk_content.content or "Error" in risk_content.title:
-            print(f"   ✗ FAILED: {risk_content.content[:100]}")
-        else:
-            print("   ✓ SUCCESS: Content loaded")
-
-    # Step 3: Search for risks
-    print("\n3. Searching for 'injection'...")
-    search_results = await search_risks("injection", limit=3)
-    print(f"   Found {search_results.total_found} results")
-
-    if search_results.results:
-        first_result = search_results.results[0]
-        print("\n   First search result:")
-        print(f"   - Framework ID: {first_result.framework_id}")
-        print(f"   - Section: {first_result.section}")
-
-        # Step 4: Extract ID and try to get the risk
-        # Search returns "risk-{id}" format, so we need to strip "risk-"
-        risk_id_from_search = first_result.framework_id.replace("risk-", "")
-        print(f"\n4. Extracted ID: '{risk_id_from_search}'")
-        print(f"   Trying get_risk('{risk_id_from_search}')...")
-
-        risk_content = await get_risk(risk_id_from_search)
-        print(f"   - Title: {risk_content.title}")
-        print(f"   - Content length: {len(risk_content.content)}")
-
-        if "Failed to load" in risk_content.content or "Error" in risk_content.title:
-            print(f"   ✗ FAILED: {risk_content.content[:200]}")
-            return False
-        else:
-            print("   ✓ SUCCESS: Content loaded correctly")
-            return True
-
-    return False
+    echoed = payload.get("document_id") or payload.get("framework_id")
+    assert echoed == document_id, (
+        f"{get_tool} echoed {echoed!r} for the id {document_id!r} that "
+        f"{list_tool} supplied"
+    )
 
 
-async def test_mitigation_id_mapping():
-    """Test that mitigation IDs from search work with get_mitigation()."""
-    print("\n" + "=" * 80)
-    print("Testing Mitigation ID Mapping (Search → Get)")
-    print("=" * 80)
+@pytest.mark.integration
+async def test_ids_from_search_work_with_get() -> None:
+    """An id straight out of search must be usable, with no string surgery.
 
-    # Step 1: List all mitigations to see actual IDs
-    print("\n1. Listing all mitigations...")
-    mitigations_list = await list_mitigations()
-    print(f"   Found {len(mitigations_list.documents)} mitigations")
-    print(f"   Source: {mitigations_list.source}")
+    The risk and mitigation searches used to prefix the id with the document
+    type, so this assertion failed with "not found" while the old print-based
+    version of this file reported success.
+    """
+    search_tool, get_tool, id_argument = (
+        "search_frameworks",
+        "get_framework",
+        "framework_id",
+    )
+    found = await call(search_tool, {"query": "data", "limit": 3})
+    results = found["results"]
+    if not results:
+        pytest.skip(f"{search_tool} found nothing for 'data'; nothing to round-trip")
 
-    if mitigations_list.documents:
-        first_mit = mitigations_list.documents[0]
-        print("\n   First mitigation from list:")
-        print(f"   - ID: {first_mit.id}")
-        print(f"   - Name: {first_mit.name}")
-
-        # Step 2: Try to get the mitigation using the ID from list
-        print(f"\n2. Trying get_mitigation('{first_mit.id}')...")
-        mit_content = await get_mitigation(first_mit.id)
-        print(f"   - Title: {mit_content.title}")
-        print(f"   - Content length: {len(mit_content.content)}")
-
-        if "Failed to load" in mit_content.content or "Error" in mit_content.title:
-            print(f"   ✗ FAILED: {mit_content.content[:100]}")
-        else:
-            print("   ✓ SUCCESS: Content loaded")
-
-    # Step 3: Search for mitigations
-    print("\n3. Searching for 'data'...")
-    search_results = await search_mitigations("data", limit=3)
-    print(f"   Found {search_results.total_found} results")
-
-    if search_results.results:
-        first_result = search_results.results[0]
-        print("\n   First search result:")
-        print(f"   - Framework ID: {first_result.framework_id}")
-        print(f"   - Section: {first_result.section}")
-
-        # Step 4: Extract ID and try to get the mitigation
-        # Search returns "mitigation-{id}" format, so we need to strip "mitigation-"
-        mit_id_from_search = first_result.framework_id.replace("mitigation-", "")
-        print(f"\n4. Extracted ID: '{mit_id_from_search}'")
-        print(f"   Trying get_mitigation('{mit_id_from_search}')...")
-
-        mit_content = await get_mitigation(mit_id_from_search)
-        print(f"   - Title: {mit_content.title}")
-        print(f"   - Content length: {len(mit_content.content)}")
-
-        if "Failed to load" in mit_content.content or "Error" in mit_content.title:
-            print(f"   ✗ FAILED: {mit_content.content[:200]}")
-            return False
-        else:
-            print("   ✓ SUCCESS: Content loaded correctly")
-            return True
-
-    return False
+    document_id = results[0]["document_id"]
+    await get_by_id(get_tool, id_argument, document_id, search_tool)
 
 
-async def main():
-    """Run all ID mapping tests."""
-    print("\n" + "=" * 80)
-    print("ID MAPPING VERIFICATION TEST")
-    print("Testing that search results can be used with get operations")
-    print("=" * 80)
+@pytest.mark.integration
+async def test_search_reports_only_ids_the_catalog_knows() -> None:
+    """Ids that search reports must exist in the catalog.
 
-    risk_success = await test_risk_id_mapping()
-    mitigation_success = await test_mitigation_id_mapping()
+    Catches the two sides drifting apart in either direction: a search that
+    synthesises ids, or a catalog that renames them, leaves every search result
+    unusable. Stronger than the round-trip above, which only samples the top hit.
+    """
+    list_tool, search_tool = "list_frameworks", "search_frameworks"
+    listing = await call(list_tool)
+    catalog_ids = {entry["id"] for entry in listing["frameworks"]}
+    assert catalog_ids, f"{list_tool} returned nothing to compare against"
 
-    print("\n" + "=" * 80)
-    print("SUMMARY")
-    print("=" * 80)
-    print(f"Risk ID mapping: {'✓ PASS' if risk_success else '✗ FAIL'}")
-    print(f"Mitigation ID mapping: {'✓ PASS' if mitigation_success else '✗ FAIL'}")
-    print("=" * 80 + "\n")
+    found = await call(search_tool, {"query": "data", "limit": 5})
+    if not found["results"]:
+        pytest.skip(f"{search_tool} found nothing for 'data'")
 
-    return 0 if (risk_success and mitigation_success) else 1
+    reported = {result["document_id"] for result in found["results"]}
+    unknown = reported - catalog_ids
+    assert not unknown, (
+        f"{search_tool} reported ids absent from {list_tool}: {sorted(unknown)}"
+    )
 
 
-if __name__ == "__main__":
-    exit_code = asyncio.run(main())
-    sys.exit(exit_code)
+# What the helpers above decide, measured against a stubbed backend.
+
+#: Modules that look ``get_service`` up in their own namespace.
+_GET_SERVICE_BINDERS = ("finos_mcp.documents.tools", "finos_mcp.documents.format")
+
+ROUND_TRIPS = [
+    ("list_risks", "documents", "get_risk", "risk_id"),
+    ("list_mitigations", "documents", "get_mitigation", "mitigation_id"),
+    ("list_frameworks", "frameworks", "get_framework", "framework_id"),
+]
+
+
+def _file(filename: str) -> GitHubFileInfo:
+    return GitHubFileInfo(filename=filename)
+
+
+class _Discovery:
+    async def discover_content(self) -> DiscoveryResult:
+        return DiscoveryResult(
+            mitigation_files=[_file("mi-4_ai-firewall.md")],
+            risk_files=[_file("ri-10_prompt-injection.md")],
+            framework_files=[_file("eu-ai-act.yml")],
+            source="github_api",
+        )
+
+
+def _fetch_returns_nothing(_doc_type: str, _filename: str) -> None:
+    """What the content service answers when it has no route to GitHub."""
+    return None
+
+
+def _budget_is_spent(_doc_type: str, _filename: str) -> None:
+    raise GitHubRateLimitError("0 of 60 requests left")
+
+
+def _body_is_empty(_doc_type: str, _filename: str) -> dict[str, object]:
+    return {"content": "   \n", "metadata": {"title": "A Title"}}
+
+
+def _body_is_a_stub(_doc_type: str, _filename: str) -> dict[str, object]:
+    """Served, and too short to be a document. Valid as Markdown and as YAML."""
+    return {"content": "title: A Title\n", "metadata": {"title": "A Title"}}
+
+
+@pytest.fixture
+def backend(monkeypatch: pytest.MonkeyPatch) -> Callable[[Callable[..., object]], None]:
+    """Stub discovery to list one of each kind; install a ``get_document``."""
+
+    async def _discovery(_self: object) -> _Discovery:
+        return _Discovery()
+
+    monkeypatch.setattr(
+        DiscoveryServiceManager, "get_discovery_service", _discovery, raising=True
+    )
+
+    def _install(get_document: Callable[..., object]) -> None:
+        class _Service:
+            async def get_document(self, doc_type: str, filename: str) -> object:
+                return get_document(doc_type, filename)
+
+        async def _get_service() -> _Service:
+            return _Service()
+
+        for dotted in _GET_SERVICE_BINDERS:
+            monkeypatch.setattr(
+                importlib.import_module(dotted),
+                "get_service",
+                _get_service,
+                raising=True,
+            )
+
+    return _install
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("get_document", "reason"),
+    [
+        pytest.param(
+            _fetch_returns_nothing, "cannot fetch document bodies", id="no-route"
+        ),
+        pytest.param(_budget_is_spent, "request budget is spent", id="budget-spent"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("list_tool", "collection_key", "get_tool", "id_argument"), ROUND_TRIPS
+)
+async def test_a_round_trip_skips_when_no_body_can_be_fetched(
+    backend: Callable[..., None],
+    get_document: Callable[..., object],
+    reason: str,
+    list_tool: str,
+    collection_key: str,
+    get_tool: str,
+    id_argument: str,
+) -> None:
+    backend(get_document)
+
+    with pytest.raises(pytest.skip.Exception, match=reason):
+        await test_ids_from_list_work_with_get(
+            list_tool, collection_key, get_tool, id_argument
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "search_test",
+    [
+        test_ids_from_search_work_with_get,
+        test_search_reports_only_ids_the_catalog_knows,
+    ],
+)
+async def test_a_search_test_skips_when_no_framework_can_be_read(
+    backend: Callable[..., None], search_test: Callable[[], Awaitable[object]]
+) -> None:
+    backend(_fetch_returns_nothing)
+
+    with pytest.raises(pytest.skip.Exception, match="cannot fetch document bodies"):
+        await search_test()
+
+
+@pytest.mark.unit
+async def test_a_search_that_broke_is_not_skipped(
+    backend: Callable[..., None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only "nothing could be read" is this environment; the rest is a defect."""
+    backend(_fetch_returns_nothing)
+
+    async def _broken() -> None:
+        raise RuntimeError("not a network failure")
+
+    monkeypatch.setattr(
+        importlib.import_module("finos_mcp.search.tools"), "list_frameworks", _broken
+    )
+
+    with pytest.raises(SearchFailedError, match="failed before it finished"):
+        with a_skip_is_a_failure():
+            await test_ids_from_search_work_with_get()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("list_tool", "collection_key", "get_tool", "id_argument"), ROUND_TRIPS
+)
+async def test_an_unservable_document_is_not_skipped(
+    backend: Callable[..., None],
+    list_tool: str,
+    collection_key: str,
+    get_tool: str,
+    id_argument: str,
+) -> None:
+    """An empty document is reachable and wrong, which no retry will change."""
+    backend(_body_is_empty)
+
+    with pytest.raises(DocumentUnavailableError, match="has no content"):
+        with a_skip_is_a_failure():
+            await test_ids_from_list_work_with_get(
+                list_tool, collection_key, get_tool, id_argument
+            )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("list_tool", "_collection_key", "get_tool", "id_argument"), ROUND_TRIPS
+)
+async def test_an_id_the_get_tool_rejects_fails_the_round_trip(
+    backend: Callable[..., None],
+    list_tool: str,
+    _collection_key: str,
+    get_tool: str,
+    id_argument: str,
+) -> None:
+    backend(_fetch_returns_nothing)
+
+    # Anchored: the helper above repeats a skip's reason in its own message.
+    with pytest.raises(pytest.fail.Exception, match=r"^the id 'an-id-no-document-has'"):
+        with a_skip_is_a_failure():
+            await get_by_id(get_tool, id_argument, "an-id-no-document-has", list_tool)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("list_tool", "collection_key", "get_tool", "id_argument"), ROUND_TRIPS
+)
+async def test_a_body_too_short_to_be_a_document_fails_the_round_trip(
+    backend: Callable[..., None],
+    list_tool: str,
+    collection_key: str,
+    get_tool: str,
+    id_argument: str,
+) -> None:
+    backend(_body_is_a_stub)
+
+    with pytest.raises(AssertionError, match="characters of content"):
+        with a_skip_is_a_failure():
+            await test_ids_from_list_work_with_get(
+                list_tool, collection_key, get_tool, id_argument
+            )

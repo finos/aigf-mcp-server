@@ -1,26 +1,48 @@
 name: Dependabot Security Validation
 
-# This workflow validates Dependabot PRs through the same security pipeline
-# as manual PRs, ensuring financial services compliance for automated updates
+# Extra validation for Dependabot PRs and for branches matching the patterns in
+# the head_ref test below, which docs/development.md documents and
+# tests/unit/test_ci_config_drift.py keeps in step with it.
+#
+# How this relates to security-analysis.yml, measured rather than assumed.
+# security-analysis.yml runs on every PR to main, on Python 3.12 only since
+# #238 (this file keeps the 3.11/3.12/3.13 matrix), from an identical
+# `pip install -e .[security,dev]`:
+#
+#   pip-audit   same policy -- zero tolerance, any severity
+#   Bandit      STRICTER HERE -- --confidence-level low reports findings the
+#               PR gate's `medium` does not. Same zero tolerance.
+#   Semgrep     same wrapper, same ruleset, both fail on ERROR
+#   Ruff        same targets, same rules from pyproject.toml
+#   MyPy        same target, strict = true from pyproject.toml
+#   Tests       same suite, same coverage floor from pyproject.toml
+#
+# So one of six gates is stricter, and security-analysis.yml additionally runs
+# pylint, the pre-commit hooks, the live functional gate and the integration
+# tests, which do not appear here. Nothing in this file is a substitute for it.
+#
+# Five steps here used to be labelled STRICT and this one Enhanced while being
+# equal or weaker; the coverage step enforced a second floor of 75 against
+# pyproject.toml's 82; and the dependency scan could not fail on a vulnerability
+# at all, because it selected on a `severity` key pip-audit does not emit. If a
+# step's threshold changes, change its label in the same edit.
 
 on:
   pull_request:
-    branches: [ main, develop, 'feature/security-*', 'feature/dependency-*', 'feature/ci-security-*', 'feature/docker-security-*' ]
+    # `branches:` filters the *base* branch, not the head. The four feature/*
+    # patterns that used to sit here selected PRs *targeting* a feature branch,
+    # which this repository never opens, so they were inert -- and they were
+    # not the security-branch hatch, which tests github.head_ref below.
+    branches: [ main ]
     types: [opened, synchronize, reopened]
-  # Only run on Dependabot PRs and security-related branches
+  # A manual run validates the branch it is dispatched on, so these steps can be
+  # exercised before a Dependabot pull request is the first thing to run them.
   workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to validate (for manual testing)'
-        required: false
-        type: string
 
+# Read-only: a pull_request run Dependabot triggers gets a read-only token
+# whatever this block asks for, and no job here writes to the repository (#159).
 permissions:
   contents: read
-  security-events: write
-  actions: read
-  pull-requests: write
-  checks: write
 
 jobs:
   # Check if this is a Dependabot PR or security-related PR
@@ -28,7 +50,6 @@ jobs:
     name: Detect Dependabot PR
     runs-on: ubuntu-latest
     outputs:
-      is-dependabot: ${{ steps.check.outputs.is-dependabot }}
       is-security-branch: ${{ steps.check.outputs.is-security-branch }}
       should-validate: ${{ steps.check.outputs.should-validate }}
     steps:
@@ -36,33 +57,40 @@ jobs:
       id: check
       run: |
         # Check if PR is from Dependabot
-        IS_DEPENDABOT="false"
         IS_SECURITY_BRANCH="false"
         SHOULD_VALIDATE="false"
 
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          SHOULD_VALIDATE="true"
+          echo "🖐️ Manual run requested"
+        fi
+
         if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
-          IS_DEPENDABOT="true"
           SHOULD_VALIDATE="true"
           echo "🤖 Dependabot PR detected"
         fi
 
-        # Check if branch is security-related
-        if [[ "${{ github.head_ref }}" == feature/security-* ]] || \
-           [[ "${{ github.head_ref }}" == feature/dependency-* ]] || \
-           [[ "${{ github.head_ref }}" == feature/ci-security-* ]] || \
-           [[ "${{ github.head_ref }}" == feature/docker-security-* ]]; then
+        # Check if branch is security-related. These patterns and the ones
+        # docs/development.md documents are kept in step by
+        # tests/unit/test_ci_config_drift.py: the hatch used to match
+        # feature/security-* and three siblings, three of them documented
+        # nowhere, while the convention in use had moved to security/*. PR #88
+        # replaced a tokenized CI runner with a secret-free wrapper and skipped
+        # this job entirely, because it was branched security/...
+        if [[ "${{ github.head_ref }}" == security/* ]] || \
+           [[ "${{ github.head_ref }}" == feature/security-* ]]; then
           IS_SECURITY_BRANCH="true"
           SHOULD_VALIDATE="true"
           echo "🔒 Security-related branch detected"
         fi
 
-        echo "is-dependabot=$IS_DEPENDABOT" >> $GITHUB_OUTPUT
         echo "is-security-branch=$IS_SECURITY_BRANCH" >> $GITHUB_OUTPUT
         echo "should-validate=$SHOULD_VALIDATE" >> $GITHUB_OUTPUT
 
         echo "Validation required: $SHOULD_VALIDATE"
 
-  # Enhanced security validation for Dependabot PRs
+  # The extra validation itself. See the header for how it relates to
+  # security-analysis.yml, which runs on the same PRs.
   dependabot-security-scan:
     name: Dependabot Security Validation
     runs-on: ubuntu-latest
@@ -77,14 +105,14 @@ jobs:
 
     steps:
     - name: Checkout PR code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         # Checkout the PR branch for validation
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -96,55 +124,94 @@ jobs:
 
     - name: Install dependencies with updated versions
       run: |
-        python -m pip install --upgrade pip
+        # setuptools upgraded explicitly for the same reason as in
+        # security-analysis.yml: the runner's preinstalled copy can trip pip-audit.
+        #
+        # Every gate resolves its interpreter through scripts/project-python.sh,
+        # which is virtualenv-based and will not fall back to a bare system
+        # interpreter -- that fallback is what let a stale environment become the
+        # audited artefact for six months (#89). Creating the virtualenv here is
+        # what makes a runner resolve the same way a laptop does; without it the
+        # shim has nothing to find. $GITHUB_PATH persists across steps, so later
+        # steps need no `source`, but this step still does.
+        python -m venv venv
+        echo "$PWD/venv/bin" >> "$GITHUB_PATH"
+        # shellcheck source=/dev/null
+        source venv/bin/activate
+        python -m pip install --upgrade pip setuptools
         # Install the project with updated dependencies from the PR
         pip install -e .[security,dev]
         pip install lxml  # Required for MyPy report generation
 
-    # CRITICAL: Dependency vulnerability scan on updated dependencies
-    - name: Enhanced pip-audit Dependency Scan
-      id: pip-audit-enhanced
+    - name: pip-audit Dependency Scan
+      id: pip-audit
       run: |
-        echo "🔐 Running enhanced dependency vulnerability scan for Dependabot PR..."
+        echo "🔐 Running dependency vulnerability scan..."
         pip freeze > dependabot-security-reports/updated-requirements.txt
 
-        # Install pip-audit (Python Packaging Authority's official tool)
-        python -m pip install pip-audit
+        # Suppressions come from [tool.finos.pip-audit] in pyproject.toml via
+        # the shared wrapper. This step previously also passed --require-hashes,
+        # which pip-audit rejects unless it is auditing a requirements file
+        # (-r): it exited 2 without writing a report, `|| true` hid that, and
+        # the jq call below then failed with an unrelated error. The step only
+        # ever looked fine because this job is skipped on non-Dependabot PRs.
+        #
+        # A non-zero exit is tolerated because the severity policy below is what
+        # decides pass/fail -- but a missing report is not, so it is checked.
+        # --local was dropped here: no other call site passes it, and the job
+        # runs inside the virtualenv created above, where it is a no-op --
+        # measured, 146 dependencies audited either way, identical sets.
+        ./scripts/pip-audit-scan.sh \
+          --format json --output dependabot-security-reports/pip-audit-report.json \
+          || true
 
-        # Run comprehensive pip-audit scan with strict settings
-        # Ignored vulnerabilities (no fix available):
-        # - GHSA-7gcm-g887-7qv7: protobuf DoS via JSON recursion (CVE-2026-0994)
-        #   Transitive dep from semgrep->opentelemetry->protobuf. No fix as of 2026-01.
-        # - GHSA-w8v5-vhqr-4h9v: diskcache vulnerability with no patched release available.
-        #   Transitive dep from fastmcp->py-key-value-aio. Tracked until upstream ships a fix.
-        pip-audit --format json --output dependabot-security-reports/pip-audit-report.json \
-          --require-hashes --ignore-vuln PYSEC-2022-42969 --ignore-vuln GHSA-7gcm-g887-7qv7 \
-          --ignore-vuln GHSA-w8v5-vhqr-4h9v --local || true
-
-        # Check for vulnerabilities with zero tolerance
-        VULNS=$(jq '.dependencies | map(select(.vulns | length > 0)) | length' dependabot-security-reports/pip-audit-report.json)
-        HIGH_SEVERITY_VULNS=$(jq '[.dependencies[] | .vulns[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' dependabot-security-reports/pip-audit-report.json)
-
-        echo "Total vulnerable dependencies: $VULNS"
-        echo "High/Critical severity vulnerabilities: $HIGH_SEVERITY_VULNS"
-
-        if [ "$HIGH_SEVERITY_VULNS" -gt 0 ]; then
-          echo "❌ CRITICAL: Found $HIGH_SEVERITY_VULNS high/critical severity vulnerabilities"
-          echo "Vulnerable dependencies with high/critical issues:"
-          jq '.dependencies | map(select(.vulns | map(select(.severity == "HIGH" or .severity == "CRITICAL")) | length > 0))' dependabot-security-reports/pip-audit-report.json
+        if [ ! -f dependabot-security-reports/pip-audit-report.json ]; then
+          echo "❌ CRITICAL: pip-audit produced no report - the scan did not run"
           exit 1
         fi
 
-        if [ "$VULNS" -gt 0 ]; then
-          echo "⚠️ WARNING: Found $VULNS vulnerable dependencies (medium/low severity)"
-          echo "All vulnerable dependencies:"
-          jq '.dependencies | map(select(.vulns | length > 0))' dependabot-security-reports/pip-audit-report.json
-          # Don't fail on medium/low severity, but report them
+        # Zero tolerance, matching security-analysis.yml, which applies it to
+        # every PR. This step used to fail only on
+        # `.severity == "HIGH" or "CRITICAL"`, and pip-audit emits no severity
+        # at all -- pip_audit/_format/json.py writes {"id", "fix_versions"} per
+        # vulnerability and nothing else -- so that count was zero for every
+        # input that has ever existed, while the branch below merely warned.
+        # The step that decides whether a dependency bump is safe could not
+        # fail on a vulnerable dependency.
+        # tests/unit/test_ci_config_drift.py now runs this filter against a
+        # report shaped like pip-audit's own and requires it to count.
+        #
+        # `.vulns // []` is required, not defensive padding: pip-audit cannot
+        # audit this project's own editable install (it is not on PyPI), so it
+        # emits an entry carrying `skip_reason` and no `vulns` key at all.
+        # Iterating `.vulns[]` on that entry aborts jq with "Cannot iterate over
+        # null" and exit 5, which failed this step on every Python version the
+        # first time it was ever allowed to run.
+        VULNS=$(jq '[.dependencies[] | select((.vulns // []) | length > 0)] | length' dependabot-security-reports/pip-audit-report.json)
+
+        # A dependency pip-audit could not audit is not a dependency it cleared.
+        # Reported, not enforced: the only entry that has ever appeared here is
+        # this project's own editable install, which is not a finding.
+        SKIPPED=$(jq '[.dependencies[] | select(has("skip_reason"))] | length' dependabot-security-reports/pip-audit-report.json)
+
+        echo "Total vulnerable dependencies: $VULNS"
+        echo "Dependencies skipped by pip-audit: $SKIPPED"
+
+        if [ "$SKIPPED" -gt 0 ]; then
+          jq -r '.dependencies[] | select(has("skip_reason")) | "  - \(.name): \(.skip_reason)"' dependabot-security-reports/pip-audit-report.json
         fi
 
-        echo "✅ Enhanced dependency vulnerability scan passed"
+        if [ "$VULNS" -gt 0 ]; then
+          echo "❌ CRITICAL: Found $VULNS vulnerable dependencies"
+          jq '[.dependencies[] | select((.vulns // []) | length > 0)]' dependabot-security-reports/pip-audit-report.json
+          exit 1
+        fi
 
-    # STRICT: Run Bandit security scanner on updated code
+        echo "✅ Dependency vulnerability scan passed"
+
+    # The one gate here that is stricter than security-analysis.yml:
+    # --confidence-level low reports findings the PR gate's `medium` does
+    # not, and the tolerance below is the same zero.
     - name: Bandit Security Scanner (Strict Mode)
       id: bandit-strict
       run: |
@@ -167,19 +234,25 @@ jobs:
           exit 1
         fi
 
-        # Stricter threshold for Dependabot PRs
-        if [ "$MEDIUM_ISSUES" -gt 2 ]; then
-          echo "❌ FAILURE: Bandit found $MEDIUM_ISSUES medium severity issues (Dependabot threshold: 2)"
+        # Threshold is 0, matching security-analysis.yml. This step permitted
+        # two medium findings that the ordinary PR gate rejects outright, under
+        # a name that said "Strict Mode" -- so the gate labelled strict was the
+        # more permissive of the two. Every accepted false positive is
+        # suppressed with an inline '# nosec BXXX' and a rationale instead,
+        # because a numerical tolerance accumulates silently.
+        if [ "$MEDIUM_ISSUES" -gt 0 ]; then
+          echo "❌ FAILURE: Bandit found $MEDIUM_ISSUES medium severity issues (threshold: 0)"
+          echo "  Suppress accepted false positives with '# nosec BXXX' and a rationale comment."
+          jq '.results[] | select(.issue_severity == "MEDIUM")' dependabot-security-reports/bandit-report.json
           exit 1
         fi
 
         echo "✅ Bandit security scan passed (strict mode)"
 
-    # STRICT: Run Semgrep static analysis
-    - name: Semgrep Static Analysis (Strict Mode)
-      id: semgrep-strict
+    - name: Semgrep Static Analysis
+      id: semgrep
       run: |
-        echo "🔍 Running Semgrep static analysis in strict mode..."
+        echo "🔍 Running Semgrep static analysis..."
         ./scripts/semgrep-isolated.sh --config config/security/semgrep.yml src/ \
           --json \
           --output dependabot-security-reports/semgrep-report.json \
@@ -197,81 +270,91 @@ jobs:
           exit 1
         fi
 
-        echo "✅ Semgrep static analysis passed (strict mode)"
+        echo "✅ Semgrep static analysis passed"
 
-    # STRICT: Run Ruff linter with security focus
-    - name: Ruff Security Linting
-      id: ruff-security
+    - name: Ruff Linting
+      id: ruff
       run: |
-        echo "⚡ Running Ruff security linting..."
+        echo "⚡ Running Ruff linting..."
+        # The rule set comes from [tool.ruff.lint] in pyproject.toml, exactly as
+        # in security-analysis.yml. This step used to restate it as
+        # `--select S,B,E,F`, which overrides the project's configuration and
+        # re-enables E501 - a rule the project deliberately ignores because the
+        # formatter owns line length. That produced 132 findings and a non-zero
+        # exit on unmodified `main`, killing the step under `bash -e` before any
+        # of the counting below could run. Same drift as the pip-audit
+        # suppression list: a second call site restating tool configuration.
+        set +e  # capture Ruff's exit code rather than dying on it
         ruff check src/ tests/ scripts/ \
-          --select S,B,E,F \
           --output-format=json > dependabot-security-reports/ruff-security-report.json
+        RUFF_EXIT_CODE=$?
+        set -e
 
-        # Count security-related issues
-        SECURITY_ISSUES=$(jq '[.[] | select(.code | startswith("S") or startswith("B"))] | length' dependabot-security-reports/ruff-security-report.json)
+        SECURITY_ISSUES=$(jq '[.[] | select(.code != null and (.code | startswith("S") or startswith("B")))] | length' dependabot-security-reports/ruff-security-report.json)
         TOTAL_ISSUES=$(jq 'length' dependabot-security-reports/ruff-security-report.json)
 
         echo "Ruff found $SECURITY_ISSUES security issues out of $TOTAL_ISSUES total issues"
+
+        if [ "$RUFF_EXIT_CODE" -ne 0 ]; then
+          echo "❌ FAILURE: Ruff reported $TOTAL_ISSUES issues"
+          jq '.' dependabot-security-reports/ruff-security-report.json
+          exit 1
+        fi
 
         # Check formatting
         echo "Checking code formatting with Ruff..."
         ruff format --check src/ tests/ scripts/
 
-        echo "✅ Ruff security linting passed"
+        echo "✅ Ruff linting passed"
 
-    # STRICT: Run MyPy type checking
-    - name: MyPy Type Checking (Enhanced)
-      id: mypy-enhanced
+    - name: MyPy Type Checking
+      id: mypy
       run: |
-        echo "🎯 Running enhanced MyPy type checking..."
-        python -m mypy src/finos_mcp \
+        echo "🎯 Running MyPy type checking..."
+        # This step used to add --disallow-any-generics and
+        # --disallow-untyped-calls on top of the other jobs, so a dependency
+        # bump was type-checked under stricter rules than the code it landed
+        # next to. Both are implied by `strict = true` in pyproject.toml, which
+        # every call site now shares; tests/unit/test_ci_config_drift.py keeps
+        # any of them from coming back to a call site.
+        python -m mypy \
           --show-error-codes \
           --show-error-context \
-          --txt-report dependabot-security-reports/mypy-report \
-          --strict-optional \
-          --warn-redundant-casts \
-          --warn-unused-ignores \
-          --disallow-any-generics \
-          --disallow-untyped-calls
+          --txt-report dependabot-security-reports/mypy-report
 
-        echo "✅ Enhanced MyPy type checking passed"
+        echo "✅ MyPy type checking passed"
 
-    # CRITICAL: Run comprehensive test suite
-    - name: Comprehensive Test Suite
-      id: comprehensive-tests
+    - name: Test Suite
+      id: tests
       run: |
-        echo "🧪 Running comprehensive test suite..."
-        python -m pytest tests/ \
+        echo "🧪 Running the test suite..."
+        # testpaths and the coverage floor both come from pyproject.toml.
+        python -m pytest \
           --cov=src/finos_mcp \
           --cov-report=json:dependabot-coverage-reports/coverage.json \
           --cov-report=xml:dependabot-coverage-reports/coverage.xml \
           --cov-report=html:dependabot-coverage-reports/html \
           --junit-xml=dependabot-coverage-reports/pytest.xml \
-          --cov-fail-under=75 \
           --tb=short \
           --strict-markers \
           --strict-config
 
-        # Extract and validate coverage
-        if [ -f "dependabot-coverage-reports/coverage.json" ]; then
-          COVERAGE=$(python -c "import json; data=json.load(open('dependabot-coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}%')" 2>/dev/null || echo "unknown")
-          COVERAGE_NUM=$(python -c "import json; data=json.load(open('dependabot-coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}')" 2>/dev/null || echo "0")
+        # This step used to restate the coverage floor here, comparing against
+        # 75.0 with `bc` while pyproject.toml declared 82 -- a second floor, at
+        # a call site, nineteen lines below a comment asserting there was only
+        # one. It was unreachable (pytest-cov fails the run at 82 first, under
+        # `bash -e`), but the drift guard that exists to forbid a second floor
+        # passed it regardless, because that guard forbade the
+        # `--cov-fail-under` flag rather than the policy. The floor is
+        # pytest-cov's, from [tool.coverage.report] in pyproject.toml, and
+        # reading the percentage is now the summary wrapper's job alone.
+        echo "📊 Test Coverage: $(./scripts/coverage-summary.sh dependabot-coverage-reports/coverage.json)"
 
-          echo "📊 Test Coverage: $COVERAGE"
-
-          # Ensure coverage meets higher threshold for Dependabot PRs
-          if (( $(echo "$COVERAGE_NUM < 75.0" | bc -l) )); then
-            echo "❌ CRITICAL: Test coverage $COVERAGE below required 75% for Dependabot PRs"
-            exit 1
-          fi
-        fi
-
-        echo "✅ Comprehensive test suite passed"
+        echo "✅ Test suite passed"
 
     # Upload detailed security reports
     - name: Upload Dependabot Security Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: dependabot-security-reports-py${{ matrix.python-version }}
@@ -279,50 +362,18 @@ jobs:
         retention-days: 90  # Longer retention for audit purposes
 
     - name: Upload Dependabot Coverage Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: dependabot-coverage-reports-py${{ matrix.python-version }}
         path: dependabot-coverage-reports/
         retention-days: 90
 
-  # Dependabot PR auto-approval for security updates (with strict validation)
-  dependabot-auto-approve:
-    name: Dependabot Auto-Approval
-    runs-on: ubuntu-latest
-    needs: [detect-dependabot, dependabot-security-scan]
-    if: |
-      needs.detect-dependabot.outputs.is-dependabot == 'true' &&
-      needs.dependabot-security-scan.result == 'success'
-
-    steps:
-    - name: Approve Dependabot PR
-      run: |
-        echo "✅ All security validations passed for Dependabot PR"
-        echo "🤖 Auto-approving security update from Dependabot"
-        echo "📋 Security validation summary:"
-        echo "  - Enhanced dependency vulnerability scan: PASSED"
-        echo "  - Bandit security scanner (strict): PASSED"
-        echo "  - Semgrep static analysis (strict): PASSED"
-        echo "  - Ruff security linting: PASSED"
-        echo "  - MyPy type checking (enhanced): PASSED"
-        echo "  - Comprehensive test suite (75%+ coverage): PASSED"
-
-        # Add approval comment
-        curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews" \
-          -d '{
-            "body": "🤖 **Automated Security Validation Complete**\n\n✅ All security checks passed for this Dependabot update:\n\n- **Enhanced Dependency Scan**: No high/critical vulnerabilities\n- **Security Static Analysis**: Bandit + Semgrep strict mode passed\n- **Code Quality**: Ruff + MyPy enhanced checks passed\n- **Test Coverage**: 75%+ coverage maintained\n\nThis security update has been automatically approved for financial services compliance.",
-            "event": "APPROVE"
-          }'
-
   # Final security summary
   dependabot-security-summary:
     name: Dependabot Security Summary
     runs-on: ubuntu-latest
-    needs: [detect-dependabot, dependabot-security-scan, dependabot-auto-approve]
+    needs: [detect-dependabot, dependabot-security-scan]
     if: always() && needs.detect-dependabot.outputs.should-validate == 'true'
 
     steps:
@@ -335,12 +386,12 @@ jobs:
           echo "✅ **All security validations passed successfully!**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Security Validation Results:" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔐 **Enhanced Dependency Scan**: No critical vulnerabilities detected" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔒 **Bandit Security Scanner**: Strict mode passed" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔍 **Semgrep Static Analysis**: Strict mode passed" >> $GITHUB_STEP_SUMMARY
-          echo "- ⚡ **Ruff Security Linting**: Security-focused checks passed" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎯 **MyPy Type Checking**: Enhanced type safety validated" >> $GITHUB_STEP_SUMMARY
-          echo "- 🧪 **Comprehensive Tests**: 75%+ coverage maintained" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔐 **Dependency Scan**: no known vulnerabilities, at any severity" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔒 **Bandit Security Scanner**: confidence low, zero tolerance" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 **Semgrep Static Analysis**: no ERROR-level findings" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ **Ruff Linting**: rules from pyproject.toml" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **MyPy Type Checking**: strict = true, from pyproject.toml" >> $GITHUB_STEP_SUMMARY
+          echo "- 🧪 **Test Suite**: coverage floor from pyproject.toml" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🏦 **FINOS Compliance**: Ready for financial services deployment" >> $GITHUB_STEP_SUMMARY
         else

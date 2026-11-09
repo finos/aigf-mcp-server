@@ -1,6 +1,9 @@
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
 """Configuration settings for FINOS MCP Server.
 
-Copyright 2024 Hugo Calderon
+Copyright 2025 FINOS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,22 +18,173 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 This module provides Pydantic-based configuration management with environment variable
-support and validation. Settings are loaded from environment variables with optional
-.env file support.
+support and validation. Settings are loaded from environment variables and, when
+FINOS_MCP_ENV_FILE names one, a dotenv file.
 """
 
+import functools
+import ipaddress
 import logging
-from typing import Literal, Optional
+import os
+from pathlib import Path
+from typing import Any, Literal, Optional
 from urllib.parse import urlparse
 
-from pydantic import Field, field_validator
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
+from pydantic import (
+    AnyHttpUrl,
+    Field,
+    SecretStr,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 from pydantic.types import PositiveInt
-from pydantic_settings import BaseSettings
+from pydantic_settings import (
+    BaseSettings,
+    DotEnvSettingsSource,
+    PydanticBaseSettingsSource,
+)
 
-try:
-    from ._version import __version__
-except ImportError:
-    __version__ = "unknown"
+from .security.repo_target import (
+    RepoTarget,
+    resolve_repo_target,
+    why_not_a_fetch_target,
+)
+
+_HTTP_URL = TypeAdapter(AnyHttpUrl)
+
+#: Names the dotenv file the server reads. Unset, no file is read: on stdio the
+#: working directory is the client's, so a ``.env`` there is not the operator's
+#: (#283). Read from the environment, not a setting, because it decides where
+#: the settings come from.
+ENV_FILE_VARIABLE = "FINOS_MCP_ENV_FILE"
+
+#: The prefixes GitHub gives its tokens. Not a check on the setting (#289):
+#: GitHub adds formats, and a wrong token is answered with 401. Kept for log
+#: redaction (#290).
+GITHUB_TOKEN_PREFIXES = ("ghp_", "gho_", "ghu_", "ghs_", "ghr_", "ghv_", "github_pat_")
+
+
+def _why_not_an_http_url(value: str) -> str | None:
+    """Return why `value` is not an HTTP or HTTPS URL with a host, or None.
+
+    Pydantic builds the metadata document from the issuer and fastmcp builds
+    its resource URL from the base URL, so what pydantic refuses is refused
+    here, with its reason: a port out of range, a space in the host, a
+    malformed bracketed host (#265, #276, #277, #319). It accepts
+    ``https:auth.example.com``, which names no host as written.
+    """
+    try:
+        _HTTP_URL.validate_python(value)
+    except ValidationError as error:
+        return str(error.errors()[0]["msg"])
+    try:
+        hostname = urlparse(value).hostname
+    except ValueError:  # pragma: no cover - no accepted value is known to raise
+        hostname = None
+    if not hostname:
+        return "it is not an HTTP or HTTPS URL with a host"
+    return None
+
+
+def _is_loopback(host: str) -> bool:
+    """Whether a bind host reaches only this machine."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _public_key_cannot_verify(pem: str) -> str | None:
+    """Return why `pem` cannot verify an RS256 token, or None.
+
+    fastmcp imports the key at the first token and reports a failure at
+    DEBUG, so a key that cannot be used looks in production exactly like
+    every token being invalid, and a private key is accepted and used (#287).
+    Loaded here, at startup, with the reason.
+    """
+    if "PRIVATE KEY" in pem:
+        return "it is a private key; give the public key"
+    try:
+        key = load_pem_public_key(pem.encode("utf-8"))
+    except (ValueError, TypeError, UnsupportedAlgorithm) as error:
+        return f"it does not load as a PEM public key ({error})"
+    if not isinstance(key, RSAPublicKey):
+        return "it is not an RSA public key, and tokens are RS256"
+    return None
+
+
+def _jwks_uri_blocked_by_ssrf_guard(uri: str) -> str | None:
+    """Return why an SSRF-safe JWKS fetch can never reach this URI, or None.
+
+    fastmcp reports an SSRF block at DEBUG and turns it into an ordinary 401, so
+    a JWKS URI the guard will always refuse looks in production exactly like
+    every token being invalid. This lifts the statically decidable half of that
+    into a startup failure.
+
+    Only what can be judged without a lookup is checked: the scheme, and a host
+    written as an IP literal. A hostname that resolves to a private address is
+    deliberately not detected -- resolving names during configuration validation
+    would make startup depend on DNS, and the answer could differ by the time
+    the fetch happens anyway.
+    """
+    parsed = urlparse(uri)
+    if parsed.scheme != "https":
+        return (
+            f"scheme {parsed.scheme!r} is refused: SSRF-safe JWKS fetching "
+            "requires HTTPS"
+        )
+
+    hostname = parsed.hostname
+    if not hostname:
+        return "the URI has no host"
+
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        # A name, not a literal. Nothing further is decidable without DNS.
+        return None
+
+    if not address.is_global or address.is_multicast:
+        return (
+            f"address {hostname} is not publicly routable, and SSRF-safe JWKS "
+            "fetching refuses loopback, link-local, private and reserved ranges"
+        )
+    return None
+
+
+class _PrefixedNamesOnly(PydanticBaseSettingsSource):
+    """The env file's values, without the names that lack the prefix (#283, #368).
+
+    The file may be shared with other programs, so a name such as
+    ``DATABASE_URL`` is skipped, where it stopped startup as an unknown
+    setting. An unknown name that carries the prefix still stops startup: it
+    is meant for this server and is mistyped. The shell environment's unknown
+    names were never read, so a mistyped one there is not reported.
+    """
+
+    def __init__(self, settings_cls: type[BaseSettings], file: DotEnvSettingsSource):
+        super().__init__(settings_cls)
+        self._file = file
+
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
+        # Unused: __call__ is overridden, as in pydantic-settings' own sources.
+        return None, field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        prefix = self._file.env_prefix.lower()
+        names = set(self._file.env_vars)
+        unprefixed = {n for n in names if not n.startswith(prefix)}
+        # A name present both ways is the prefixed one's to report.
+        unprefixed -= {n[len(prefix) :] for n in names if n.startswith(prefix)}
+        return {
+            key: value for key, value in self._file().items() if key not in unprefixed
+        }
 
 
 class Settings(BaseSettings):
@@ -38,7 +192,25 @@ class Settings(BaseSettings):
 
     All settings can be overridden via environment variables with FINOS_MCP_ prefix.
     Example: FINOS_MCP_LOG_LEVEL=DEBUG
+
+    A dotenv file is read only when ``FINOS_MCP_ENV_FILE`` names it, and a
+    variable set in the environment wins over the same variable in the file.
     """
+
+    def __init__(self, **values: Any) -> None:
+        # An explicit _env_file (tests, tooling) is honoured as given. Otherwise
+        # the file is the one the operator named, or none: never the working
+        # directory's, which on stdio belongs to the client (#283). A named
+        # file that is not there is refused rather than skipped, so a wrong
+        # path cannot start the server on defaults in silence.
+        if "_env_file" not in values:
+            named = os.environ.get(ENV_FILE_VARIABLE)
+            if named is not None and not Path(named).is_file():
+                raise ValueError(
+                    f"{ENV_FILE_VARIABLE} names {named!r}, which is not a file"
+                )
+            values["_env_file"] = named
+        super().__init__(**values)
 
     # Logging Configuration
     log_level: str = Field(
@@ -51,13 +223,20 @@ class Settings(BaseSettings):
         default=30,
         ge=5,
         le=300,
-        description="HTTP client timeout in seconds (5-300s range for security)",
+        description=(
+            "Seconds one outbound request may take in all: connecting, the "
+            "attempts repeated when it gets no answer, and the body (5-300)"
+        ),
     )
 
     # Repository Configuration
     base_url: str = Field(
         default="https://raw.githubusercontent.com/finos/ai-governance-framework/main/docs",
-        description="Base URL for FINOS AI Governance Framework repository",
+        description=(
+            "Base URL for the FINOS AI Governance Framework repository. This is the "
+            "single source of truth for the content target: repository owner, name, "
+            "ref and path prefix are all derived from it (see security.repo_target)."
+        ),
     )
 
     # Cache Configuration
@@ -94,10 +273,6 @@ class Settings(BaseSettings):
         description="MCP server name identifier",
     )
 
-    server_version: str = Field(
-        default=__version__,
-        description="MCP server version",
-    )
     mcp_transport: Literal["stdio", "http", "streamable-http", "sse"] = Field(
         default="stdio",
         description="MCP server transport mode",
@@ -122,7 +297,7 @@ class Settings(BaseSettings):
         default=None,
         description="JWKS endpoint for JWT signature validation",
     )
-    mcp_auth_public_key: str | None = Field(
+    mcp_auth_public_key: SecretStr | None = Field(
         default=None,
         description="PEM-encoded public key for JWT validation (use instead of JWKS URI)",
     )
@@ -138,65 +313,48 @@ class Settings(BaseSettings):
         default=None,
         description="Comma-separated required OAuth scopes (e.g. governance:read,governance:write)",
     )
+    mcp_auth_base_url: str | None = Field(
+        default=None,
+        description=(
+            "Public URL clients use to reach this server (e.g. "
+            "https://mcp.example.com). When set on a networked transport with "
+            "auth enabled, the server publishes OAuth protected-resource "
+            "metadata (RFC 9728) so a client can discover where to sign in."
+        ),
+    )
+    allow_insecure_http: bool = Field(
+        default=False,
+        description=(
+            "Permit networked transports to start without authentication. "
+            "Local development only - never set this where anything else can "
+            "reach the port."
+        ),
+    )
+    allow_insecure_jwks_uri: bool = Field(
+        default=False,
+        description=(
+            "Fetch the JWKS URI without SSRF protection: permits plain HTTP and "
+            "loopback, link-local and private addresses. Needed only when the "
+            "identity provider is an internal service. It also re-permits "
+            "cleartext retrieval of the keys that decide which tokens are trusted."
+        ),
+    )
 
     # GitHub API Configuration
-    github_token: str | None = Field(
+    github_token: SecretStr | None = Field(
         default=None,
         description="GitHub personal access token for API access (optional, increases rate limits)",
     )
 
-    # Simplified GitHub API Configuration
-    github_api_timeout: int = Field(
-        default=30,
-        description="GitHub API request timeout in seconds",
-    )
-    github_api_base_url: str = Field(
-        default="https://api.github.com",
-        description="GitHub API base URL for content discovery",
-    )
-    github_repo_owner: str = Field(
-        default="finos",
-        description="GitHub repository owner for governance content discovery",
-    )
-    github_repo_name: str = Field(
-        default="ai-governance-framework",
-        description="GitHub repository name for governance content discovery",
-    )
-    github_repo_ref: str = Field(
-        default="main",
-        description="Git reference (branch/tag) used for raw fallback URLs",
-    )
-    github_mitigation_path: str = Field(
-        default="docs/_mitigations",
-        description="Repository path containing mitigation markdown files",
-    )
-    github_risk_path: str = Field(
-        default="docs/_risks",
-        description="Repository path containing risk markdown files",
-    )
-    github_framework_path: str = Field(
-        default="docs/_data",
-        description="Repository path containing framework yaml files",
-    )
-
-    # Discovery cache directory (absolute path preferred; CWD-relative paths
-    # produce different cache locations when the server is started from different
-    # working directories, e.g. in containers or via systemd).
+    # Discovery cache directory. The default is the user's cache directory,
+    # never the working directory (#293).
     discovery_cache_dir: str | None = Field(
         default=None,
         description=(
             "Absolute path for the GitHub discovery cache directory. "
-            "Defaults to .cache/discovery relative to CWD when unset, "
-            "with automatic fallback to the system temp directory."
-        ),
-    )
-
-    # Cache Security
-    cache_secret: str | None = Field(
-        default=None,
-        description=(
-            "HMAC secret key for cache integrity verification (required in production). "
-            "Generate with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            "Defaults to finos-mcp/discovery under XDG_CACHE_HOME, or "
+            "~/.cache, when unset. A directory that cannot be used is not "
+            "replaced: the listing is kept in memory."
         ),
     )
 
@@ -213,30 +371,51 @@ class Settings(BaseSettings):
         le=200,
         description="Maximum concurrent requests per client enforced by DoS protection",
     )
-    dos_request_timeout_seconds: PositiveInt = Field(
+    readiness_probe_interval_seconds: PositiveInt = Field(
         default=30,
         ge=5,
-        le=600,
-        description="Request timeout in seconds used by DoS protection",
+        le=3600,
+        description=(
+            "Seconds between the requests a networked server sends to the "
+            "content host to decide what GET /readyz answers"
+        ),
     )
-
-    # SHA-based Version Tracking
-    enable_sha_validation: bool = Field(
-        default=True,
-        description="Enable SHA-based content change detection to extend cache lifetime",
-    )
-
-    check_static_fallback: bool = Field(
-        default=True,
-        description="Deprecated: retained for backward-compatible configuration parsing",
+    dos_trusted_proxies: str | None = Field(
+        default=None,
+        description=(
+            "Comma-separated CIDRs of trusted reverse proxies (e.g. 127.0.0.1/32). "
+            "When set and the peer address matches one of them, X-Forwarded-For is "
+            "used to key rate limits. Unset means the header is ignored and the "
+            "direct peer address is used."
+        ),
     )
 
     model_config = {
-        "env_file": ".env",
+        # No file by default; __init__ passes the one ENV_FILE_VARIABLE names.
+        "env_file": None,
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
         "env_prefix": "FINOS_MCP_",
     }
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """The named file is read for its ``FINOS_MCP_`` names only (#368)."""
+        if not isinstance(dotenv_settings, DotEnvSettingsSource):
+            raise TypeError(f"unexpected dotenv source {dotenv_settings!r}")
+        return (
+            init_settings,
+            env_settings,
+            _PrefixedNamesOnly(settings_cls, dotenv_settings),
+            file_secret_settings,
+        )
 
     @field_validator("log_level")
     @classmethod
@@ -247,42 +426,47 @@ class Settings(BaseSettings):
             raise ValueError(f"Log level must be one of: {', '.join(valid_levels)}")
         return v.upper()
 
-    @field_validator("github_token")
+    @field_validator("github_token", mode="before")
     @classmethod
-    def validate_github_token(cls, v: str | None) -> str | None:
-        """Simple GitHub token validation."""
-        if v is None or v.strip() == "":
+    def validate_github_token(cls, v: object) -> object:
+        """Blank means not set; whitespace and one pair of quotes are removed.
+
+        No check of the token's form: a validator's ValueError is reported by
+        pydantic with the input value, which put a refused token on stderr in
+        full, and GitHub answers a wrong token with 401 anyway (#289). A pair
+        of matching quotes around it is removed, not refused: a shell or a
+        dotenv file keeps quotes that are nested or escaped, and the token
+        was sent with them, refused with a 401 that did not say why (#369).
+        """
+        if isinstance(v, SecretStr):
+            v = v.get_secret_value()
+        if v is None or not isinstance(v, str):
             return None
-        token = v.strip()
-        # Basic validation - just check it looks like a GitHub token
-        if not (
-            token.startswith(
-                ("ghp_", "gho_", "ghu_", "ghs_", "ghr_", "ghv_", "github_pat_")
-            )
-        ):
-            raise ValueError("Invalid GitHub token format")
-        return token
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+            v = v[1:-1].strip()
+        return v or None
 
     @field_validator("base_url")
     @classmethod
     def validate_base_url(cls, v: str) -> str:
-        """Simple base URL validation."""
-        parsed = urlparse(v)
-        if not parsed.scheme or parsed.scheme not in ["http", "https"]:
-            raise ValueError("Base URL must be a valid HTTP or HTTPS URL")
-        if not parsed.netloc:
-            raise ValueError("Base URL must include a domain")
-        return v.rstrip("/")
+        """Refuse a base URL the content client would refuse on every fetch.
 
-    @field_validator("github_api_base_url")
-    @classmethod
-    def validate_github_api_base_url(cls, v: str) -> str:
-        """Validate GitHub API base URL."""
-        parsed = urlparse(v)
-        if not parsed.scheme or parsed.scheme not in ["http", "https"]:
-            raise ValueError("GitHub API base URL must be a valid HTTP or HTTPS URL")
-        if not parsed.netloc:
-            raise ValueError("GitHub API base URL must include a domain")
+        The client requests ``https`` only, never ``localhost`` or a
+        non-public address literal, so a base URL outside that started a
+        server on which every document fetch failed as "the host does not
+        answer" (#298). The check is the client's own. A query or a fragment
+        is refused as well: document paths are appended to this URL.
+        """
+        reason = why_not_a_fetch_target(v)
+        if reason is None:
+            parsed = urlparse(v)
+            if parsed.query:
+                reason = "it carries a query, and document paths are appended to it"
+            elif parsed.fragment:
+                reason = "it carries a fragment, and document paths are appended to it"
+        if reason:
+            raise ValueError(f"Base URL {v!r} is refused: {reason}")
         return v.rstrip("/")
 
     @field_validator("mcp_auth_jwks_uri")
@@ -297,6 +481,50 @@ class Settings(BaseSettings):
         if not parsed.netloc:
             raise ValueError("MCP auth JWKS URI must include a domain")
         return v.strip().rstrip("/")
+
+    @field_validator("mcp_auth_issuer", "mcp_auth_audience")
+    @classmethod
+    def strip_mcp_auth_claim(cls, v: str | None) -> str | None:
+        """Remove surrounding whitespace; a blank value means not set.
+
+        A token's claim is compared against the setting as held, so a trailing
+        newline from a secrets file failed every token (#281).
+        """
+        if v is None or v.strip() == "":
+            return None
+        return v.strip()
+
+    @field_validator("mcp_auth_public_key", mode="before")
+    @classmethod
+    def read_public_key_newlines(cls, v: object) -> object:
+        """Blank means not set; a literal ``\\n`` is a line break.
+
+        A one-line PEM with ``\\n`` written out is what ``.env.example`` shows
+        and what a shell export of such a line produces, and a PEM cannot
+        legitimately contain the two characters (#287).
+        """
+        if isinstance(v, SecretStr):
+            v = v.get_secret_value()
+        if v is None or not isinstance(v, str) or v.strip() == "":
+            return None
+        return v.strip().replace("\\n", "\n")
+
+    @field_validator("mcp_auth_base_url")
+    @classmethod
+    def validate_mcp_auth_base_url(cls, v: str | None) -> str | None:
+        """Validate the optional public URL of this server.
+
+        Checked as the issuer is: fastmcp builds an ``AnyHttpUrl`` from it at
+        import, so a value pydantic refuses must be refused here, by name,
+        rather than exit the server with a traceback (#319).
+        """
+        if v is None or v.strip() == "":
+            return None
+        value = v.strip()
+        reason = _why_not_an_http_url(value)
+        if reason:
+            raise ValueError(f"MCP auth base URL {value!r} is refused: {reason}")
+        return value.rstrip("/")
 
     @field_validator("mcp_auth_required_scopes")
     @classmethod
@@ -317,19 +545,18 @@ class Settings(BaseSettings):
         return host
 
     @property
-    def mitigations_url(self) -> str:
-        """Get the full URL for mitigations directory."""
-        return f"{self.base_url}/_mitigations"
+    def repo_target(self) -> RepoTarget:
+        """Repository coordinates derived from base_url.
 
-    @property
-    def risks_url(self) -> str:
-        """Get the full URL for risks directory."""
-        return f"{self.base_url}/_risks"
+        Every outbound content target - GitHub API URLs, discovery listings and
+        raw downloads - is built from this one value, so the API and raw paths
+        cannot point at different repositories.
 
-    @property
-    def frameworks_url(self) -> str:
-        """Get the full URL for frameworks directory."""
-        return f"{self.base_url}/_data"
+        Raises:
+            ValueError: If base_url cannot address a repository. validate_startup
+                surfaces this as a configuration error.
+        """
+        return resolve_repo_target(self.base_url)
 
     @property
     def mcp_auth_scopes_list(self) -> list[str]:
@@ -343,23 +570,55 @@ class Settings(BaseSettings):
         ]
 
     @property
-    def logging_config(self) -> dict[str, str | int | None]:
-        """Get logging configuration dictionary."""
-        return {
-            "level": getattr(logging, self.log_level),
-            "format": (
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                if self.debug_mode
-                else "%(name)s - %(levelname)s - %(message)s"
-            ),
-            "datefmt": "%Y-%m-%d %H:%M:%S" if self.debug_mode else None,
-        }
+    def dos_trusted_proxy_entries(self) -> list[str]:
+        """Return the configured trusted-proxy CIDRs as raw, stripped strings."""
+        if not self.dos_trusted_proxies:
+            return []
+        return [
+            entry.strip()
+            for entry in self.dos_trusted_proxies.split(",")
+            if entry.strip()
+        ]
+
+    @functools.cached_property
+    def dos_trusted_proxy_networks(
+        self,
+    ) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """Return trusted-proxy CIDRs as parsed networks.
+
+        Parsed once and cached because this is consulted on every tool call.
+        Unparseable entries are skipped here rather than raising; validate_startup
+        rejects them outright, so a running server never holds a partly-parsed
+        allowlist without having said so at startup.
+        """
+        networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+        for entry in self.dos_trusted_proxy_entries:
+            try:
+                networks.append(ipaddress.ip_network(entry, strict=False))
+            except ValueError:
+                continue
+        return networks
+
+    @property
+    def _log_format(self) -> str:
+        """Log record format string for the current mode."""
+        return (
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            if self.debug_mode
+            else "%(name)s - %(levelname)s - %(message)s"
+        )
 
     def configure_logging(self) -> None:
         """Configure Python logging based on settings."""
-        # Use mypy type ignore for basicConfig due to dynamic configuration
-        logging_config = self.logging_config
-        logging.basicConfig(**logging_config)  # type: ignore[arg-type]
+        # Pass arguments explicitly. basicConfig is an overloaded stub, and
+        # splatting a heterogeneous dict into it does not type-check; the
+        # suppression that needed broke whenever mypy changed which error
+        # code it reported.
+        logging.basicConfig(
+            level=self.log_level,
+            format=self._log_format,
+            datefmt="%Y-%m-%d %H:%M:%S" if self.debug_mode else None,
+        )
 
         if self.debug_mode:
             # Enable debug logging for httpx in debug mode
@@ -374,51 +633,41 @@ class Settings(BaseSettings):
         """
         errors = []
 
-        # Test network connectivity (basic validation)
+        # Bounds on one field (a port range, a cache size, a timeout floor)
+        # are declared on the field and enforced by pydantic before this
+        # runs; checks that repeated them here could not fail (#325). What
+        # follows is what pydantic cannot state: a relation between fields.
+
+        # base_url is the only repository setting, so it has to be resolvable
+        # into owner/repo/ref here rather than failing on the first fetch.
         try:
-            parsed = urlparse(self.base_url)
-            if not parsed.netloc:
-                errors.append("Invalid base_url: missing domain")
-        except (ValueError, TypeError, AttributeError) as e:
+            _ = self.repo_target
+        except ValueError as e:
             errors.append(f"Invalid base_url: {e}")
 
-        # Validate cache settings make sense
-        if self.cache_max_size <= 0:
-            errors.append("cache_max_size must be positive")
-
-        if self.http_timeout <= 0:
-            errors.append("http_timeout must be positive")
-
-        # Additional security-focused validations
-        if self.cache_max_size > 100000:
-            errors.append("cache_max_size too large (potential memory exhaustion)")
-
-        if self.cache_ttl_seconds > 604800:  # 7 days
-            errors.append("cache_ttl_seconds too large (potential stale data)")
-
-        if self.github_api_timeout < 5:
-            errors.append("github_api_timeout too small (minimum 5 seconds)")
-
-        # Cache secret is required for HMAC integrity; validate at startup so
-        # operators discover misconfigurations immediately rather than on first
-        # cache operation.
-        if not self.cache_secret:
-            errors.append(
-                "FINOS_MCP_CACHE_SECRET is required. "
-                "Generate with: python -c 'import secrets; print(secrets.token_hex(32))'"
-            )
-        elif len(self.cache_secret) < 32:
-            errors.append(
-                "FINOS_MCP_CACHE_SECRET must be at least 32 characters. "
-                f"Current length: {len(self.cache_secret)}"
-            )
-
         if self.mcp_transport != "stdio":
-            if not self.mcp_host:
-                errors.append("mcp_host is required when mcp_transport is not stdio")
-            if self.mcp_port < 1 or self.mcp_port > 65535:
+            # Fail closed: a networked transport without authentication serves
+            # every tool and prompt to anyone who can reach the port. stdio is
+            # exempt because it has no network boundary to authenticate.
+            if not self.mcp_auth_enabled and not self.allow_insecure_http:
                 errors.append(
-                    "mcp_port must be between 1 and 65535 for non-stdio transports"
+                    f"mcp_transport={self.mcp_transport} exposes a network endpoint, "
+                    "so FINOS_MCP_MCP_AUTH_ENABLED=true is required. "
+                    "For local development only, set "
+                    "FINOS_MCP_ALLOW_INSECURE_HTTP=true to override."
+                )
+            # The published metadata tells clients where to present bearer
+            # tokens. A plain-http address there sends them unencrypted (#323).
+            if (
+                self.mcp_auth_base_url
+                and urlparse(self.mcp_auth_base_url).scheme == "http"
+                and not self.allow_insecure_http
+            ):
+                errors.append(
+                    f"mcp_auth_base_url {self.mcp_auth_base_url} is plain http: "
+                    "clients would be told to present bearer tokens to an "
+                    "unencrypted address. Use https, or for local development "
+                    "only set FINOS_MCP_ALLOW_INSECURE_HTTP=true."
                 )
 
         if self.mcp_auth_enabled:
@@ -435,6 +684,63 @@ class Settings(BaseSettings):
             if self.mcp_auth_jwks_uri and self.mcp_auth_public_key:
                 errors.append(
                     "Configure only one of mcp_auth_jwks_uri or mcp_auth_public_key (not both)"
+                )
+            if self.mcp_auth_public_key:
+                reason = _public_key_cannot_verify(
+                    self.mcp_auth_public_key.get_secret_value()
+                )
+                if reason:
+                    errors.append(
+                        f"mcp_auth_public_key cannot verify tokens: {reason}. "
+                        "Every token would be rejected at runtime."
+                    )
+            if self.mcp_auth_jwks_uri and not self.allow_insecure_jwks_uri:
+                reason = _jwks_uri_blocked_by_ssrf_guard(self.mcp_auth_jwks_uri)
+                if reason:
+                    errors.append(
+                        f"mcp_auth_jwks_uri {self.mcp_auth_jwks_uri} can never be "
+                        f"fetched: {reason}. Every token would be rejected at "
+                        "runtime. Use a public HTTPS JWKS endpoint, or set "
+                        "FINOS_MCP_ALLOW_INSECURE_JWKS_URI=true if the identity "
+                        "provider really is an internal service."
+                    )
+            # The published document names the issuer as the authorization
+            # server, and a client goes to that address to sign in. An ``iss``
+            # claim may be any string; an authorization server must be a URL
+            # with a host. Without one the document cannot be built, or names
+            # an address other than the one configured (#259).
+            if (
+                self.mcp_auth_base_url
+                and self.mcp_auth_issuer
+                and self.mcp_transport != "stdio"
+            ):
+                reason = _why_not_an_http_url(self.mcp_auth_issuer)
+                if reason:
+                    errors.append(
+                        f"mcp_auth_issuer {self.mcp_auth_issuer} cannot be "
+                        f"published as the authorization server: {reason}. "
+                        "Unset FINOS_MCP_MCP_AUTH_BASE_URL to run without "
+                        "sign-in discovery."
+                    )
+
+        # A trusted-proxy entry is permission to believe an X-Forwarded-For header,
+        # which decides whose rate-limit bucket a request lands in. Both failure
+        # modes below would let a caller choose their own bucket, so reject at
+        # startup rather than degrade silently.
+        for entry in self.dos_trusted_proxy_entries:
+            try:
+                network = ipaddress.ip_network(entry, strict=False)
+            except ValueError:
+                errors.append(
+                    f"dos_trusted_proxies entry {entry!r} is not a valid CIDR or IP address"
+                )
+                continue
+            if network.prefixlen == 0:
+                errors.append(
+                    f"dos_trusted_proxies entry {entry!r} matches every address, which "
+                    "would trust X-Forwarded-For from any caller. List the specific "
+                    "proxy ranges, or unset FINOS_MCP_DOS_TRUSTED_PROXIES to ignore "
+                    "the header entirely."
                 )
 
         if errors:
@@ -475,6 +781,15 @@ class SettingsManager:
                 self._settings.configure_logging()
             except (ValueError, TypeError, OSError, ImportError) as e:
                 raise ValueError(f"Failed to load configuration: {e}") from e
+            # Said once logging is configured, so it is seen. A deployer who
+            # relied on the working directory's .env before #283 would
+            # otherwise start on defaults with nothing to say why.
+            if ENV_FILE_VARIABLE not in os.environ and Path(".env").is_file():
+                logging.getLogger("finos-ai-governance-mcp").warning(
+                    "A .env file is in the working directory and is not read; "
+                    "set %s to the file the server should read",
+                    ENV_FILE_VARIABLE,
+                )
 
         return self._settings
 
@@ -513,10 +828,36 @@ def validate_settings_on_startup() -> Settings:
 
     """
     try:
-        app_settings = get_settings(reload=True)
-        logger = logging.getLogger("finos-ai-governance-mcp")
+        # The one place the settings are built on a start (#300): nothing
+        # reads them at import, so there is nothing to reload.
+        app_settings = get_settings()
+        # Imported here, not at the top: finos_mcp.logging imports this module
+        # for the settings, and the level can only be applied once they exist.
+        from .logging import setup_structured_logging
+
+        logger = setup_structured_logging()
         logger.info("Configuration loaded successfully")
         logger.debug("Base URL: %s", app_settings.base_url)
+        # State the resolved coordinates plainly: base_url is the only place a
+        # fork, branch or mirror is selected, and a ref containing a slash is
+        # ambiguous in a raw URL. Logging what was resolved makes a wrong guess
+        # visible instead of silent.
+        target = app_settings.repo_target
+        if target.github_api_available:
+            logger.info(
+                "Content repository: %s/%s at ref %s (path prefix %r)",
+                target.owner,
+                target.repo,
+                target.ref,
+                target.path_prefix,
+            )
+        else:
+            logger.warning(
+                "Content base_url host %s is not raw.githubusercontent.com, so the "
+                "GitHub API is unavailable for it: documents are fetched over raw "
+                "URLs only and discovery uses the static fallback lists.",
+                urlparse(target.raw_base_url).hostname,
+            )
         logger.debug("HTTP timeout: %ss", app_settings.http_timeout)
         logger.debug("Cache enabled: %s", app_settings.enable_cache)
         logger.info("MCP transport: %s", app_settings.mcp_transport)
@@ -524,7 +865,35 @@ def validate_settings_on_startup() -> Settings:
             logger.info(
                 "MCP bind address: %s:%s", app_settings.mcp_host, app_settings.mcp_port
             )
+            # An unauthenticated networked transport is logged as an ERROR by
+            # app._build_auth_provider, the one place that knows whether auth
+            # is on; a line here read the override alone and wrote
+            # "authentication disabled" while auth was on (#332).
+            # Which identity the rate limiter keys on is not obvious from the
+            # config alone, so state the resolved answer where an operator will
+            # see it. DEBUG logs the key chosen per request for verification.
+            logger.info(
+                "DoS rate-limit keying: %s; trusted proxies: %s",
+                "JWT subject, falling back to client address"
+                if app_settings.mcp_auth_enabled
+                else "client address",
+                app_settings.dos_trusted_proxy_entries
+                or "none (X-Forwarded-For ignored)",
+            )
         logger.info("MCP auth enabled: %s", app_settings.mcp_auth_enabled)
+        if (
+            app_settings.mcp_auth_enabled
+            and app_settings.mcp_transport != "stdio"
+            and not _is_loopback(app_settings.mcp_host)
+        ):
+            # Not refused: a container needs the bind. Said once, at WARNING,
+            # because the server cannot see what is in front of the port (#323).
+            logger.warning(
+                "MCP auth is on and the server binds %s, not loopback: bearer "
+                "tokens reach this port over plain HTTP unless the platform "
+                "terminates TLS in front of it",
+                app_settings.mcp_host,
+            )
         if app_settings.mcp_auth_enabled:
             logger.info(
                 "MCP auth issuer configured: %s", bool(app_settings.mcp_auth_issuer)
@@ -553,11 +922,8 @@ def validate_settings_on_startup() -> Settings:
         # Print to stderr since logging might not be configured yet
         print(f"❌ Configuration Error: {e}", file=__import__("sys").stderr)
         print(
-            "\n💡 Check your environment variables or .env file configuration.",
-            file=__import__("sys").stderr,
-        )
-        print(
-            "   Run with FINOS_MCP_DEBUG_MODE=true for more details.",
+            "\n💡 Check your environment variables, or the file "
+            f"{ENV_FILE_VARIABLE} names.",
             file=__import__("sys").stderr,
         )
         raise SystemExit(1) from e

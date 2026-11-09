@@ -1,6 +1,9 @@
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
 """Content service orchestrator with error boundaries for FINOS MCP Server.
 
-Copyright 2024 Hugo Calderon
+Copyright 2025 FINOS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,31 +29,27 @@ and circuit breaker patterns to ensure system resilience.
 """
 
 import asyncio
-import base64
 import time
 import traceback
 from dataclasses import dataclass
 from enum import Enum
+from types import TracebackType
 from typing import Any, Optional
 from urllib.parse import urljoin
 
 from ..config import get_settings
-from ..error_boundary import CircuitBreaker, error_boundary, with_retry
+from ..error_boundary import CircuitBreaker, error_boundary
 from ..exceptions import (
     CacheError,
-    CircuitBreakerError,
     ContentLoadingError,
     ContentValidationError,
+    GitHubRateLimitError,
     HTTPClientError,
-    MCPServerError,
 )
-from ..health import get_health_monitor
 from ..logging import get_logger, set_correlation_id
-from ..security.content_filter import content_security_validator
 from .cache import TTLCache, close_cache, get_cache
-
-# Updated imports for new error handling
 from .fetch import HTTPClient, close_http_client, get_http_client
+from .github_api import DIRECTORIES, retry_after_if_rate_limited
 from .parse import get_parser_stats, parse_frontmatter
 
 logger = get_logger("content_service")
@@ -70,9 +69,7 @@ class OperationResult(Enum):
 
     SUCCESS = "success"
     CACHE_HIT = "cache_hit"
-    FALLBACK = "fallback"
     FAILURE = "failure"
-    CIRCUIT_OPEN = "circuit_open"
 
 
 @dataclass  # pylint: disable=too-many-instance-attributes
@@ -119,34 +116,67 @@ class OperationContext:
     cache_enabled: bool = True
     ttl_override: float | None = None
 
+    # Seconds the content host asked us to wait, when the fetch was throttled.
+    # Recorded so get_document can tell the caller "GitHub is throttling us,
+    # retry in N seconds" apart from "this document does not exist", which
+    # used to be the identical string "Failed to load content for X".
+    #
+    # This lives on the per-request context, not on the service, because
+    # documents are fetched concurrently: service-level state would report one
+    # request's failure against another's result.
+    retry_after: int | None = None
 
-# Custom ErrorBoundary class removed - using standardized error handling
+
+def _rate_limit_retry_after(exc: BaseException) -> int | None:
+    """Walk an exception chain for a throttled HTTP response.
+
+    The raw route's 429 surfaces as an httpx.HTTPStatusError raised deep in
+    the fetch stack and is re-wrapped as ContentLoadingError on the way out,
+    so the status is only reachable through __cause__/__context__. The rule
+    that reads the answer is github_api's, the same one the API route uses.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        response = getattr(current, "response", None)
+        if response is not None:
+            delay = retry_after_if_rate_limited(
+                getattr(response, "status_code", None),
+                getattr(response, "headers", None),
+            )
+            if delay is not None:
+                return delay
+        current = current.__cause__ or current.__context__
+    return None
 
 
 class ContentService:  # pylint: disable=too-many-instance-attributes
     """Content service orchestrator with error boundaries and health monitoring.
 
-    Coordinates HTTP fetching, frontmatter parsing, and caching operations
-    while providing resilience through error boundaries and circuit breakers.
+    Coordinates HTTP fetching, frontmatter parsing, and caching operations.
+    The one circuit breaker a fetch passes is the HTTP client's, per host
+    (#307); this class reads it for its health reports.
     """
 
-    def __init__(self) -> None:
-        """Initialize content service."""
+    def __init__(
+        self,
+        http_client: HTTPClient | None = None,
+        cache: TTLCache[str, Any] | None = None,
+    ) -> None:
+        """Initialize content service.
+
+        Args:
+            http_client: The client to fetch with. None means the shared one,
+                asked of its manager on each use and never copied here (#313):
+                the managers rebind across loops, and a copy did not.
+            cache: The cache to serve from, likewise.
+        """
         self.settings = get_settings()
         self.logger = get_logger("content_service")
 
         # Service start time for uptime calculation
         self.start_time = time.time()
-
-        # Circuit breakers for service resilience
-        self.fetch_circuit_breaker = CircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=60,
-            expected_exception=MCPServerError,
-        )
-        self.cache_circuit_breaker = CircuitBreaker(
-            failure_threshold=3, recovery_timeout=30, expected_exception=CacheError
-        )
 
         # Operation statistics
         self.total_requests = 0
@@ -154,161 +184,47 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         self.failed_requests = 0
         self.circuit_breaker_trips = 0
 
-        # Component references (lazy initialization)
-        self._http_client: HTTPClient | None = None
-        self._cache: TTLCache[str, Any] | None = None
-
-        # Priority files for reference
-        self._priority_files = [
-            "mi-1_ai-data-leakage-prevention-and-detection.md",
-            "mi-2_data-filtering-from-external-knowledge-bases.md",
-            "mi-4_ai-system-observability.md",
-            "ri-1_adversarial-behavior-against-ai-systems.md",
-            "ri-2_prompt-injection.md",
-            "ri-3_training-data-poisoning.md",
-        ]
+        self._http_client = http_client
+        self._cache = cache
 
         self.logger.info("Content service initialized")
 
-    async def start(self) -> None:
-        """Start the content service.
-
-        No background tasks needed for simple MCP server operation.
-        """
-        self.logger.debug("Content service started (no background tasks)")
-
-    async def shutdown(self) -> None:
-        """Shutdown the content service and cleanup resources."""
-        await self.close()
-
     async def _get_http_client(self) -> HTTPClient:
-        """Get HTTP client with lazy initialization."""
-        if self._http_client is None:
-            self._http_client = await get_http_client(self.settings)
-        return self._http_client
+        """The client given to the constructor, else the shared one, asked now."""
+        return self._http_client or await get_http_client()
 
     async def _get_cache(self) -> TTLCache[str, Any]:
-        """Get cache with lazy initialization."""
-        if self._cache is None:
-            self._cache = await get_cache()
-        return self._cache
+        """The cache given to the constructor, else the shared one, asked now."""
+        return self._cache or await get_cache()
 
-    # All cache warming methods removed - over-engineered for MCP usage patterns
-
-    async def _fetch_github_api_content(
-        self, repo_path: str, context: OperationContext
-    ) -> str | None:
-        """Fetch content via GitHub API (base64 encoded) instead of raw.githubusercontent.com.
-
-        This approach has higher rate limits (5000/hour with token, 60/hour without)
-        compared to raw.githubusercontent.com (strict 60/hour limit).
-
-        Args:
-            repo_path: Path within repository (e.g., "docs/_data/owasp-llm.yml")
-            context: Operation context
-
-        Returns:
-            Decoded content string or None if failed
-        """
-        # Construct GitHub API content URL
-        api_url = f"https://api.github.com/repos/finos/ai-governance-framework/contents/{repo_path}"
-
+    async def content_host_breaker(self) -> CircuitBreaker:
+        """The HTTP client's breaker for the host documents come from."""
         http_client = await self._get_http_client()
+        return http_client.circuit_breaker(self.settings.base_url)
 
-        try:
-            # Add GitHub token if available for higher rate limits
-            headers = {}
-            if hasattr(self.settings, "github_token") and self.settings.github_token:
-                headers["Authorization"] = f"token {self.settings.github_token}"
-                headers["Accept"] = "application/vnd.github.v3+json"
-
-            response = await http_client.get(api_url, headers=headers)
-            data = response.json()
-
-            # GitHub API returns base64-encoded content
-            if "content" in data and data.get("encoding") == "base64":
-                # Decode base64 content
-                content_base64 = data["content"].replace("\n", "")  # Remove newlines
-                content_bytes = base64.b64decode(content_base64)
-                content = content_bytes.decode("utf-8")
-
-                # Security validation for fetched content.
-                if not content_security_validator.validate_content_size(content):
-                    raise ContentValidationError(
-                        "content_too_large", "GitHub API content exceeds safety limits"
-                    )
-                if not content_security_validator.validate_content_safety(content):
-                    raise ContentValidationError(
-                        "unsafe_content", "GitHub API content failed safety validation"
-                    )
-
-                self.logger.debug(
-                    "Content fetched via GitHub API: %s characters",
-                    len(content),
-                    extra={
-                        "operation_id": context.operation_id,
-                        "api_url": api_url,
-                        "content_length": len(content),
-                        "encoding": data.get("encoding"),
-                    },
-                )
-
-                return content
-            else:
-                raise ContentValidationError(
-                    "unexpected_format",
-                    f"GitHub API response missing content or unexpected encoding: {data.get('encoding')}",
-                )
-
-        except Exception as e:
-            self.logger.warning(
-                "GitHub API content fetch failed: %s",
-                str(e),
-                extra={
-                    "operation_id": context.operation_id,
-                    "api_url": api_url,
-                    "error_type": type(e).__name__,
-                },
-            )
-            return None
-
-    @with_retry(max_attempts=3, base_delay=1.0)
     async def _fetch_content_with_boundary(
         self, url: str, context: OperationContext
     ) -> str | None:
-        """Fetch content with error boundary protection and retry logic.
+        """Fetch a document's text, or None when it could not be had.
 
-        Args:
-            url: URL to fetch
-            context: Operation context
-
-        Returns:
-            Fetched content or None if failed
-
-        Raises:
-            ContentLoadingError: If content loading fails after retries
-            HTTPClientError: If HTTP request fails
+        The HTTP client retries a request that got no answer and keeps the
+        breaker for the host; a failure of either kind, a refusal and an
+        unusable body all end here as None, with the reason logged and a
+        throttle recorded on ``context``.
         """
 
-        @self.fetch_circuit_breaker
-        async def _fetch_with_circuit_breaker() -> str:
+        async def _fetch() -> str:
             http_client = await self._get_http_client()
             try:
                 content = await http_client.fetch_text(url)
 
+                # Bounded, not scanned: the HTTP client refuses a body past
+                # the size limit as it arrives (#291), and the consumer is a
+                # model reading Markdown with the trust boundary stated in
+                # SERVER_TRUST_INSTRUCTIONS (#122, #282).
                 if not content.strip():
                     raise ContentValidationError(
                         "empty_content", "Retrieved content is empty"
-                    )
-
-                # Security validation for fetched content.
-                if not content_security_validator.validate_content_size(content):
-                    raise ContentValidationError(
-                        "content_too_large", "Fetched content exceeds safety limits"
-                    )
-                if not content_security_validator.validate_content_safety(content):
-                    raise ContentValidationError(
-                        "unsafe_content", "Fetched content failed safety validation"
                     )
 
                 self.logger.debug(
@@ -339,16 +255,18 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                 operation_name=f"fetch_content_{context.doc_type}",
                 context={"url": url, "operation_id": context.operation_id},
             ):
-                return await _fetch_with_circuit_breaker()
+                return await _fetch()
 
         except Exception as e:
+            context.retry_after = _rate_limit_retry_after(e)
             self.logger.warning(
-                "Content fetch failed after all retries: %s",
+                "Content fetch failed: %s",
                 str(e),
                 extra={
                     "operation_id": context.operation_id,
                     "url": url,
                     "error_type": type(e).__name__,
+                    "retry_after": context.retry_after,
                 },
             )
             return None
@@ -420,7 +338,6 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         if not context.cache_enabled or not self.settings.enable_cache:
             return None
 
-        @self.cache_circuit_breaker
         async def _get_from_cache() -> dict[str, Any] | None:
             try:
                 cache = await self._get_cache()
@@ -488,7 +405,6 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         if not context.cache_enabled or not self.settings.enable_cache:
             return False
 
-        @self.cache_circuit_breaker
         async def _set_to_cache() -> bool:
             try:
                 cache = await self._get_cache()
@@ -555,18 +471,10 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         if correlation_id is None:
             correlation_id = set_correlation_id()
 
-        # Map document types to repository paths
-        if doc_type == "mitigation":
-            base_url = self.settings.mitigations_url
-            repo_path = f"docs/_mitigations/{filename}"
-        elif doc_type == "risk":
-            base_url = self.settings.risks_url
-            repo_path = f"docs/_risks/{filename}"
-        elif doc_type == "framework":
-            base_url = self.settings.frameworks_url
-            repo_path = f"docs/_data/{filename}"
-        else:
+        directory = DIRECTORIES.get(doc_type)
+        if directory is None:
             raise ValueError(f"Unknown document type: {doc_type}")
+        base_url = f"{self.settings.base_url}/{directory.subdir}"
 
         # Secure URL construction to prevent path injection
         # Validate filename contains no path traversal attempts
@@ -583,7 +491,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             )
             return None
 
-        # Use urljoin for safe URL construction (fallback URL for raw content)
+        # Use urljoin for safe URL construction
         url = urljoin(base_url.rstrip("/") + "/", filename)
 
         context = OperationContext(
@@ -632,19 +540,13 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
 
                 return cached_data
 
-            # Step 2: Fetch content - try GitHub API first (higher rate limits), fallback to raw URL
-            content = None
-
-            # Try GitHub API first for better rate limits
-            content = await self._fetch_github_api_content(repo_path, context)
-
-            # Fallback to raw.githubusercontent.com if GitHub API fails
-            if not content:
-                self.logger.debug(
-                    "GitHub API fetch failed, trying raw URL fallback",
-                    extra={"operation_id": operation_id},
-                )
-                content = await self._fetch_content_with_boundary(url, context)
+            # Step 2: Fetch the document from the content host, the host
+            # base_url names. That is the one place a body comes from (#312):
+            # the Contents API used to be tried after any raw failure, a 404
+            # and an open breaker included, and each try spent one of the 60
+            # requests an hour discovery depends on. raw.githubusercontent.com
+            # is not counted against that budget at all.
+            content = await self._fetch_content_with_boundary(url, context)
 
             if not content:
                 self.failed_requests += 1
@@ -659,8 +561,21 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                         # Avoid logging full URL to prevent information disclosure
                         "doc_type": doc_type,
                         "document_filename": filename,
+                        "retry_after": context.retry_after,
                     },
                 )
+
+                # Throttled. Returning None here would reach the caller as
+                # "Failed to load content for X" -- indistinguishable from a
+                # document that does not exist, which is what an LLM then
+                # reports to the user. Raise instead, so the tools can say what
+                # actually happened and when to retry.
+                if context.retry_after is not None:
+                    raise GitHubRateLimitError(
+                        f"GitHub is rate limiting content requests; retry in "
+                        f"{context.retry_after} seconds",
+                        retry_after=context.retry_after,
+                    )
 
                 return None
 
@@ -702,37 +617,16 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                 },
             )
 
-            # Record successful request for health monitoring
-            health_monitor = get_health_monitor()
-            health_monitor.record_request(
-                "content_service", success=True, response_time_ms=elapsed_ms
-            )
-
             return doc_data
 
-        except CircuitBreakerError as e:
-            self.circuit_breaker_trips += 1
+        except ContentValidationError:
+            # A parse failure is raised on to the caller, as before, but
+            # counted: it escaped this method without touching failed_requests
+            # (#366).
             self.failed_requests += 1
-
-            self.logger.warning(
-                "Circuit breaker open for document: %s/%s",
-                doc_type,
-                filename,
-                extra={
-                    "operation_id": operation_id,
-                    "result": OperationResult.CIRCUIT_OPEN.value,
-                    "error": str(e),
-                },
-            )
-
-            # Record failed request for health monitoring
-            health_monitor = get_health_monitor()
-            health_monitor.record_request("content_service", success=False)
-
-            return None
-
+            raise
         except (
-            asyncio.TimeoutError,
+            TimeoutError,
             RuntimeError,
             ValueError,
             TypeError,
@@ -759,10 +653,6 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
                 },
             )
 
-            # Record failed request for health monitoring
-            health_monitor = get_health_monitor()
-            health_monitor.record_request("content_service", success=False)
-
             return None
 
     async def get_health_status(self) -> ServiceHealth:
@@ -781,10 +671,7 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         try:
             if self.settings.enable_cache:
                 cache = await self._get_cache()
-                cache_stats = await cache.get_stats()
-                cache_total = cache_stats.hits + cache_stats.misses
-                if cache_total > 0:
-                    cache_hit_rate = cache_stats.hits / cache_total
+                cache_hit_rate = (await cache.get_stats()).hit_rate
         except (RuntimeError, ValueError, KeyError, AttributeError) as e:
             self.logger.warning("Failed to get cache stats for health check: %s", e)
 
@@ -800,30 +687,17 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         else:
             status = ServiceStatus.CRITICAL
 
-        # Get circuit breaker status
+        # The content host's breaker: its count of failures in a row, and when
+        # the last one was.
         last_error = None
         last_error_time = None
         circuit_breaker_trips = 0
 
-        # Check fetch circuit breaker
-        if self.fetch_circuit_breaker.last_failure_time:
-            circuit_breaker_trips += self.fetch_circuit_breaker.failure_count
-            if (
-                last_error_time is None
-                or self.fetch_circuit_breaker.last_failure_time > last_error_time
-            ):
-                last_error = "fetch: circuit breaker failures"
-                last_error_time = self.fetch_circuit_breaker.last_failure_time
-
-        # Check cache circuit breaker
-        if self.cache_circuit_breaker.last_failure_time:
-            circuit_breaker_trips += self.cache_circuit_breaker.failure_count
-            if (
-                last_error_time is None
-                or self.cache_circuit_breaker.last_failure_time > last_error_time
-            ):
-                last_error = "cache: circuit breaker failures"
-                last_error_time = self.cache_circuit_breaker.last_failure_time
+        breaker = await self.content_host_breaker()
+        if breaker.last_failure_time:
+            circuit_breaker_trips = breaker.failure_count
+            last_error = "fetch: circuit breaker failures"
+            last_error_time = breaker.last_failure_time
 
         self.circuit_breaker_trips = circuit_breaker_trips
 
@@ -849,21 +723,13 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
         """
         health = await self.get_health_status()
 
-        # Get circuit breaker health
+        # The content host's breaker, as the health tool reads it
+        breaker = await self.content_host_breaker()
         boundaries = {
             "fetch": {
-                "status": "open"
-                if self.fetch_circuit_breaker.state == "open"
-                else "closed",
-                "failure_count": self.fetch_circuit_breaker.failure_count,
-                "last_failure_time": self.fetch_circuit_breaker.last_failure_time,
-            },
-            "cache": {
-                "status": "open"
-                if self.cache_circuit_breaker.state == "open"
-                else "closed",
-                "failure_count": self.cache_circuit_breaker.failure_count,
-                "last_failure_time": self.cache_circuit_breaker.last_failure_time,
+                "status": "open" if breaker.state == "open" else "closed",
+                "failure_count": breaker.failure_count,
+                "last_failure_time": breaker.last_failure_time,
             },
         }
 
@@ -884,69 +750,87 @@ class ContentService:  # pylint: disable=too-many-instance-attributes
             "error_boundaries": boundaries,
             "parser_statistics": parser_stats,
             "cache_statistics": cache_stats,
-            # Cache warming statistics removed
             "configuration": {
                 "cache_enabled": self.settings.enable_cache,
                 "cache_max_size": self.settings.cache_max_size,
                 "cache_ttl_seconds": self.settings.cache_ttl_seconds,
                 "http_timeout": self.settings.http_timeout,
                 "debug_mode": self.settings.debug_mode,
-                # Cache warming configuration removed
             },
         }
 
-    # Cache warming stats method removed
-
-    async def reset_health(self) -> None:
-        """Reset service health counters and error boundaries."""
-        # Reset health monitor
-        health_monitor = get_health_monitor()
-        health_monitor.reset_health()
-
-        # Reset service-level counters
-        self.total_requests = 0
-        self.successful_requests = 0
-        self.failed_requests = 0
-        self.circuit_breaker_trips = 0
-        self.start_time = time.time()
-
-        # Reset circuit breakers
-        self.fetch_circuit_breaker.failure_count = 0
-        self.fetch_circuit_breaker.last_failure_time = None
-        self.fetch_circuit_breaker.state = "closed"
-
-        self.cache_circuit_breaker.failure_count = 0
-        self.cache_circuit_breaker.last_failure_time = None
-        self.cache_circuit_breaker.state = "closed"
-
-        # Cache warming stats reset removed
-
-        self.logger.info(
-            "Service health counters and error boundaries reset successfully"
-        )
-
     async def close(self) -> None:
-        """Close service and cleanup resources."""
+        """Close the shared cache and HTTP client; given ones stay their owner's.
+
+        This is where the cache and the HTTP client are actually closed on the
+        server's own path. ``cleanup_resources()`` reaches
+        ``close_content_service()`` first, so by the time it gets to its own
+        ``close_http_client()`` and ``close_cache()`` calls, both singletons are
+        already ``None`` and those two positions do nothing. A component the
+        constructor was given is not closed here: whoever built it closes it.
+
+        These records say the close *returned*, not that anything was closed.
+        Both closers discard their resource and return normally when the loop
+        that created it is dead -- each says so at INFO -- so "Cache closed
+        successfully" landed one line under "Discarding cache without closing
+        it", in the DEBUG transcript someone turns on precisely when hunting a
+        resource that outlived the process.
+
+        Each close keeps its own ``except Exception`` handler, so a failing cache
+        cannot strand the HTTP client behind it -- for values of "failing" that
+        derive from ``Exception``. A ``KeyboardInterrupt`` or ``CancelledError``
+        raised inside the cache close propagates immediately and the HTTP client
+        close is not attempted, leaving its pooled sockets open and no record
+        that it was skipped. That is deliberate rather than overlooked, and it is
+        the same choice ``cleanup_resources()`` makes one layer up for the same
+        reason: a shutdown that is being interrupted is not one to keep grinding
+        through. What the handlers must not do is end there: this
+        method used to log both failures at WARNING and then return normally,
+        which made them invisible to everything above. ``close_content_service()``
+        saw a clean return, ``cleanup_resources()`` appended nothing to its
+        ``errors`` list, and a shutdown in which two resources failed to close
+        ended:
+
+            WARNING content_service  Error closing cache: Event loop is closed
+            WARNING content_service  Error closing HTTP client: Event loop is closed
+            INFO    content_service  Content service shutdown complete
+            INFO    content_service  Global content service closed
+            INFO    fastmcp_main     Resource cleanup completed successfully
+
+        -- measured, on the production composition. Three consecutive
+        clean-close claims after two failures, and no ERROR record anywhere,
+        which is the exact condition #100 exists to remove. So the failures are
+        reported where they happen and then raised together, once every close
+        has been attempted. The success line runs only when there is nothing to
+        raise.
+        """
         self.logger.info("Shutting down content service")
 
-        # Cache warming task cleanup removed
+        failed: list[str] = []
+        first_error: Exception | None = None
 
-        # Close cache if initialized
-        if self._cache:
+        if self._cache is None:
             try:
                 await close_cache()
-                self.logger.debug("Cache closed successfully")
+                self.logger.debug("Cache close returned")
             except Exception as e:
-                self.logger.warning("Error closing cache: %s", e)
+                failed.append("cache")
+                first_error = first_error or e
+                self.logger.warning("Error closing cache: %s", e, exc_info=True)
 
-        # Close HTTP client through manager so singleton state is reset.
-        if self._http_client:
+        if self._http_client is None:
             try:
                 await close_http_client()
-                self._http_client = None
-                self.logger.debug("HTTP client closed successfully")
+                self.logger.debug("HTTP client close returned")
             except Exception as e:
-                self.logger.warning("Error closing HTTP client: %s", e)
+                failed.append("HTTP client")
+                first_error = first_error or e
+                self.logger.warning("Error closing HTTP client: %s", e, exc_info=True)
+
+        if failed:
+            raise RuntimeError(
+                f"content service shutdown failed to close: {', '.join(failed)}"
+            ) from first_error
 
         self.logger.info("Content service shutdown complete")
 
@@ -971,27 +855,59 @@ class ContentServiceManager:
         """
         if self._content_service is None:
             self._content_service = ContentService()
-            await self._content_service.start()
-            logger.info("Global content service initialized and started")
+            logger.info("Global content service initialized")
 
         return self._content_service
 
     async def close_content_service(self) -> None:
-        """Close and cleanup global content service."""
+        """Close and cleanup global content service.
+
+        There is deliberately no ``except`` here. One existed to stop a failing
+        content service from stranding the resources closed after it -- but
+        ``cleanup_resources()`` gives every closer its own handler now, so
+        position 1 raising no longer reaches positions 2 and 3. What the
+        ``except`` still did was hide the failure: nothing propagated, nothing
+        was appended to ``errors``, and the shutdown was signed off as
+        successful while two resources had failed to close. Reporting it at
+        ERROR from here did not help either -- ``ContentService.close()`` caught
+        both of its own awaits, so it could not raise and this handler could not
+        run.
+
+        Letting it propagate puts the report where #100 asked for it: the
+        individual failures at WARNING where they happen, and the summary that
+        names them at ERROR, from the one function that can see every position.
+
+        ``finally`` clears the reference on both paths. The success line runs
+        only on the path that succeeded -- in the ``finally`` it announced a
+        clean close directly beneath the warning saying the close had failed.
+
+        Removing the ``except`` changes one thing beyond shutdown, and it is not
+        reasoned about above: ``ContentServiceManager.__aexit__`` awaits this
+        function, so ``async with ContentServiceManager()`` can now raise from
+        the exit. If the body raised too, the shutdown error is what reaches the
+        caller and the body's exception is demoted to ``__context__``. No call
+        site in ``src/`` uses the context-manager form. Left as is deliberately:
+        giving ``__aexit__`` swallow-and-log semantics is a decision about that
+        context manager, and making it here would restore, one layer out, the
+        exact silence this function was changed to remove.
+        """
         if self._content_service is not None:
             try:
                 await self._content_service.close()
-            except Exception as e:
-                logger.warning("Error during content service shutdown: %s", e)
+                logger.info("Global content service closed")
             finally:
                 self._content_service = None
-                logger.info("Global content service closed")
 
     async def __aenter__(self) -> ContentService:
         """Async context manager entry."""
         return await self.get_content_service()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit with cleanup."""
         await self.close_content_service()
 
@@ -1008,6 +924,15 @@ async def get_content_service() -> ContentService:
 
     """
     return await _content_service_manager.get_content_service()
+
+
+def running_content_service() -> ContentService | None:
+    """Return the global content service if one has been built, else None.
+
+    For a caller that reads the service's state and must not be the reason it
+    exists: ``get_content_service()`` builds and starts one.
+    """
+    return _content_service_manager._content_service
 
 
 async def close_content_service() -> None:

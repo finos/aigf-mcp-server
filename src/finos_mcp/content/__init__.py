@@ -1,3 +1,6 @@
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
 """Content management package for FINOS MCP Server.
 
 This package provides modular content handling including:
@@ -5,14 +8,6 @@ This package provides modular content handling including:
 - Document parsing and validation
 - Caching layer with TTL and eviction
 - Service orchestration
+
+Import the module you need; this package re-exports nothing (#329).
 """
-
-__all__ = ["HTTPClient", "fetch"]
-
-from .fetch import HTTPClient
-
-# Import version from parent package
-try:
-    from .._version import __version__
-except ImportError:
-    __version__ = "unknown"

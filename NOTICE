@@ -2,3 +2,12 @@ AI Governance Framework MCP Server - FINOS
 Copyright 2025 - FINOS info@finos.org
 
 This product includes software developed at the Fintech Open Source Foundation (https://www.finos.org/).
+
+The software is licensed under the Apache License, Version 2.0. See LICENSE.
+
+The governance content accessed through this server is from the FINOS AI
+Governance Framework, by FINOS and contributors:
+https://github.com/finos/ai-governance-framework
+It is licensed under Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+See FINOS-LICENSE.md for the content attribution and license.

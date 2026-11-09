@@ -1,7 +1,7 @@
 name: Bug Report
 description: File a bug report to help us improve
 title: "[Bug]: "
-labels: ["bug", "needs-triage"]
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
@@ -23,10 +23,9 @@ body:
       label: Steps to Reproduce
       description: Steps to reproduce the behavior
       placeholder: |
-        1. Go to '...'
-        2. Click on '....'
-        3. Scroll down to '....'
-        4. See error
+        1. Run command '...'
+        2. Use configuration '...'
+        3. See error
     validations:
       required: true
 
@@ -51,7 +50,7 @@ body:
     attributes:
       label: Version
       description: What version of the MCP server are you running?
-      placeholder: e.g., v1.0.0
+      placeholder: e.g., 1.2.3, or the commit you are running
     validations:
       required: true
 
@@ -79,6 +78,14 @@ body:
       required: true
 
   - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration
+      description: If applicable, share your configuration. Remove any secrets first.
+      render: shell
+      placeholder: FINOS_MCP_LOG_LEVEL=...
+
+  - type: textarea
     id: logs
     attributes:
       label: Relevant Log Output
@@ -96,7 +103,7 @@ body:
     id: terms
     attributes:
       label: Code of Conduct
-      description: By submitting this issue, you agree to follow our Code of Conduct
+      description: By submitting this issue, you agree to follow the [Code of Conduct](https://community.finos.org/docs/governance/code-of-conduct)
       options:
         - label: I agree to follow this project's Code of Conduct
           required: true

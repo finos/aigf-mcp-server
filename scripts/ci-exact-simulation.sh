@@ -57,24 +57,22 @@ echo "📍 Location: $(pwd)"
 # Ensure we're in the right directory
 if [ ! -f "pyproject.toml" ] || [ ! -d "src/finos_mcp" ]; then
     echo "❌ ERROR: Must run from project root directory"
-    echo "Expected: /Users/hugocalderon/SRC/IA-FINOS"
     exit 1
 fi
 
-# Activate virtual environment if not already active
-if [ -z "${VIRTUAL_ENV:-}" ]; then
-    echo "🔄 Activating virtual environment..."
-    if [ -f ".venv/bin/activate" ]; then
-        source .venv/bin/activate
-    else
-        echo "❌ ERROR: Virtual environment not found at .venv/bin/activate"
-        echo "Run: python -m venv .venv && source .venv/bin/activate && pip install -e .[dev,security]"
-        exit 1
-    fi
+# One interpreter, resolved the way every other gate resolves it. This block
+# used to `source .venv/bin/activate` or die -- but ci-local.sh defaults to
+# venv/ and docs/development.md documents venv/, so the script whose entire purpose
+# is CI parity demanded a virtualenv the documented setup never creates. Every
+# phase below then invoked a bare `python`, which does not exist on macOS at
+# all, so on the maintainer's own platform this script could not run a single
+# gate (#56).
+if ! PYTHON_BIN="$(./scripts/project-python.sh --print-interpreter)"; then
+    exit 1
 fi
+export PYTHON_BIN
 
-echo "🐍 Python: $(python --version)"
-echo "📦 Virtual Environment: $VIRTUAL_ENV"
+echo "🐍 Python: $("$PYTHON_BIN" --version) ($PYTHON_BIN)"
 echo "⏰ Started: $(date)"
 echo ""
 
@@ -99,7 +97,7 @@ echo "🛡️ PHASE 1: Bandit Security Scanner (EXACT CI COMMAND)"
 echo "----------------------------------------------------"
 
 echo "Running Bandit security scanner..."
-python -m bandit -c config/security/bandit.yml -r src/ \
+"$PYTHON_BIN" -m bandit -c config/security/bandit.yml -r src/ \
   --format json \
   --output security-reports/bandit-report.json \
   --severity-level low \
@@ -160,7 +158,7 @@ echo "--------------------------------------------------"
 
 echo "Running Pylint code quality analysis..."
 set +e  # Temporarily disable exit on error to capture Pylint exit code
-python -m pylint src/ \
+"$PYTHON_BIN" -m pylint src/ \
   --output-format=json \
   --reports=yes \
   --score=yes > security-reports/pylint-report.json
@@ -229,17 +227,14 @@ echo "🏷️ PHASE 5: MyPy Type Checking (EXACT CI COMMAND) - CRITICAL"
 echo "------------------------------------------------------------"
 
 echo "Running MyPy type checking..."
-echo "COMMAND: python -m mypy src/finos_mcp --show-error-codes --show-error-context --txt-report security-reports/mypy-report --strict-optional --warn-redundant-casts --warn-unused-ignores"
+echo "COMMAND: mypy --show-error-codes --show-error-context --txt-report security-reports/mypy-report"
 echo ""
 
 # THIS IS THE EXACT COMMAND THAT CI RUNS - THE ONE THAT WAS FAILING
-python -m mypy src/finos_mcp \
+"$PYTHON_BIN" -m mypy \
   --show-error-codes \
   --show-error-context \
-  --txt-report security-reports/mypy-report \
-  --strict-optional \
-  --warn-redundant-casts \
-  --warn-unused-ignores
+  --txt-report security-reports/mypy-report
 
 echo "✅ MyPy type checking passed - no type errors found"
 
@@ -254,13 +249,12 @@ echo "Running all tests..."
 if [ -d "tests" ]; then
   # Run tests with less verbose output to avoid truncation
   set +e  # Temporarily disable exit on error for this section
-  python -m pytest tests/ \
+  "$PYTHON_BIN" -m pytest \
     --cov=src/finos_mcp \
     --cov-report=json:coverage-reports/coverage.json \
     --cov-report=xml:coverage-reports/coverage.xml \
     --cov-report=html:coverage-reports/html \
     --junit-xml=coverage-reports/pytest.xml \
-    --cov-fail-under=65 \
     --tb=short \
     --quiet
 
@@ -271,11 +265,11 @@ if [ -d "tests" ]; then
   if [ $PYTEST_EXIT_CODE -eq 0 ]; then
     echo "✅ All tests passed successfully"
 
-    # Extract key metrics from coverage report
-    if [ -f "coverage-reports/coverage.json" ]; then
-      COVERAGE=$(python -c "import json; data=json.load(open('coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}%')" 2>/dev/null || echo "unknown")
-      echo "📊 Test Coverage: $COVERAGE"
-    fi
+    # Coverage is read only by scripts/coverage-summary.sh. A call site that
+    # can obtain the number can enforce a floor with it, which is how a second
+    # floor of 75 came to sit alongside pyproject.toml's 82;
+    # tests/unit/test_ci_config_drift.py forbids the read here.
+    echo "📊 Test Coverage: $(./scripts/coverage-summary.sh coverage-reports/coverage.json)"
   else
     echo "❌ Tests failed with exit code: $PYTEST_EXIT_CODE"
     handle_phase_error "All Tests" $PYTEST_EXIT_CODE
@@ -294,16 +288,12 @@ echo "------------------------------------------------------------"
 echo "Running pip-audit dependency vulnerability scanner..."
 pip freeze > security-reports/requirements.txt
 
-# Install pip-audit (Python Packaging Authority's official tool)
-python -m pip install pip-audit
-
-# Run pip-audit scan - fail on any known vulnerabilities
-# Ignored vulnerabilities (no fix available):
-# - GHSA-7gcm-g887-7qv7: protobuf DoS via JSON recursion (CVE-2026-0994)
-# - GHSA-w8v5-vhqr-4h9v: diskcache vulnerability with no patched release available
-pip-audit --format json --output security-reports/pip-audit-report.json \
-  --ignore-vuln GHSA-7gcm-g887-7qv7 \
-  --ignore-vuln GHSA-w8v5-vhqr-4h9v
+# Run pip-audit scan - fail on any known vulnerabilities.
+# This block previously listed a subset of the flags it actually passed, while
+# claiming to be the EXACT CI COMMAND. Both this script and the workflow now
+# call the same wrapper, so there is no second copy left to fall out of date.
+./scripts/pip-audit-scan.sh \
+  --format json --output security-reports/pip-audit-report.json
 
 # Check for vulnerabilities - handle both old and new pip-audit output formats (EXACT CI LOGIC)
 VULNS=$(jq 'if type == "array" then map(select(.vulns? | length? > 0)) | length elif .dependencies then .dependencies | map(select(.vulns | length > 0)) | length else 0 end' security-reports/pip-audit-report.json)
@@ -330,7 +320,7 @@ echo "-----------------------------------------------"
 echo "Running integration tests..."
 # Test that the MCP server can actually start and respond (EXACT CI CODE)
 # Use python timeout implementation for cross-platform compatibility
-python -c "
+"$PYTHON_BIN" -c "
 import asyncio
 import sys
 import signal
@@ -380,6 +370,54 @@ except TimeoutException as e:
 echo "✅ Integration tests completed successfully"
 
 # =============================================================================
+# PHASE 9: PRE-COMMIT HOOKS (EXACT CI COMMAND)
+# =============================================================================
+echo ""
+echo "🪝 PHASE 9: Pre-commit Hooks (EXACT CI COMMAND)"
+echo "----------------------------------------------"
+
+# Mirrors the `pre-commit` job in .github/workflows/security-analysis.yml.
+# Nothing ran the hooks in CI before that job existed, which is how a semgrep
+# hook that could not start and a detect-secrets hook that always failed both
+# reached main. The hooks that matter most here are the ones with no phase
+# above -- detect-secrets, end-of-file-fixer, check-yaml, check-toml and the
+# Claude-content blockers -- every tool hook is repo: local + language: system
+# and re-runs the same tools the earlier phases already used.
+echo "Running pre-commit hooks..."
+set +e  # Temporarily disable exit on error to capture the pre-commit exit code
+"$PYTHON_BIN" -m pre_commit run --all-files
+PRE_COMMIT_EXIT_CODE=$?
+set -e  # Re-enable exit on error
+
+if [ $PRE_COMMIT_EXIT_CODE -ne 0 ]; then
+  handle_phase_error "Pre-commit Hooks" $PRE_COMMIT_EXIT_CODE
+else
+  echo "✅ Pre-commit hooks passed"
+fi
+
+# =============================================================================
+# PHASE 10: FUNCTIONAL GATE (EXACT CI COMMAND)
+# =============================================================================
+echo ""
+echo "🎯 PHASE 10: Functional Gate (EXACT CI COMMAND)"
+echo "----------------------------------------------"
+
+# Mirrors the functional-gate job in .github/workflows/security-analysis.yml.
+echo "Running the live functional suite..."
+set +e  # Temporarily disable exit on error to capture the exit code
+FINOS_RUN_LIVE_MCP_TEST=1 FINOS_RUN_AUTH_HTTP_TEST=1 "$PYTHON_BIN" -m pytest -q tests/integration/test_live_mcp_server.py tests/integration/test_auth_http_transport.py
+FUNCTIONAL_GATE_EXIT_CODE=$?
+set -e  # Re-enable exit on error
+
+if [ $FUNCTIONAL_GATE_EXIT_CODE -ne 0 ]; then
+  handle_phase_error "Functional Gate" $FUNCTIONAL_GATE_EXIT_CODE
+  echo "  If the failure names 'static_fallback' or 'expired_cache', the cause is the"
+  echo "  unauthenticated GitHub rate limit rather than a code defect."
+else
+  echo "✅ Functional gate passed"
+fi
+
+# =============================================================================
 # FINAL VALIDATION SUMMARY
 # =============================================================================
 echo ""
@@ -397,6 +435,7 @@ if [ $OVERALL_EXIT_CODE -eq 0 ]; then
     echo "  ✅ All Tests (unit/integration)"
     echo "  ✅ pip-audit Dependency Scanner"
     echo "  ✅ Integration Tests (Server Startup)"
+    echo "  ✅ Pre-commit Hooks"
     echo ""
     echo "🚀 This code is ready for CI - all checks will pass"
 else

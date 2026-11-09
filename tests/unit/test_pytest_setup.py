@@ -21,12 +21,8 @@ class TestBasicFunctionality:
         """Test package can be imported."""
         import finos_mcp
 
-        # Test basic import
-        assert hasattr(finos_mcp, "get_version")
-        assert hasattr(finos_mcp, "get_package_info")
-
         # Test version
-        version = finos_mcp.get_version()
+        version = finos_mcp.__version__
         assert isinstance(version, str)
         assert len(version) > 0
 

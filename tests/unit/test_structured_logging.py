@@ -15,9 +15,8 @@ import pytest
 
 from finos_mcp.logging import (
     SecureJSONFormatter,
-    get_correlation_id,
     log_http_request,
-    log_mcp_request,
+    request_id_var,
     set_correlation_id,
     setup_structured_logging,
 )
@@ -88,7 +87,7 @@ class TestSecureJSONFormatter:
             ),
             (
                 "OAuth token gho_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy1234567890abcdef found",  # pragma: allowlist secret
-                "OAuth token [REDACTED_GITHUB_OAUTH_TOKEN] found",
+                "OAuth token [REDACTED_GITHUB_TOKEN] found",
             ),
             (
                 "Personal token: ghp_abcdefghijklmnopqrstuvwxyz1234567890123456789012345",  # pragma: allowlist secret
@@ -201,23 +200,21 @@ class TestCorrelationIds:
     def test_correlation_id_generation(self, clean_env):
         """Test correlation ID generation and retrieval."""
         # Clear any existing correlation ID by setting empty context
-        from finos_mcp.logging import request_id_var
-
         request_id_var.set("")
 
         # Initially no correlation ID (empty string is falsy)
-        assert not get_correlation_id()
+        assert not request_id_var.get()
 
         # Set a specific correlation ID
         correlation_id = set_correlation_id("custom-id-123")
         assert correlation_id == "custom-id-123"
-        assert get_correlation_id() == "custom-id-123"
+        assert request_id_var.get() == "custom-id-123"
 
         # Generate a new one
         new_id = set_correlation_id()
         assert new_id != correlation_id
         assert len(new_id) == 36  # UUID format
-        assert get_correlation_id() == new_id
+        assert request_id_var.get() == new_id
 
     def test_correlation_id_context_isolation(self, clean_env):
         """Test that correlation IDs are properly isolated in context."""
@@ -225,14 +222,14 @@ class TestCorrelationIds:
 
         # Set initial correlation ID
         set_correlation_id("main-context")
-        assert get_correlation_id() == "main-context"
+        assert request_id_var.get() == "main-context"
 
         # Create new context
         ctx = copy_context()
 
         def set_different_id():
             set_correlation_id("different-context")
-            return get_correlation_id()
+            return request_id_var.get()
 
         # Run in different context
         result = ctx.run(set_different_id)
@@ -240,7 +237,7 @@ class TestCorrelationIds:
         # Should be different in the new context
         assert result == "different-context"
         # But unchanged in the original context
-        assert get_correlation_id() == "main-context"
+        assert request_id_var.get() == "main-context"
 
 
 @pytest.mark.unit
@@ -250,7 +247,7 @@ class TestStructuredLogging:
     def test_json_logging_setup(self, clean_env):
         """Test JSON logging setup."""
         # Force JSON logging
-        logger = setup_structured_logging(force_json=True)
+        logger = setup_structured_logging()
 
         # Create a StringIO stream to capture output
         log_stream = StringIO()
@@ -287,7 +284,7 @@ class TestStructuredLogging:
 
     def test_http_request_logging(self, clean_env):
         """Test HTTP request structured logging."""
-        logger = setup_structured_logging(force_json=True)
+        logger = setup_structured_logging()
 
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
             handler = logging.StreamHandler(mock_stdout)
@@ -317,41 +314,6 @@ class TestStructuredLogging:
             assert extra["http_status"] == 200
             assert extra["response_time_ms"] == 125.0
             assert extra["content_type"] == "application/json"
-        else:
-            # If no output captured, just verify the function runs without error
-            assert True
-
-    def test_mcp_request_logging(self, clean_env):
-        """Test MCP request structured logging."""
-        logger = setup_structured_logging(force_json=True)
-
-        with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-            handler = logging.StreamHandler(mock_stdout)
-            handler.setFormatter(SecureJSONFormatter())
-            logger.handlers = [handler]
-
-            log_mcp_request(
-                logger=logger,
-                method="search_mitigations",
-                request_id="req_123",
-                params={"query": "data leakage", "exact_match": False},
-                response_time=0.250,
-            )
-
-            output = mock_stdout.getvalue()
-
-        # Check if we got output, if not just verify the function worked
-        if output.strip():
-            parsed = json.loads(output.strip())
-            assert parsed["level"] == "INFO"
-            assert "MCP search_mitigations" in parsed["message"]
-
-            extra = parsed.get("extra", {})
-            assert extra["event_type"] == "mcp_request"
-            assert extra["mcp_method"] == "search_mitigations"
-            assert extra["mcp_request_id"] == "req_123"
-            assert extra["response_time_ms"] == 250.0
-            assert extra["mcp_params"]["query"] == "data leakage"
         else:
             # If no output captured, just verify the function runs without error
             assert True
@@ -393,7 +355,7 @@ class TestLoggingSecurity:
 
     def test_correlation_id_consistency(self, clean_env):
         """Test that correlation ID remains consistent across log entries."""
-        setup_structured_logging(force_json=True)
+        setup_structured_logging()
         formatter = SecureJSONFormatter()
 
         correlation_id = set_correlation_id("consistency-test-789")

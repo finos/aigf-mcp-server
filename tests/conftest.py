@@ -6,28 +6,21 @@ Provides common fixtures for integration and unit tests.
 
 import asyncio
 import json
-import os
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Any
 
 import pytest
-
-# Ensure mandatory startup config is present before test module collection/imports.
-# Some tests import finos_mcp.fastmcp_server at module scope, which triggers
-# configuration validation before fixtures execute.
-os.environ.setdefault(
-    "FINOS_MCP_CACHE_SECRET",
-    "test_default_cache_secret_for_pytest_collection_32chars",
-)  # pragma: allowlist secret
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 
 @pytest.fixture
-def mcp_server_process() -> Generator[subprocess.Popen, None, None]:
+def mcp_server_process() -> Generator[subprocess.Popen[str], None, None]:
     """Start MCP server process for testing.
 
     Yields:
@@ -121,7 +114,7 @@ def mcp_request_factory():
 @pytest.fixture
 async def mcp_initialized_server(
     mcp_server_process, mcp_initialization_request
-) -> Generator[subprocess.Popen, None, None]:
+) -> AsyncGenerator[subprocess.Popen[str], None]:
     """MCP server that has been initialized.
 
     Sends initialization request and validates response.
@@ -155,7 +148,7 @@ async def mcp_initialized_server(
 
 
 @pytest.fixture
-def mcp_server_direct() -> Generator[subprocess.Popen, None, None]:
+def mcp_server_direct() -> Generator[subprocess.Popen[str], None, None]:
     """Start MCP server via direct module execution for comparison testing.
 
     Yields:
@@ -189,20 +182,6 @@ def mcp_server_direct() -> Generator[subprocess.Popen, None, None]:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
-
-
-# Test fixtures for basic functionality
-@pytest.fixture
-def package_info() -> dict[str, Any]:
-    """Package information fixture."""
-    try:
-        import finos_mcp
-
-        version = finos_mcp.get_version()
-        info = finos_mcp.get_package_info()
-        return {"importable": True, "version": version, **info}
-    except Exception as e:
-        return {"importable": False, "import_error": str(e), "version": "unknown"}
 
 
 @pytest.fixture
@@ -278,7 +257,7 @@ def console_script_runner():
 
 
 @pytest.fixture
-def error_scenarios() -> dict[str, dict[str, Any]]:
+def error_scenarios() -> dict[str, Any]:
     """Error scenario test data."""
     return {
         "invalid_json": '{"jsonrpc": "2.0", "id": 1, "method": "test"',  # Malformed JSON
@@ -298,26 +277,58 @@ def error_scenarios() -> dict[str, dict[str, Any]]:
     }
 
 
-# Automatic test configuration
+# NOTE: an autouse `setup_test_environment` fixture used to live here. It set
+# FINOS_MCP_VALIDATION_MODE=disabled, which read as "the whole suite, including
+# tests/security/, runs with validation switched off". It did not: Settings has
+# no `validation_mode` field, the name appears nowhere in src/, and
+# pydantic-settings only consults the environment per declared field, so the
+# variable was never read. A module-scope setdefault of FINOS_MCP_CACHE_SECRET
+# replaced it, and went with the setting (#302).
+
+
+@pytest.fixture
+def fast_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The HTTP client's retry layer waits for nothing between attempts.
+
+    It still makes every attempt, so a test counts the requests a call costs
+    without the 0.5 to 10 seconds of jittered wait before each repeat.
+    """
+    import tenacity
+
+    from finos_mcp.content.fetch import HTTPClient
+
+    monkeypatch.setattr(HTTPClient._make_request.retry, "wait", tenacity.wait_none())
+
+
 @pytest.fixture(autouse=True)
-def setup_test_environment():
-    """Auto-setup test environment with disabled validation."""
-    import os
+def _no_github_backoff_from_an_earlier_test() -> Generator[None, None, None]:
+    """Each test starts with the GitHub API backoff clear.
 
-    # Set test validation mode for all tests
-    os.environ["FINOS_MCP_VALIDATION_MODE"] = "disabled"
-    # Set default cache secret for tests if not already set
-    cache_secret_set = (
-        "FINOS_MCP_CACHE_SECRET" not in os.environ
-    )  # pragma: allowlist secret
-    if cache_secret_set:
-        os.environ["FINOS_MCP_CACHE_SECRET"] = (
-            "test_default_cache_secret_32chars"  # pragma: allowlist secret
-        )
+    The backoff is one per process (#310): a test that provokes a refusal
+    would otherwise leave every later test's listing and API fetch refused
+    without a request, in a way that depends on the order the tests ran.
+    """
+    from finos_mcp.content import github_api
 
+    github_api.reset_backoff()
     yield
+    github_api.reset_backoff()
 
-    # Cleanup
-    os.environ.pop("FINOS_MCP_VALIDATION_MODE", None)
-    if cache_secret_set:
-        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
+
+@pytest.fixture(scope="session")
+def key_pair() -> tuple[bytes, str]:
+    """An RSA private key and the PEM of its public half (#381).
+
+    One per run: three test modules generated the same 2048-bit key each.
+    """
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    public_pem = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return private_pem, public_pem.decode("utf-8")

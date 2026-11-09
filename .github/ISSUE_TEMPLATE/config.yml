@@ -1,0 +1,4 @@
+# Blank issues stay available: audit findings and chores do not fit a form.
+# No contact link for vulnerability reports: with SECURITY.md tracked the chooser
+# already showed a row for it, and a link here made it two (#171).
+blank_issues_enabled: true

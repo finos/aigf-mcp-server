@@ -3,22 +3,22 @@
 # Code owners are automatically requested for review when someone opens a pull request
 
 # Global owner - all files
-* @hugocalderon
+* @hugo-calderon
 
 # Core source code
-/src/ @hugocalderon
+/src/ @hugo-calderon
 
 # Tests and validation
-/tests/ @hugocalderon
+/tests/ @hugo-calderon
 
 # Documentation
-*.md @hugocalderon
-/docs/ @hugocalderon
+*.md @hugo-calderon
+/docs/ @hugo-calderon
 
 # Configuration files
-pyproject.toml @hugocalderon
-requirements*.txt @hugocalderon
-config/ci/pre-commit-config.yaml @hugocalderon
+pyproject.toml @hugo-calderon
+requirements*.txt @hugo-calderon
+.pre-commit-config.yaml @hugo-calderon
 
 # GitHub configuration
-/.github/ @hugocalderon
+/.github/ @hugo-calderon

@@ -1,40 +1,68 @@
 name: Release
 
+# A pushed tag is the only way to start a release. The workflow could also be
+# started by hand with a `version` input: it then built the branch it was
+# started on, which carried no tag, and created release v0.0.0-ci.2 with files
+# named 0.1.1rc2.dev113 (#252). Rehearse with a throwaway tag such as
+# v0.0.0-rc.1; docs/release-process.md has the commands.
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., v1.0.0)'
-        required: true
-        type: string
 
+# id-token and attestations are what the attestation step in the build job
+# signs and writes with (#272). A job-level permissions block would replace
+# this one, so no job sets its own.
 permissions:
   contents: write
   packages: write
   id-token: write
+  attestations: write
 
 jobs:
   validate:
     name: Validate Release
     runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.tag.outputs.prerelease }}
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: 3.11
         cache: 'pip'
 
+    - name: Check the tag name
+      id: tag
+      # The first command of the run, before the project is installed: the
+      # install derives the version from the tag, so on a name setuptools_scm
+      # cannot parse, such as v0.0.0-ci.3, it stops with a pip traceback that
+      # names no rule (#253). The script needs `packaging` and nothing else.
+      # It also writes whether the version is a prerelease, which the release
+      # job reads (#256).
+      run: |
+        python -m pip install packaging
+        python scripts/check-release-tag.py "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
+
     - name: Install dependencies
       run: |
+        # Every gate resolves its interpreter through scripts/project-python.sh,
+        # which is virtualenv-based and will not fall back to a bare system
+        # interpreter -- that fallback is what let a stale environment become the
+        # audited artefact for six months (#89). Creating the virtualenv here is
+        # what makes a runner resolve the same way a laptop does; without it the
+        # shim has nothing to find. $GITHUB_PATH persists across steps, so later
+        # steps need no `source`, but this step still does.
+        python -m venv venv
+        echo "$PWD/venv/bin" >> "$GITHUB_PATH"
+        # shellcheck source=/dev/null
+        source venv/bin/activate
         python -m pip install --upgrade pip
         pip install -e .[security,dev]
 
@@ -42,11 +70,16 @@ jobs:
       run: |
         bandit -c config/security/bandit.yml -r src/
         ./scripts/semgrep-isolated.sh --config config/security/semgrep.yml src/
-        pylint src/finos_mcp --fail-under=8.0
+        # No --fail-under: the score gate comes from [tool.pylint.main] in
+        # pyproject.toml. This line used to pass 8.0 against a declared 8.5, so
+        # the release gate ran the weakest pylint threshold in the repo. The
+        # target is src/ to match every other call site.
+        pylint src/
 
     - name: Run tests
       run: |
-        pytest tests/ --cov=src/finos_mcp --cov-fail-under=65
+        # testpaths and the coverage floor both come from pyproject.toml.
+        pytest --cov=src/finos_mcp
 
   build:
     name: Build Distribution
@@ -55,12 +88,12 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: 3.11
         cache: 'pip'
@@ -73,8 +106,27 @@ jobs:
     - name: Build distributions
       run: python -m build
 
+    - name: Check the files carry the tag's version
+      # setuptools_scm names the files from git, not from the tag that started
+      # this run. On a commit that carries two tags it picks one itself, so the
+      # file names are the only place the built version can be read (#252).
+      run: python scripts/check-release-tag.py "$GITHUB_REF_NAME" --dist dist
+
+    - name: Attest the built files
+      # A signed statement that this workflow run built each file, stored by
+      # GitHub against the file's digest (#272). A deployer checks a downloaded
+      # file with `gh attestation verify`; docs/release-process.md has the
+      # command. The step reads the files and does not change them, and it
+      # runs between the check and the upload so that what is attested is
+      # what was checked. GitHub makes attestations for a private repository
+      # only on an Enterprise Cloud plan: on a private repository without one
+      # the step fails here and the release is not created.
+      uses: actions/attest-build-provenance@v4
+      with:
+        subject-path: dist/*
+
     - name: Upload distributions
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: distributions
         path: dist/
@@ -87,26 +139,39 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: Download distributions
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: distributions
         path: dist/
 
     - name: Get version
       id: version
+      # The tag name is read from the environment, never interpolated into the
+      # shell with `${{ }}`, and is matched again here although the validate
+      # job has already checked it with scripts/check-release-tag.py: this step
+      # is the one that writes the name to $GITHUB_OUTPUT, and it has no Python
+      # environment to run the script in. The pattern is the script's own;
+      # tests/unit/test_release_workflow.py compares the two.
       run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          echo "tag_name=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-        else
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        set -euo pipefail
+        VERSION="${GITHUB_REF#refs/tags/}"
+
+        # Matched with bash [[ =~ ]], not grep. grep is line-oriented, so
+        # `grep -q` succeeds when ANY line matches -- a value of
+        # $'v0.2.0\nmalicious=1' passes a grep check and still forges a second
+        # $GITHUB_OUTPUT entry. [[ =~ ]] anchors against the whole string.
+        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?$ ]]; then
+          echo "Refusing to release: version is not a vX.Y.Z tag." >&2
+          exit 1
         fi
+
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "tag_name=$VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Generate Release Notes
       id: release_notes
@@ -115,29 +180,37 @@ jobs:
         ## What's Changed
 
         This release includes:
-        - 11 MCP tools for AI governance framework access (list/get/search for frameworks, risks, mitigations + health monitoring)
+        - 9 MCP tools for AI governance framework access (list/get for frameworks, risks and mitigations, framework search, health monitoring)
         - 3 dynamic MCP resource templates with finos:// URI scheme
-        - Security-first development with comprehensive scanning
-        - Enterprise-grade quality controls
+        - 3 MCP prompts for framework, risk and mitigation analysis
         - FastMCP server implementation
 
         ## Installation
 
-        ```bash
-        pip install finos-ai-governance-mcp-server==${{ steps.version.outputs.version }}
-        ```
-
-        ## Docker
+        This project is distributed as source. Clone the repository at this tag
+        and follow the Quick Start in README.md. Requires Python 3.11 or newer.
 
         ```bash
-        docker pull ghcr.io/${{ github.repository_owner }}/finos-ai-governance-mcp-server:${{ steps.version.outputs.version }}
+        git clone --branch ${{ steps.version.outputs.tag_name }} https://github.com/${{ github.repository }}.git aigf-mcp-server
+        cd aigf-mcp-server
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install -e .
         ```
 
-        **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.version }}...HEAD
+        A source distribution and wheel are attached to this release for offline
+        installs. There is no PyPI package and no container image. Each attached
+        file carries a build provenance attestation; verify a downloaded file with:
+
+        ```bash
+        gh attestation verify <file> --repo ${{ github.repository }}
+        ```
+
+        **Changelog**: https://github.com/${{ github.repository }}/blob/${{ steps.version.outputs.tag_name }}/CHANGELOG.md
         EOF
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ steps.version.outputs.tag_name }}
         name: Release ${{ steps.version.outputs.version }}
@@ -146,66 +219,26 @@ jobs:
           dist/*.tar.gz
           dist/*.whl
         draft: false
-        prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+        # The answer of scripts/check-release-tag.py for the version, not a
+        # search of the tag for a hyphen: v1.2.3.rc1 is a release candidate
+        # and has none, v1.2.3-1 is a post-release and has one (#256).
+        # Anything but its `false` gives a prerelease, so an answer lost
+        # between the jobs cannot publish a candidate as the latest release.
+        # The cost is that a full release would then be marked a prerelease
+        # until the mark is cleared by hand.
+        prerelease: ${{ needs.validate.outputs.prerelease != 'false' }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-pypi:
-    name: Publish to PyPI
-    runs-on: ubuntu-latest
-    needs: [validate, build]
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-dev')
-
-    steps:
-    - name: Download distributions
-      uses: actions/download-artifact@v4
-      with:
-        name: distributions
-        path: dist/
-
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
-        skip-existing: true
-
-  build-container:
-    name: Build Container Image
-    runs-on: ubuntu-latest
-    needs: validate
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Get version
-      id: version
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-        else
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Build and push container
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: |
-          ghcr.io/${{ github.repository_owner }}/finos-ai-governance-mcp-server:${{ steps.version.outputs.version }}
-          ghcr.io/${{ github.repository_owner }}/finos-ai-governance-mcp-server:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+# Distribution is source-only: organisations clone this repository and install
+# from it, following the Quick Start in README.md. There is deliberately no
+# published artifact.
+#
+# The `publish-pypi` and `build-container` jobs were removed here. Both fired on
+# every `v*` tag: publish-pypi failed outright (no PYPI_API_TOKEN is configured,
+# and none should be), while build-container pushed an image to ghcr with no
+# `if:` gate at all -- an artifact nobody consumes and no documentation mentions.
+#
+# If a published artifact is ever wanted, restore the job *and* dry-run it
+# against TestPyPI first. A publish path that has never executed is not a
+# working publish path.
