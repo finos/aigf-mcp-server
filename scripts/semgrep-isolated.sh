@@ -4,7 +4,7 @@ set -euo pipefail
 # Run semgrep in an isolated venv to avoid dependency conflicts with app runtime deps.
 # Environment variables:
 #   SEMGREP_VENV   Override venv path (default: .venv-semgrep)
-#   SEMGREP_PYTHON Override python binary used to create venv (default: auto-detect >=3.10)
+#   SEMGREP_PYTHON Override python binary used to create venv (default: auto-detect >=3.11)
 #   SEMGREP_VERSION Override semgrep version (default: 1.149.0)
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,11 +18,11 @@ resolve_semgrep_python() {
     return
   fi
 
-  for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+  for candidate in python3.13 python3.12 python3.11 python3; do
     if command -v "$candidate" >/dev/null 2>&1; then
       if "$candidate" - <<'PY' >/dev/null 2>&1
 import sys
-raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
 PY
       then
         echo "$candidate"
@@ -36,11 +36,17 @@ PY
 
 SEMGREP_PYTHON="$(resolve_semgrep_python)"
 
+# Setup diagnostics go to stderr, so this script's stdout is semgrep's stdout
+# and nothing else -- the same rule scripts/pip-audit-scan.sh documents for
+# itself. Without the redirects, the first run in a fresh checkout prepended the
+# venv-creation banner and all of pip's output to whatever the caller captured.
+# That is invisible locally, where .venv-semgrep already exists and this block
+# is skipped entirely, and shows up only on a cold cache such as CI.
 if [[ ! -x "$SEMGREP_VENV/bin/semgrep" ]]; then
-  echo "Creating isolated semgrep environment at $SEMGREP_VENV"
-  "$SEMGREP_PYTHON" -m venv "$SEMGREP_VENV"
-  "$SEMGREP_VENV/bin/python" -m pip install --upgrade pip
-  "$SEMGREP_VENV/bin/pip" install "semgrep==$SEMGREP_VERSION"
+  echo "Creating isolated semgrep environment at $SEMGREP_VENV" >&2
+  "$SEMGREP_PYTHON" -m venv "$SEMGREP_VENV" >&2
+  "$SEMGREP_VENV/bin/python" -m pip install --upgrade pip >&2
+  "$SEMGREP_VENV/bin/pip" install "semgrep==$SEMGREP_VERSION" >&2
 fi
 
 exec "$SEMGREP_VENV/bin/semgrep" "$@"

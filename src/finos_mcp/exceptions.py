@@ -1,3 +1,6 @@
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Standardized exception types for the FINOS MCP server.
 
@@ -6,6 +9,7 @@ exception handling throughout the codebase. Each exception type includes
 proper context, error codes, and recovery guidance.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 
@@ -57,6 +61,86 @@ class ContentNotFoundError(ContentError):
         )
 
 
+class UnknownDocumentError(ContentNotFoundError):
+    """No document of this kind has the id the caller asked for.
+
+    Raised by ``get_risk``, ``get_mitigation`` and ``get_framework`` rather
+    than returned as a record: a "not found" sentence in a successful result
+    arrives in the field a caller reads as the document (#193). The message is
+    what the client is shown, so it names the listing tool that holds the
+    valid ids.
+
+    A short id two documents share names no one document either (#349);
+    ``candidates`` holds their full ids, and the message names them.
+    """
+
+    def __init__(
+        self,
+        resource_id: str,
+        resource_type: str,
+        listing_tool: str,
+        candidates: Sequence[str] = (),
+    ):
+        super().__init__(resource_id, resource_type)
+        if candidates:
+            self.message = (
+                f"The id '{resource_id}' names more than one {resource_type}: "
+                f"{', '.join(candidates)}. Ask for one by its full id."
+            )
+        else:
+            self.message = (
+                f"No {resource_type} has the id '{resource_id}'. "
+                f"Call {listing_tool} for the valid ids."
+            )
+        self.args = (self.message,)
+        self.context["listing_tool"] = listing_tool
+
+
+class DocumentUnavailableError(ContentError):
+    """A document that exists could not be served.
+
+    Raised by ``get_risk``, ``get_mitigation`` and ``get_framework`` rather
+    than returned as a record, for the reason ``UnknownDocumentError`` is: a
+    sentence saying so in a successful result arrives in the field a caller
+    reads as the document (#216). The message is what the client is shown. It
+    names the document and one of the three things that can have happened,
+    and nothing of the exception underneath.
+    """
+
+    #: The fetch returned nothing, or failed in a way nobody planned for.
+    NOT_LOADED = "could not be loaded. Retry later."
+    #: The document was fetched and is over the size this server returns.
+    TOO_LARGE = "is too large for this server to return."
+    #: The document was fetched and has no body.
+    EMPTY = "has no content."
+
+    def __init__(self, resource_id: str, resource_type: str, reason: str):
+        super().__init__(
+            message=f"The {resource_type} '{resource_id}' {reason}",
+            error_code="DOCUMENT_UNAVAILABLE",
+            context={"resource_id": resource_id, "resource_type": resource_type},
+            recoverable=reason == self.NOT_LOADED,
+        )
+
+
+class SearchFailedError(MCPServerError):
+    """``search_frameworks`` has no answer to give.
+
+    Raised rather than returned as an empty result: ``total_found: 0`` says
+    that no framework has the phrase, and a caller reports that as a fact
+    (#224). The message is what the client is shown, and is one of the two
+    sentences below. Nothing of the exception underneath is in it.
+    """
+
+    #: Every framework was skipped as unservable, so none was searched.
+    NOTHING_READ = "No framework could be read, so nothing was searched. Retry later."
+    #: The search stopped on something nobody planned for.
+    UNEXPECTED = "The search failed before it finished. Retry later."
+
+    def __init__(self, reason: str):
+        super().__init__(message=reason, error_code="SEARCH_FAILED", recoverable=True)
+
+
 class ContentLoadingError(ContentError):
     """Content loading failed due to external service issues."""
 
@@ -91,84 +175,75 @@ class ContentValidationError(ContentError):
         )
 
 
-class SecurityError(MCPServerError):
-    """Base class for security-related errors."""
-
-    def __init__(
-        self, message: str, error_code: str, context: dict[str, Any] | None = None
-    ):
-        super().__init__(
-            message=message,
-            error_code=error_code,
-            context=context,
-            recoverable=False,  # Security errors are generally not recoverable
-        )
-
-
-class ContentSecurityError(SecurityError):
-    """Content failed security validation."""
-
-    def __init__(self, reason: str, content_type: str = "content"):
-        super().__init__(
-            message=f"Content security validation failed: {reason}",
-            error_code="CONTENT_SECURITY_VIOLATION",
-            context={"reason": reason, "content_type": content_type},
-        )
-
-
-class RequestTooLargeError(SecurityError):
-    """Request exceeds size limits."""
-
-    def __init__(self, actual_size: int, max_size: int, request_type: str = "request"):
-        super().__init__(
-            message=f"{request_type.title()} size {actual_size} exceeds limit {max_size}",
-            error_code="REQUEST_TOO_LARGE",
-            context={
-                "actual_size": actual_size,
-                "max_size": max_size,
-                "request_type": request_type,
-            },
-        )
-
-
-class RateLimitExceededError(SecurityError):
-    """Client exceeded rate limits."""
-
-    def __init__(
-        self, client_id: str, limit_type: str, current_value: int, max_value: int
-    ):
-        super().__init__(
-            message=f"Rate limit exceeded for {client_id}: {limit_type} {current_value}/{max_value}",
-            error_code="RATE_LIMIT_EXCEEDED",
-            context={
-                "client_id": client_id,
-                "limit_type": limit_type,
-                "current_value": current_value,
-                "max_value": max_value,
-            },
-        )
-
-
 class ServiceError(MCPServerError):
     """Base class for service-related errors."""
 
     pass
 
 
-class ServiceUnavailableError(ServiceError):
-    """External service is unavailable."""
+class GitHubDiscoveryError(ServiceError):
+    """A GitHub content-discovery request did not return a directory listing.
 
-    def __init__(self, service_name: str, reason: str, retry_after: int | None = None):
+    Raised instead of letting the response body be parsed as one. GitHub answers
+    an error with a JSON object, and iterating that object walks its keys, so the
+    previous behaviour was `TypeError: string indices must be integers, not
+    'str'` -- an error that named neither the status code nor the real cause.
+    """
+
+    def __init__(
+        self,
+        reason: str,
+        status_code: int | None = None,
+        error_code: str = "GITHUB_DISCOVERY_FAILED",
+        retry_after: int | None = None,
+    ):
         super().__init__(
-            message=f"Service {service_name} is unavailable: {reason}",
-            error_code="SERVICE_UNAVAILABLE",
+            message=f"GitHub content discovery failed: {reason}",
+            error_code=error_code,
             context={
-                "service_name": service_name,
                 "reason": reason,
+                "status_code": status_code,
                 "retry_after": retry_after,
             },
             recoverable=True,
         )
+        #: Seconds before the API is asked again, when the answer or the
+        #: backoff that refused this request says (#310).
+        self.retry_after = retry_after
+
+
+class GitHubRateLimitError(GitHubDiscoveryError):
+    """The GitHub API rate limit is exhausted.
+
+    Distinct from RateLimitExceededError, which is this server throttling its own
+    callers. This one is us being throttled by GitHub, and it is the expected
+    outcome of running unauthenticated: 60 requests/hour per IP. Carries its own
+    error code so a caller can tell "retry in an hour" apart from "the request
+    was wrong".
+    """
+
+    def __init__(self, reason: str, retry_after: int | None = None):
+        super().__init__(
+            reason=reason,
+            status_code=403,
+            error_code="GITHUB_RATE_LIMIT_EXHAUSTED",
+            retry_after=retry_after,
+        )
+
+
+class DocumentThrottledError(GitHubRateLimitError):
+    """A GitHub throttle, in the one sentence a client reads (#334).
+
+    The discovery errors prefix their message with "GitHub content discovery
+    failed:" for the log. The get tools build one sentence for a client from
+    the throttle's retry time and raise it as this, whose message is that
+    sentence verbatim: nothing names discovery, and nothing is wrapped twice.
+    """
+
+    def __init__(self, sentence: str, retry_after: int | None):
+        super().__init__(sentence, retry_after=retry_after)
+        self.message = sentence
+        self.args = (sentence,)
 
 
 class CacheError(ServiceError):
@@ -198,18 +273,6 @@ class HTTPClientError(ServiceError):
                 "details": details,
             },
             recoverable=True,
-        )
-
-
-class ConfigurationError(MCPServerError):
-    """Configuration is invalid or missing."""
-
-    def __init__(self, config_key: str, reason: str):
-        super().__init__(
-            message=f"Configuration error for {config_key}: {reason}",
-            error_code="CONFIGURATION_ERROR",
-            context={"config_key": config_key, "reason": reason},
-            recoverable=False,
         )
 
 

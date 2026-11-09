@@ -1,131 +1,53 @@
-# 🛠️ Tools Reference
+# Prompts and Resources Reference
 
-Quick reference for all 11 available MCP tools organized in 3 categories.
-
-## Framework Access Tools (5)
-
-### `list_frameworks`
-**Purpose**: List all supported AI governance frameworks
-**Usage**: `list_frameworks()`
-**Returns**: Structured list of available frameworks with descriptions
-
-**Catalog Behavior**:
-- Frameworks are discovered at runtime from the configured upstream repository.
-- Use this tool to obtain the current IDs before calling `get_framework`.
-
-### `get_framework`
-**Purpose**: Get complete content of a specific framework
-**Usage**: `get_framework("nist-ai-600-1")`
-**Parameters**: framework (string) - Framework ID from list_frameworks
-**Returns**: Framework content with metadata and section count
-
-**Example Usage**:
-```
-get_framework("eu-ai-act")
-get_framework("nist-ai-600-1")
-get_framework("owasp-llm")
-```
-
-### `search_frameworks`
-**Purpose**: Search for text within framework documents
-**Usage**: `search_frameworks("bias", 5)`
-**Parameters**:
-- query (string) - Search term to find in framework content
-- limit (int, optional) - Maximum number of results (default: 5)
-**Returns**: Search results with matching content snippets
-
-### `list_risks`
-**Purpose**: List available risk documents
-**Usage**: `list_risks()`
-**Returns**: Structured list of risk documents from GitHub repository
-
-### `get_risk`
-**Purpose**: Get complete content of a specific risk document
-**Usage**: `get_risk("10_prompt-injection")`
-**Parameters**: risk_id (string) - Risk ID from list_risks
-**Returns**: Full risk document content with metadata and sections
-
-## Risk & Mitigation Tools (4)
-
-### `search_risks`
-**Purpose**: Search within risk documentation
-**Usage**: `search_risks("privacy", 3)`
-**Parameters**:
-- query (string) - Search term to find in risk content
-- limit (int, optional) - Maximum number of results (default: 5)
-**Returns**: Search results with matching risk content snippets
-
-### `list_mitigations`
-**Purpose**: List available mitigation documents
-**Usage**: `list_mitigations()`
-**Returns**: Structured list of mitigation documents from GitHub repository
-
-### `get_mitigation`
-**Purpose**: Get complete content of a specific mitigation document
-**Usage**: `get_mitigation("1_ai-data-leakage-prevention-and-detection")`
-**Parameters**: mitigation_id (string) - Mitigation ID from list_mitigations
-**Returns**: Full mitigation document content with metadata and sections
-
-### `search_mitigations`
-**Purpose**: Search within mitigation documentation
-**Usage**: `search_mitigations("encryption", 3)`
-**Parameters**:
-- query (string) - Search term to find in mitigation content
-- limit (int, optional) - Maximum number of results (default: 5)
-**Returns**: Search results with matching mitigation content snippets
-
-## System Monitoring Tools
-
-### `get_service_health`
-**Purpose**: Get current service health status
-**Usage**: `get_service_health()`
-**Returns**: Health metrics including uptime, version, and service status
-
-**Health Metrics**:
-- Service status (healthy/degraded)
-- Uptime in seconds
-- Server version
-- Service component health
-- OpenEMCP observability projection (`observability.openemcp`, `observability.risk_context`)
-
-### `get_cache_stats`
-**Purpose**: Get cache performance statistics
-**Usage**: `get_cache_stats()`
-**Returns**: Cache performance metrics and hit rates
-
-**Cache Metrics**:
-- Total requests processed
-- Cache hits and misses
-- Hit rate percentage
-- Operation counters (`sets`, `deletes`, `expires`, `evictions`, `clears`)
-- Capacity and memory (`current_size`, `max_size`, `memory_usage_bytes`)
-- OpenEMCP observability projection (`observability.openemcp`, `observability.risk_context`)
-
----
+The server's 3 prompts and its resources, one per document under 3 URI forms.
+The 9 tools are documented one by one
+in the [MCP Tools Reference](api/mcp-tools.md).
 
 ## MCP Prompts (3)
+
+**Prompt injection boundaries**: every span a prompt does not author itself is enclosed in a
+labelled block — `<untrusted_user_input>` for caller arguments, `<untrusted_external_content>` for
+content fetched from the governance repository — below a standing directive that such content is
+data to be analyzed and never instruction. Delimiter characters in the enclosed text are escaped,
+so no argument or upstream document can terminate its own block.
 
 ### `analyze_framework_compliance`
 **Purpose**: Analyze compliance requirements across AI governance frameworks
 **Usage**: Available as MCP prompt template for compliance analysis
-**Parameters**: Framework selection and compliance requirements
-**Returns**: Structured compliance gap analysis and recommendations
+**Parameters**: `framework` (a framework identifier such as `eu-ai-act`) and `use_case` (the AI use case to analyze)
+**Returns**: Prompt text asking for the requirements that apply, the risks and mitigations, the most relevant sections of the framework and next steps
 
 ### `risk_assessment_analysis`
 **Purpose**: Conduct comprehensive AI risk assessment using FINOS methodology
 **Usage**: Available as MCP prompt template for risk evaluation
-**Parameters**: AI system description and risk categories
-**Returns**: Risk assessment matrix with severity ratings and mitigation priorities
+**Parameters**: `risk_category` (the risk category to assess) and `context` (the scenario)
+**Returns**: Prompt text asking for likelihood and impact (High/Medium/Low), the risk factors present, mitigations and monitoring
 
 ### `mitigation_strategy_prompt`
 **Purpose**: Develop comprehensive mitigation strategies for identified AI risks
 **Usage**: Available as MCP prompt template for mitigation planning
-**Parameters**: Risk profile and organizational context
-**Returns**: Tailored mitigation strategy with implementation roadmap
+**Parameters**: `risk_type` (the risk to mitigate) and `system_description` (the AI system)
+**Returns**: Prompt text asking for a mitigation plan: preventive, detective and corrective measures, implementation details, monitoring, and timeline and resources
 
 ---
 
-## MCP Resources (3)
+## MCP Resources
+
+`resources/list` names every document in the catalog: one resource per
+framework, risk and mitigation, served as `text/markdown`. A risk or mitigation
+is named by its filename stem, such as `ri-10_prompt-injection`, and a
+framework by its title, such as `EU AI Act`. Each has its template's
+description, such as "Risk documentation
+from FINOS AI governance corpus.": the list is built from the discovery
+listing alone and reads no document, so a client's connect does not wait on
+one fetch per document. The list tools give each document's own title and
+description. The three URI forms below are also published as
+resource templates, so a client that knows an id can build the URI without
+listing. A read is served by the same code as the matching `get_*` tool. A
+listing that cannot be built is answered as an empty list with one WARNING in
+the server log; the templates stay, and the list tools report the failure in
+their own words.
 
 ### `finos://frameworks/{id}`
 **Purpose**: URI-based access to framework content
@@ -133,7 +55,7 @@ get_framework("owasp-llm")
 **Examples**:
 - `finos://frameworks/nist-ai-600-1`
 - `finos://frameworks/eu-ai-act`
-- `finos://frameworks/owasp-llm`
+- `finos://frameworks/iso-42001`
 
 ### `finos://risks/{id}`
 **Purpose**: URI-based access to risk documents
@@ -157,11 +79,17 @@ All tools return structured Pydantic models with type safety and validation. Thi
 
 ## Error Handling
 
-All tools include comprehensive error handling:
-- Invalid framework IDs return structured error responses
-- Network issues are handled gracefully
-- Service degradation is reported in health metrics
+A tool that fails returns a result with `isError: true` and one text block
+that says what happened:
+- An id no document has: the text names the listing tool that holds the valid ids
+- A document that could not be loaded, is too large or is empty: the text says which
+- A GitHub rate limit: the text says the throttle is temporary
+
+When GitHub cannot be reached, the listing tools answer from the list file the
+server last wrote (`expired_cache`), or from the built-in catalog when there is
+none (`static_fallback`), and say which in `source`. [Response Schemas](api/response-schemas.md#error-response-examples)
+shows each result as a client receives it.
 
 ---
 
-For implementation examples and integration guides, see the [User Guide](user-guide/).
+For integration examples, see the [Integration Guide](api/integration-guide.md).

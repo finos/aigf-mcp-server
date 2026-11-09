@@ -123,8 +123,7 @@ class TestMCPProtocolCompliance:
                         # Verify expected tools exist
                         tool_names = [tool["name"] for tool in result["tools"]]
                         expected_tools = [
-                            "search_mitigations",
-                            "search_risks",
+                            "search_frameworks",
                             "get_mitigation",
                             "get_risk",
                             "list_mitigations",
@@ -215,7 +214,7 @@ class TestMCPProtocolCompliance:
 
     @pytest.mark.asyncio
     async def test_tool_call(self, mcp_server_process, mcp_request_factory):
-        """Test tools/call method with search_mitigations tool."""
+        """Test tools/call method with search_frameworks tool."""
         # Initialize
         init_request = {
             "jsonrpc": "2.0",
@@ -238,9 +237,9 @@ class TestMCPProtocolCompliance:
         except Exception as e:
             print(f"Failed to read server output: {e}")
 
-        # Call search_mitigations tool
+        # Call search_frameworks tool
         tool_call = mcp_request_factory(
-            "tools/call", {"name": "search_mitigations", "arguments": {"query": "data"}}
+            "tools/call", {"name": "search_frameworks", "arguments": {"query": "data"}}
         )
 
         mcp_server_process.stdin.write(json.dumps(tool_call) + "\n")

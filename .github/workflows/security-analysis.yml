@@ -2,9 +2,9 @@ name: Security Analysis & Code Quality
 
 on:
   push:
-    branches: [ main, develop, 'feature/*', 'hotfix/*' ]
+    branches: [ main, 'feature/*' ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
   schedule:
     # Run security scans weekly on Sundays at 2 AM UTC
     - cron: '0 2 * * 0'
@@ -24,26 +24,51 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.11, 3.12, 3.13]
+        # A pull request runs one version; every other event runs all the
+        # versions pyproject.toml declares. Each version takes four to six
+        # minutes, and a pull request is the event that repeats (#238). A break that shows only on
+        # 3.11 or 3.13 is therefore found on the push to main, not on the pull
+        # request.
+        # dependabot-security-validation.yml still runs every version on the
+        # pull requests it validates: those Dependabot opens, and those from a
+        # security/* branch. tests/unit/test_python_floor.py reads this
+        # expression; keep its shape.
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.11", "3.12", "3.13"]') }}
       fail-fast: false
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         # Full history needed for some security scanners
         fetch-depth: 0
 
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
+        # setuptools is upgraded explicitly: the 3.11 runner image ships 79.0.1
+        # preinstalled and nothing in our dependency tree pulls a newer one, so
+        # pip-audit flags PYSEC-2026-3447 (fixed in 83.0.0) on that matrix job
+        # only. On 3.12/3.13 resolution happens to install a patched setuptools.
+        #
+        # Every gate resolves its interpreter through scripts/project-python.sh,
+        # which is virtualenv-based and will not fall back to a bare system
+        # interpreter -- that fallback is what let a stale environment become the
+        # audited artefact for six months (#89). Creating the virtualenv here is
+        # what makes a runner resolve the same way a laptop does; without it the
+        # shim has nothing to find. $GITHUB_PATH persists across steps, so later
+        # steps need no `source`, but this step still does.
+        python -m venv venv
+        echo "$PWD/venv/bin" >> "$GITHUB_PATH"
+        # shellcheck source=/dev/null
+        source venv/bin/activate
+        python -m pip install --upgrade pip setuptools
         pip install -e .[security,dev]
         pip install lxml  # Required for MyPy report generation
 
@@ -167,13 +192,13 @@ jobs:
       id: mypy
       run: |
         echo "Running MyPy type checking..."
-        python -m mypy src/finos_mcp \
+        # Rules come from [tool.mypy] in pyproject.toml -- `strict = true` already
+        # implies every flag this step used to pass. Only presentational flags
+        # belong here; tests/unit/test_ci_config_drift.py enforces that.
+        python -m mypy \
           --show-error-codes \
           --show-error-context \
-          --txt-report security-reports/mypy-report \
-          --strict-optional \
-          --warn-redundant-casts \
-          --warn-unused-ignores
+          --txt-report security-reports/mypy-report
 
         echo "✅ MyPy type checking passed - no type errors found"
 
@@ -182,21 +207,23 @@ jobs:
       id: tests
       run: |
         echo "Running all tests..."
-        python -m pytest tests/ \
+        # No explicit path: run exactly what a developer's bare `pytest` runs,
+        # so a testpaths regression breaks CI instead of hiding.
+        # The coverage floor comes from pyproject.toml, never a flag here.
+        python -m pytest \
           --cov=src/finos_mcp \
           --cov-report=json:coverage-reports/coverage.json \
           --cov-report=xml:coverage-reports/coverage.xml \
           --cov-report=html:coverage-reports/html \
           --junit-xml=coverage-reports/pytest.xml \
-          --cov-fail-under=65 \
           --tb=short \
           --quiet
 
-        # Extract and display coverage metrics
-        if [ -f "coverage-reports/coverage.json" ]; then
-          COVERAGE=$(python -c "import json; data=json.load(open('coverage-reports/coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}%')" 2>/dev/null || echo "unknown")
-          echo "📊 Test Coverage: $COVERAGE"
-        fi
+        # Coverage is read only by scripts/coverage-summary.sh. A call site that
+        # can obtain the number can enforce a floor with it, which is how a
+        # second floor of 75 came to sit alongside pyproject.toml's 82;
+        # tests/unit/test_ci_config_drift.py forbids the read here.
+        echo "📊 Test Coverage: $(./scripts/coverage-summary.sh coverage-reports/coverage.json)"
 
         echo "✅ All tests passed"
 
@@ -207,21 +234,13 @@ jobs:
         echo "Running pip-audit dependency vulnerability scanner..."
         pip freeze > security-reports/requirements.txt
 
-        # Install pip-audit (Python Packaging Authority's official tool)
-        python -m pip install pip-audit
-
-        # Run pip-audit scan - fail on any known vulnerabilities
-        # Ignored vulnerabilities (no fix available — re-review each quarter):
-        # - GHSA-7gcm-g887-7qv7: protobuf DoS via JSON recursion (CVE-2026-0994)
-        #   Transitive dep from semgrep->opentelemetry->protobuf. No fix as of 2026-01.
-        #   Low risk: affects ParseDict() for untrusted JSON, not used by this server.
-        #   REVIEW-BY: 2026-04-01. Remove suppression once protobuf >= patched version.
-        # - GHSA-w8v5-vhqr-4h9v: diskcache vulnerability with no patched release available.
-        #   Transitive dep from fastmcp->py-key-value-aio. Tracked until upstream ships a fix.
-        #   REVIEW-BY: 2026-04-01. Remove suppression once diskcache ships a patched release.
-        pip-audit --format json --output security-reports/pip-audit-report.json \
-          --ignore-vuln GHSA-7gcm-g887-7qv7 \
-          --ignore-vuln GHSA-w8v5-vhqr-4h9v
+        # Run pip-audit scan - fail on any known vulnerabilities.
+        # Suppressions are declared once, in [tool.finos.pip-audit] in
+        # pyproject.toml. This wrapper turns them into flags and refuses to
+        # audit at all if one is malformed or past its review_by date, so the
+        # list cannot drift between call sites the way it previously did.
+        ./scripts/pip-audit-scan.sh \
+          --format json --output security-reports/pip-audit-report.json
 
         # Check for vulnerabilities - handle both old and new pip-audit output formats
         VULNS=$(jq 'if type == "array" then map(select(.vulns? | length? > 0)) | length elif .dependencies then .dependencies | map(select(.vulns | length > 0)) | length else 0 end' security-reports/pip-audit-report.json)
@@ -240,7 +259,7 @@ jobs:
 
     # Upload Security Reports as Artifacts (only if we get this far)
     - name: Upload Security Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: security-reports-py${{ matrix.python-version }}
@@ -249,7 +268,7 @@ jobs:
 
     # Upload Coverage Reports
     - name: Upload Coverage Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: coverage-reports-py${{ matrix.python-version }}
@@ -275,6 +294,257 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "📊 Detailed reports available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
 
+  # The gate that was missing.
+  #
+  # Nothing ran pre-commit in CI, so a broken hook could sit on main
+  # indefinitely: the mypy hook type-checked in an environment that could not
+  # import this package (#40), the semgrep hook died on `pkg_resources` before
+  # scanning a single line, and the detect-secrets hook failed on a committed
+  # test-only value. All three were found only by running the hooks by hand.
+  #
+  # Deliberately separate from security-scan: that job's matrix proves the
+  # *code* works on each Python it lists (all of them on a push, one on a
+  # pull request), whereas this one proves the *hooks* work, which is a
+  # single-version question.
+  pre-commit:
+    name: Pre-commit Hooks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    # setup-python is what puts a bare `python` on PATH. The local hooks invoke
+    # `python -m <tool>`, so without it every one of them fails with
+    # "Executable `python` not found" -- an environment failure that reads
+    # exactly like a real one.
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        # Every gate resolves its interpreter through scripts/project-python.sh,
+        # which is virtualenv-based and will not fall back to a bare system
+        # interpreter -- that fallback is what let a stale environment become the
+        # audited artefact for six months (#89). Creating the virtualenv here is
+        # what makes a runner resolve the same way a laptop does; without it the
+        # shim has nothing to find. $GITHUB_PATH persists across steps, so later
+        # steps need no `source`, but this step still does.
+        python -m venv venv
+        echo "$PWD/venv/bin" >> "$GITHUB_PATH"
+        # shellcheck source=/dev/null
+        source venv/bin/activate
+        python -m pip install --upgrade pip setuptools
+        pip install -e .[security,dev]
+        pip install lxml  # Required for MyPy report generation
+
+    # `language: system` hooks run whatever is on PATH, so "the hooks passed"
+    # means nothing unless the tools that ran were this project's. This step
+    # asserts that rather than printing it and hoping. Every check exits non-zero.
+    - name: Assert hook toolchain provenance
+      run: |
+        set -euo pipefail
+
+        echo "Python tools must resolve inside this job's environment:"
+        python - <<'PY'
+        import importlib.util
+        import pathlib
+        import sys
+
+        prefix = pathlib.Path(sys.prefix).resolve()
+        missing, foreign = [], []
+        for name in ("ruff", "mypy", "pylint", "bandit", "detect_secrets", "pre_commit"):
+            spec = importlib.util.find_spec(name)
+            if spec is None or not spec.origin:
+                missing.append(name)
+                continue
+            origin = pathlib.Path(spec.origin).resolve()
+            print(f"  {name}: {origin}")
+            if prefix not in origin.parents:
+                foreign.append(f"{name} -> {origin}")
+
+        if missing:
+            raise SystemExit(f"::error::hook tools are not importable: {missing}")
+        if foreign:
+            raise SystemExit(
+                f"::error::hook tools resolved outside {prefix}: {foreign}. "
+                "The hooks would be gating with some other toolchain."
+            )
+        print(f"  all six resolve under {prefix}")
+        PY
+
+        echo "Semgrep must be the single pinned one from the wrapper:"
+        # Read the pin out of the wrapper, then require it to look like a
+        # version. An unreadable pin would otherwise compare empty-to-empty
+        # against an unreadable version and pass.
+        PINNED="$(sed -n 's/^SEMGREP_VERSION="\${SEMGREP_VERSION:-\(.*\)}"$/\1/p' scripts/semgrep-isolated.sh)"
+        case "$PINNED" in
+          '' | *[!0-9.]* )
+            echo "::error::could not read SEMGREP_VERSION from scripts/semgrep-isolated.sh (got '$PINNED')"
+            exit 1
+            ;;
+        esac
+        echo "  pinned: $PINNED"
+
+        # Building the venv here rather than inside the hook keeps a network or
+        # install failure reported as itself, not as a semgrep finding.
+        RESOLVED="$(./scripts/semgrep-isolated.sh --version | tr -d '[:space:]')"
+        echo "  resolved: $RESOLVED"
+        if [ "$RESOLVED" != "$PINNED" ]; then
+          echo "::error::semgrep resolved to $RESOLVED but the wrapper pins $PINNED"
+          exit 1
+        fi
+
+        SEMGREP_BIN="$PWD/.venv-semgrep/bin/semgrep"
+        if [ ! -x "$SEMGREP_BIN" ]; then
+          echo "::error::the wrapper produced no $SEMGREP_BIN, so the hook is running some other semgrep"
+          exit 1
+        fi
+        echo "  binary: $SEMGREP_BIN"
+
+        echo "Semgrep ruleset must be able to fail:"
+        python - <<'PY'
+        import pathlib
+
+        import yaml
+
+        path = pathlib.Path("config/security/semgrep.yml")
+        rules = yaml.safe_load(path.read_text(encoding="utf-8")).get("rules") or []
+        errors = [r for r in rules if str(r.get("severity", "")).upper() == "ERROR"]
+        print(f"  {path}: {len(rules)} rules, {len(errors)} at ERROR severity")
+
+        if not rules:
+            raise SystemExit(f"::error::{path} declares no rules; the semgrep gate scans for nothing")
+        if not errors:
+            raise SystemExit(
+                f"::error::{path} declares no ERROR-severity rule, so --error can never fail "
+                "and the semgrep hook would pass unconditionally"
+            )
+        PY
+
+    - name: Run pre-commit hooks
+      run: |
+        python -m pre_commit run --all-files --show-diff-on-failure
+
+  # Every owner in .github/CODEOWNERS must be an account GitHub can resolve.
+  # All nine lines once named an unrelated account, so no review was ever
+  # requested from the real owner (#158). The file was well-formed, so
+  # only the API can tell; this asks it about the commit under test.
+  codeowners:
+    name: CODEOWNERS Owners
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Check CODEOWNERS resolves
+      env:
+        GH_TOKEN: ${{ github.token }}
+      # On a pull request github.sha is the synthetic merge commit, which the
+      # API can read: it checks the tree a squash merge will land, so a change
+      # to CODEOWNERS on main while the PR is open is included.
+      run: |
+        scripts/check-codeowners.sh "$GITHUB_SHA" "$GITHUB_REPOSITORY"
+
+  # The functional gate. main is production, so this must be green before
+  # anything merges into it.
+  #
+  # It drives the real server over stdio and asserts on the *content* of every
+  # answer, not the shape. That distinction is the reason the job exists: the
+  # suite it runs previously asserted `total_count > 0`, `isinstance(content,
+  # str)` and `isinstance(results, list)`, all three of which a broken server
+  # satisfies -- an empty result list is still a list. It ran only from
+  # scripts/go-live-gate.sh and never in CI.
+  #
+  # Honest limitation: branch protection is unavailable on this repository
+  # (private, free plan), so a red check here does not physically block a merge.
+  # It is advisory until the repo is public or on GitHub Pro.
+  functional-gate:
+    name: Functional Gate (live MCP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        # Every gate resolves its interpreter through scripts/project-python.sh,
+        # which is virtualenv-based and will not fall back to a bare system
+        # interpreter -- that fallback is what let a stale environment become the
+        # audited artefact for six months (#89). Creating the virtualenv here is
+        # what makes a runner resolve the same way a laptop does; without it the
+        # shim has nothing to find. $GITHUB_PATH persists across steps, so later
+        # steps need no `source`, but this step still does.
+        python -m venv venv
+        echo "$PWD/venv/bin" >> "$GITHUB_PATH"
+        # shellcheck source=/dev/null
+        source venv/bin/activate
+        python -m pip install --upgrade pip setuptools
+        pip install -e .[security,dev]
+
+    # Discovery lists three directories through the GitHub API and caches the
+    # result for an hour. Document bodies come from raw.githubusercontent.com,
+    # which has no API budget, so persisting this cache is what keeps a run's
+    # API cost at three requests or fewer -- and usually zero.
+    #
+    # The gate runs unauthenticated by decision, against a 60 requests/hour
+    # per-IP limit shared across GitHub-hosted runners, so this matters.
+    - name: Restore discovery cache
+      uses: actions/cache@v6
+      with:
+        path: .cache/discovery
+        key: finos-discovery-${{ github.run_id }}
+        restore-keys: |
+          finos-discovery-
+
+    - name: Run the live functional suite
+      env:
+        FINOS_RUN_LIVE_MCP_TEST: '1'
+        # The server writes its list file under ~/.cache/finos-mcp unless told
+        # otherwise (#293), so without this the cache step above saved nothing
+        # (#406). The live tests pass their environment on to the server.
+        FINOS_MCP_DISCOVERY_CACHE_DIR: ${{ github.workspace }}/.cache/discovery
+        # Needs no network; nothing ran it, and it failed unnoticed from #323
+        # to #341 (#342).
+        FINOS_RUN_AUTH_HTTP_TEST: '1'
+      run: |
+        set -uo pipefail
+        python -m pytest tests/integration/test_live_mcp_server.py tests/integration/test_auth_http_transport.py -q
+        status=$?
+
+        if [ "$status" -ne 0 ]; then
+          echo "::group::Interpreting this failure"
+          echo "The gate asserts that list_frameworks served source=github_api or cache."
+          echo "If the failure names 'static_fallback' or 'expired_cache', the cause is almost"
+          echo "certainly the unauthenticated GitHub rate limit (60/hour per IP,"
+          echo "shared across hosted runners) and not a code defect. Re-run the"
+          echo "job, or set FINOS_MCP_GITHUB_TOKEN to raise the limit to 5000."
+          echo ""
+          echo "The gate deliberately fails rather than skipping, because the"
+          echo "static fallback ships the correct filenames even when discovery"
+          echo "is pointed at the wrong directory -- passing on fallback data"
+          echo "would verify nothing."
+          echo ""
+          echo "A failure in test_auth_http_transport.py is not the rate limit:"
+          echo "that suite needs no network."
+          echo "::endgroup::"
+        fi
+        exit "$status"
+
   # Only run if security scan job succeeded
   integration-tests:
     name: Integration Tests
@@ -284,23 +554,33 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: 3.11
         cache: 'pip'
 
     - name: Install dependencies
       run: |
+        # Every gate resolves its interpreter through scripts/project-python.sh,
+        # which is virtualenv-based and will not fall back to a bare system
+        # interpreter -- that fallback is what let a stale environment become the
+        # audited artefact for six months (#89). Creating the virtualenv here is
+        # what makes a runner resolve the same way a laptop does; without it the
+        # shim has nothing to find. $GITHUB_PATH persists across steps, so later
+        # steps need no `source`, but this step still does.
+        python -m venv venv
+        echo "$PWD/venv/bin" >> "$GITHUB_PATH"
+        # shellcheck source=/dev/null
+        source venv/bin/activate
         python -m pip install --upgrade pip
         pip install -e .[dev]
 
     - name: Run Integration Tests
       run: |
         echo "Running integration tests..."
-        export FINOS_MCP_CACHE_SECRET=test_cache_secret_for_ci_integration_32chars
         # Test that the MCP server can actually start and respond
         timeout 30 python -c "
         import asyncio

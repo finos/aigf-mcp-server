@@ -1,533 +1,254 @@
-"""
-Unit tests for TTL cache functionality.
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
 
-Tests comprehensive caching behavior including TTL expiration, LRU eviction,
-thread safety, and monitoring capabilities.
+"""The document cache: an in-process dict with a TTL, an LRU bound and copies.
+
+Decided on 2026-10-13 (#302): the HMAC envelope, its compression,
+its pickle and ratio checks and ``FINOS_MCP_CACHE_SECRET`` are gone. The
+store is an ``OrderedDict`` in process memory that nothing persists and
+whose key was read in the same process, so the envelope stopped no attacker
+and cost about 400 lines, a mandatory setting on networked transports, and
+the defects of #303 (a frontmatter date stored without a hash and refused on
+every read) and #304 (a bad entry raised from ``get``, counted as a hit, and
+tripped a breaker that switched the cache off). What the envelope gave that
+must be kept is a private copy on read, since the service mutates the
+document it is handed.
+
+With it go the lock and the background cleanup task (#305): no ``await``
+sat inside any locked block, expiry is enforced on read and the bound on
+write, and they were the only loop-bound state. A cache built on one loop
+is read on another.
 """
 
+from __future__ import annotations
+
+import ast
 import asyncio
-import time
-from unittest.mock import patch
+import datetime
+import re
+from pathlib import Path
+from typing import Any
 
 import pytest
-import pytest_asyncio
 
-from finos_mcp.content.cache import (
-    CacheEntry,
-    CacheStats,
-    TTLCache,
-    close_cache,
-    get_cache,
-)
+from finos_mcp.config import Settings
+from finos_mcp.content import cache as cache_module
+from finos_mcp.content.cache import CacheManager, TTLCache, close_cache, get_cache
 
+pytestmark = pytest.mark.unit
 
-@pytest_asyncio.fixture
-async def cache():
-    """Create a test cache instance."""
-    import os
-
-    # Set secure cache key for testing
-    test_key = "test_cache_key_" + "a" * 17  # 32 character minimum key for testing
-    os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
-
-    test_cache: TTLCache[str, str] = TTLCache(
-        max_size=5,
-        default_ttl=1.0,  # 1 second for fast testing
-        cleanup_interval=0.1,  # Fast cleanup for testing
-        enable_background_cleanup=False,  # Disable for controlled testing
-    )
-    try:
-        yield test_cache
-    finally:
-        await test_cache.close()
-        # Clean up environment variable after test
-        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
+SRC = Path(__file__).resolve().parents[2] / "src" / "finos_mcp"
 
 
-@pytest_asyncio.fixture
-async def cache_no_ttl():
-    """Create a test cache without TTL."""
-    import os
-
-    # Set secure cache key for testing
-    test_key = "test_cache_no_ttl_" + "a" * 15  # 32 character minimum key for testing
-    os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
-
-    test_cache: TTLCache[str, str] = TTLCache(
-        max_size=3, default_ttl=None, enable_background_cleanup=False
-    )
-    try:
-        yield test_cache
-    finally:
-        await test_cache.close()
-        # Clean up environment variable after test
-        os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
+@pytest.fixture
+def cache() -> TTLCache[str, dict[str, Any]]:
+    return TTLCache(max_size=3, default_ttl=60.0)
 
 
-@pytest.mark.unit
-class TestCacheEntry:
-    """Test CacheEntry functionality."""
+class TestGetAndSet:
+    async def test_a_value_set_is_got(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        await cache.set("a", {"title": "A"})
+        assert await cache.get("a") == {"title": "A"}
 
-    def test_cache_entry_creation(self):
-        """Test basic cache entry creation."""
-        current_time = time.time()
-        entry = CacheEntry(
-            value="test_value",
-            created_at=current_time,
-            accessed_at=current_time,
-            expires_at=current_time + 10,
+    async def test_a_missing_key_is_none(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        assert await cache.get("nothing") is None
+
+    async def test_a_key_set_again_holds_the_new_value(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        await cache.set("a", {"v": 1})
+        await cache.set("a", {"v": 2})
+        assert await cache.get("a") == {"v": 2}
+
+    async def test_the_reader_gets_a_private_copy(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        """The service mutates the document it is handed (#302)."""
+        await cache.set("a", {"sections": ["one"]})
+        first = await cache.get("a")
+        assert first is not None
+        first["sections"].append("two")
+        assert await cache.get("a") == {"sections": ["one"]}
+
+    async def test_the_writer_keeps_a_private_copy(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        document = {"sections": ["one"]}
+        await cache.set("a", document)
+        document["sections"].append("two")
+        assert await cache.get("a") == {"sections": ["one"]}
+
+    async def test_a_frontmatter_date_round_trips(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        """#303: ``date: 2024-01-01`` parses to a date; it was refused on read."""
+        document = {"metadata": {"date": datetime.date(2024, 1, 1)}, "content": "x"}
+        await cache.set("risk:ri-1.md", document)
+        assert await cache.get("risk:ri-1.md") == document
+
+    async def test_a_large_repetitive_value_round_trips(self) -> None:
+        """#302: the ratio check refused a legitimate 420 kB table-like value."""
+        cache: TTLCache[str, dict[str, Any]] = TTLCache(max_size=10, default_ttl=60.0)
+        rows = [{"id": n, "name": "row", "value": "x" * 20} for n in range(20_000)]
+        await cache.set("table", {"rows": rows})
+        got = await cache.get("table")
+        assert got is not None
+        assert got["rows"] == rows
+
+
+class TestExpiry:
+    async def test_an_expired_entry_is_a_miss(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        now = [1000.0]
+        monkeypatch.setattr("finos_mcp.content.cache.time.time", lambda: now[0])
+        cache: TTLCache[str, str] = TTLCache(max_size=3, default_ttl=10.0)
+        await cache.set("a", "A")
+        now[0] += 9.0
+        assert await cache.get("a") == "A"
+        now[0] += 2.0
+        assert await cache.get("a") is None
+        assert (await cache.get_stats()).misses == 1
+
+    async def test_a_per_entry_ttl_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        now = [1000.0]
+        monkeypatch.setattr("finos_mcp.content.cache.time.time", lambda: now[0])
+        cache: TTLCache[str, str] = TTLCache(max_size=3, default_ttl=10.0)
+        await cache.set("a", "A", ttl=100.0)
+        now[0] += 50.0
+        assert await cache.get("a") == "A"
+
+    async def test_a_zero_ttl_means_no_expiry(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``.env.example`` says a TTL of 0 caches indefinitely."""
+        now = [1000.0]
+        monkeypatch.setattr("finos_mcp.content.cache.time.time", lambda: now[0])
+        cache: TTLCache[str, str] = TTLCache(max_size=3, default_ttl=0)
+        await cache.set("a", "A")
+        now[0] += 10**9
+        assert await cache.get("a") == "A"
+
+
+class TestBound:
+    async def test_the_oldest_unused_entry_is_evicted(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        for key in ("a", "b", "c"):
+            await cache.set(key, {"k": key})
+        await cache.get("a")  # a is now the most recently used
+        await cache.set("d", {"k": "d"})
+        assert await cache.get("b") is None, "the least recently used entry stayed"
+        assert await cache.get("a") == {"k": "a"}
+        assert (await cache.get_stats()).evictions == 1
+
+    async def test_clear_empties_the_cache(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        await cache.set("a", {})
+        await cache.clear()
+        assert await cache.get("a") is None
+        assert (await cache.get_stats()).current_size == 0
+
+
+class TestStats:
+    async def test_hits_misses_sets_and_size_are_counted(
+        self, cache: TTLCache[str, dict[str, Any]]
+    ) -> None:
+        await cache.set("a", {})
+        await cache.get("a")
+        await cache.get("b")
+        stats = await cache.get_stats()
+        assert (
+            stats.hits,
+            stats.misses,
+            stats.sets,
+            stats.current_size,
+            stats.max_size,
+        ) == (
+            1,
+            1,
+            1,
+            1,
+            3,
         )
-
-        assert entry.value == "test_value"
-        assert entry.created_at == current_time
-        assert entry.accessed_at == current_time
-        assert entry.expires_at == current_time + 10
-        assert entry.access_count == 0
-
-    def test_cache_entry_expiration(self):
-        """Test cache entry expiration logic."""
-        current_time = time.time()
-
-        # Non-expiring entry
-        entry = CacheEntry("test", current_time, current_time, None)
-        assert not entry.is_expired()
-        assert not entry.is_expired(current_time + 100)
-
-        # Expiring entry
-        expires_at = current_time + 10
-        entry = CacheEntry("test", current_time, current_time, expires_at)
-        assert not entry.is_expired(current_time + 5)
-        assert entry.is_expired(current_time + 15)
-
-    def test_cache_entry_touch(self):
-        """Test cache entry access tracking."""
-        current_time = time.time()
-        entry = CacheEntry("test", current_time, current_time, None)
-
-        # Touch entry
-        new_time = current_time + 5
-        entry.touch(new_time)
-
-        assert entry.accessed_at == new_time
-        assert entry.access_count == 1
-
-        # Touch again
-        entry.touch(new_time + 5)
-        assert entry.access_count == 2
-
-    def test_cache_entry_time_methods(self):
-        """Test cache entry time calculation methods."""
-        current_time = time.time()
-        expires_at = current_time + 100
-        entry = CacheEntry("test", current_time, current_time, expires_at)
-
-        # Test age calculation
-        test_time = current_time + 50
-        assert entry.age_seconds(test_time) == 50
-
-        # Test time to expiry
-        assert entry.time_to_expiry(test_time) == 50
-
-        # Test expired entry
-        assert entry.time_to_expiry(current_time + 150) == 0
-
-
-@pytest.mark.unit
-class TestCacheStats:
-    """Test CacheStats functionality."""
-
-    def test_cache_stats_creation(self):
-        """Test cache stats creation and update."""
-        stats = CacheStats()
-
-        assert stats.hits == 0
-        assert stats.misses == 0
-        assert stats.hit_rate == 0.0
-
-        # Update stats
-        stats.hits = 10
-        stats.misses = 5
-        stats.update_hit_rate()
-
-        assert stats.hit_rate == 2 / 3
-
-    def test_cache_stats_to_dict(self):
-        """Test cache stats dictionary conversion."""
-        stats = CacheStats(hits=10, misses=5, sets=15)
-        dict_stats = stats.to_dict()
-
-        assert dict_stats["hits"] == 10
-        assert dict_stats["misses"] == 5
-        assert dict_stats["sets"] == 15
-        assert "hit_rate" in dict_stats
-
-
-@pytest.mark.unit
-class TestTTLCache:
-    """Test TTL Cache functionality."""
-
-    @pytest.mark.asyncio
-    async def test_basic_get_set(self, cache):
-        """Test basic cache get/set operations."""
-        # Test set and get
-        await cache.set("key1", "value1")
-        result = await cache.get("key1")
-
-        assert result == "value1"
-
-        # Test non-existent key
-        result = await cache.get("nonexistent")
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_ttl_expiration(self, cache):
-        """Test TTL expiration behavior."""
-        # Set with short TTL
-        await cache.set("key1", "value1", ttl=0.1)
-
-        # Should be available immediately
-        result = await cache.get("key1")
-        assert result == "value1"
-
-        # Wait for expiration
-        await asyncio.sleep(0.2)
-
-        # Should be expired
-        result = await cache.get("key1")
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_no_ttl(self, cache_no_ttl):
-        """Test cache without TTL."""
-        await cache_no_ttl.set("key1", "value1")
-
-        # Should still be available after default TTL
-        await asyncio.sleep(0.1)
-        result = await cache_no_ttl.get("key1")
-        assert result == "value1"
-
-    @pytest.mark.asyncio
-    async def test_lru_eviction(self, cache_no_ttl):
-        """Test LRU eviction when cache is full."""
-        # Fill cache to capacity (3 items)
-        await cache_no_ttl.set("key1", "value1")
-        await cache_no_ttl.set("key2", "value2")
-        await cache_no_ttl.set("key3", "value3")
-
-        # Verify all are present
-        assert await cache_no_ttl.get("key1") == "value1"
-        assert await cache_no_ttl.get("key2") == "value2"
-        assert await cache_no_ttl.get("key3") == "value3"
-
-        # Add one more item, should evict key1 (least recently used)
-        await cache_no_ttl.set("key4", "value4")
-
-        # key1 should be evicted
-        assert await cache_no_ttl.get("key1") is None
-        assert await cache_no_ttl.get("key2") == "value2"
-        assert await cache_no_ttl.get("key3") == "value3"
-        assert await cache_no_ttl.get("key4") == "value4"
-
-    @pytest.mark.asyncio
-    async def test_lru_access_order(self, cache_no_ttl):
-        """Test that access updates LRU order."""
-        # Fill cache
-        await cache_no_ttl.set("key1", "value1")
-        await cache_no_ttl.set("key2", "value2")
-        await cache_no_ttl.set("key3", "value3")
-
-        # Access key1 to make it most recently used
-        await cache_no_ttl.get("key1")
-
-        # Add new item, should evict key2 now (least recently used)
-        await cache_no_ttl.set("key4", "value4")
-
-        assert await cache_no_ttl.get("key1") == "value1"  # Should still be there
-        assert await cache_no_ttl.get("key2") is None  # Should be evicted
-        assert await cache_no_ttl.get("key3") == "value3"
-        assert await cache_no_ttl.get("key4") == "value4"
-
-    @pytest.mark.asyncio
-    async def test_update_existing_key(self, cache):
-        """Test updating existing cache key."""
-        await cache.set("key1", "value1")
-        await cache.set("key1", "value2")  # Update
-
-        result = await cache.get("key1")
-        assert result == "value2"
-
-        # Should still be only one item
-        assert await cache.size() == 1
-
-    @pytest.mark.asyncio
-    async def test_delete_operations(self, cache):
-        """Test cache delete operations."""
-        await cache.set("key1", "value1")
-        await cache.set("key2", "value2")
-
-        # Delete existing key
-        deleted = await cache.delete("key1")
-        assert deleted is True
-        assert await cache.get("key1") is None
-
-        # Delete non-existent key
-        deleted = await cache.delete("nonexistent")
-        assert deleted is False
-
-        # Other key should still exist
-        assert await cache.get("key2") == "value2"
-
-    @pytest.mark.asyncio
-    async def test_exists_operation(self, cache):
-        """Test cache exists operation."""
-        await cache.set("key1", "value1", ttl=0.1)
-
-        assert await cache.exists("key1") is True
-        assert await cache.exists("nonexistent") is False
-
-        # Wait for expiration
-        await asyncio.sleep(0.2)
-        assert await cache.exists("key1") is False
-
-    @pytest.mark.asyncio
-    async def test_clear_operation(self, cache):
-        """Test cache clear operation."""
-        await cache.set("key1", "value1")
-        await cache.set("key2", "value2")
-
-        assert await cache.size() == 2
-
-        await cache.clear()
-
-        assert await cache.size() == 0
-        assert await cache.get("key1") is None
-        assert await cache.get("key2") is None
-
-    @pytest.mark.asyncio
-    async def test_cleanup_expired(self, cache):
-        """Test manual cleanup of expired entries."""
-        # Add items with different TTLs
-        await cache.set("key1", "value1", ttl=0.1)
-        await cache.set("key2", "value2", ttl=1.0)
-        await cache.set("key3", "value3", ttl=0.1)
-
-        # Wait for some to expire
-        await asyncio.sleep(0.2)
-
-        # Manual cleanup
-        expired_count = await cache.cleanup_expired()
-
-        # Should have removed 2 expired entries
-        assert expired_count == 2
-        assert await cache.get("key1") is None
-        assert await cache.get("key2") == "value2"  # Should still exist
-        assert await cache.get("key3") is None
-
-    @pytest.mark.asyncio
-    async def test_cache_statistics(self, cache):
-        """Test cache statistics tracking."""
-        # Generate some cache activity
-        await cache.set("key1", "value1")
-        await cache.set("key2", "value2")
-
-        # Generate hits and misses
-        await cache.get("key1")  # Hit
-        await cache.get("key1")  # Hit
-        await cache.get("nonexistent")  # Miss
-
-        await cache.delete("key2")
-        await cache.clear()
-
-        stats = await cache.get_stats()
-
-        assert stats.hits == 2
-        assert stats.misses >= 1
-        assert stats.sets >= 2
-        assert stats.deletes >= 1
-        assert stats.clears >= 1
-        assert stats.current_size == 0
-
-    @pytest.mark.asyncio
-    async def test_entry_info(self, cache):
-        """Test detailed entry information."""
-        await cache.set("key1", "value1", ttl=10.0)
-
-        info = await cache.get_entry_info("key1")
-
-        assert info is not None
-        assert info["key"] == "key1"
-        assert "created_at" in info
-        assert "accessed_at" in info
-        assert "expires_at" in info
-        assert info["access_count"] == 1
-        assert info["age_seconds"] >= 0
-        assert info["time_to_expiry"] <= 10.0
-        assert not info["is_expired"]
-
-        # Non-existent key
-        info = await cache.get_entry_info("nonexistent")
-        assert info is None
-
-    @pytest.mark.asyncio
-    async def test_size_estimation(self, cache):
-        """Test cache size estimation."""
-        # Test with different data types
-        await cache.set("string", "hello world")
-        await cache.set("number", 42)
-        await cache.set("list", [1, 2, 3])
-        await cache.set("dict", {"key": "value"})
-
-        stats = await cache.get_stats()
-        assert stats.memory_usage_bytes > 0
-
-    @pytest.mark.asyncio
-    async def test_background_cleanup_disabled(self, cache):
-        """Test cache with background cleanup disabled."""
-        # This cache has background cleanup disabled
-        assert cache._cleanup_task is None
-
-    @pytest.mark.asyncio
-    async def test_background_cleanup_enabled(self):
-        """Test cache with background cleanup enabled."""
-        import os
-
-        # Set secure cache key for testing
-        test_key = (
-            "test_background_cleanup_" + "a" * 10
-        )  # 32 character minimum key for testing
-        original_key = os.environ.get("FINOS_MCP_CACHE_SECRET")
-        os.environ["FINOS_MCP_CACHE_SECRET"] = test_key
-
-        try:
-            cache: TTLCache[str, str] = TTLCache(
-                max_size=5,
-                default_ttl=0.1,
-                cleanup_interval=0.05,
-                enable_background_cleanup=True,
+        assert stats.hit_rate == 0.5
+        assert stats.to_dict()["hits"] == 1
+
+
+class TestNotLoopBound:
+    def test_a_cache_built_on_one_loop_is_read_on_another(self) -> None:
+        """#305: nothing in the cache belongs to an event loop."""
+        cache: TTLCache[str, str] = TTLCache(max_size=3, default_ttl=60.0)
+        asyncio.run(cache.set("a", "A"))
+        assert asyncio.run(cache.get("a")) == "A"
+
+    def test_the_module_imports_no_asyncio(self) -> None:
+        source = (SRC / "content" / "cache.py").read_text(encoding="utf-8")
+        names = {
+            alias.name
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Import | ast.ImportFrom)
+            for alias in (
+                node.names
+                if isinstance(node, ast.Import)
+                else [ast.alias(name=node.module or "")]
             )
-        except:
-            # Restore environment and re-raise
-            if original_key:
-                os.environ["FINOS_MCP_CACHE_SECRET"] = original_key
-            else:
-                os.environ.pop("FINOS_MCP_CACHE_SECRET", None)
-            raise
-
-        # Add expiring items
-        await cache.set("key1", "value1")
-        await cache.set("key2", "value2")
-
-        # Should have cleanup task running
-        assert cache._cleanup_task is not None
-        assert not cache._cleanup_task.done()
-
-        # Wait for expiration and cleanup
-        await asyncio.sleep(0.2)
-
-        # Items should be cleaned up automatically
-        assert await cache.get("key1") is None
-        assert await cache.get("key2") is None
-
-        await cache.close()
+        }
+        assert "asyncio" not in names, "the cache holds loop-bound state again"
 
 
-@pytest.mark.unit
-class TestGlobalCacheAPI:
-    """Test global cache API functions."""
+class TestTheSingleton:
+    async def test_get_cache_returns_one_cache_built_from_the_settings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(cache_module._cache_manager, "_cache", None)
+        first = await get_cache()
+        assert await get_cache() is first
+        settings = Settings()
+        stats = await first.get_stats()
+        assert stats.max_size == settings.cache_max_size
 
-    @pytest.mark.asyncio
-    async def test_global_cache_access(self):
-        """Test global cache access."""
-        # Clean up any existing global cache
+    async def test_close_cache_empties_and_unbinds(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(cache_module._cache_manager, "_cache", None)
+        cache = await get_cache()
+        await cache.set("a", "A")
         await close_cache()
+        assert cache_module._cache_manager._cache is None
+        assert await cache.get("a") is None
 
-        # Get global cache
-        cache1 = await get_cache()
-        cache2 = await get_cache()
-
-        # Should be the same instance
-        assert cache1 is cache2
-
-        # Test basic functionality
-        await cache1.set("test", "value")
-        result = await cache2.get("test")
-        assert result == "value"
-
-        # Cleanup
-        await close_cache()
-
-    @pytest.mark.asyncio
-    async def test_cache_configuration_from_settings(self):
-        """Test cache configuration from application settings."""
-        with patch("finos_mcp.content.cache.get_settings") as mock_settings:
-            mock_settings.return_value.cache_max_size = 100
-            mock_settings.return_value.cache_ttl_seconds = 1800
-
-            # Clean up any existing global cache
-            await close_cache()
-
-            cache = await get_cache()
-
-            assert cache.max_size == 100
-            assert cache.default_ttl == 1800
-
-            await close_cache()
+    def test_the_manager_is_one_object(self) -> None:
+        assert CacheManager() is CacheManager()
 
 
-@pytest.mark.unit
-class TestCachePerformance:
-    """Test cache performance characteristics."""
+def test_a_networked_server_needs_no_cache_secret() -> None:
+    """#302's acceptance: an http server starts with no FINOS_MCP_CACHE_SECRET."""
+    Settings(
+        mcp_transport="http", mcp_host="127.0.0.1", allow_insecure_http=True
+    ).validate_startup()
+    assert "cache_secret" not in Settings.model_fields
 
-    @pytest.mark.asyncio
-    async def test_concurrent_access(self, cache_no_ttl):
-        """Test concurrent cache access."""
 
-        async def set_items(start: int, end: int) -> None:
-            for i in range(start, end):
-                await cache_no_ttl.set(f"key{i}", f"value{i}")
-
-        async def get_items(start: int, end: int) -> list:
-            results = []
-            for i in range(start, end):
-                result = await cache_no_ttl.get(f"key{i}")
-                results.append(result)
-            return results
-
-        # Concurrent operations
-        await asyncio.gather(
-            set_items(0, 2),
-            set_items(2, 3),  # Note: cache max_size is 3
-            get_items(0, 2),
-        )
-
-        # Cache should handle concurrent access gracefully
-        assert await cache_no_ttl.size() <= 3
-
-    @pytest.mark.asyncio
-    async def test_large_values(self, cache):
-        """Test cache with large values."""
-        # Create large but realistic data (not repetitive to avoid compression bomb detection)
-        import random
-        import string
-
-        # Generate random data that won't compress as much (realistic data)
-        # Using random for test data is acceptable in this security testing context
-        large_value = "".join(
-            random.choices(  # noqa: S311
-                string.ascii_letters + string.digits + " \n.,!?",
-                k=500_000,
-            )  # 500KB of varied data
-        )
-
-        await cache.set("large", large_value)
-        result = await cache.get("large")
-
-        assert result == large_value
-
-        # Check memory usage is tracked (compression will reduce size)
-        stats = await cache.get_stats()
-        assert stats.memory_usage_bytes > 0  # Just verify memory usage is tracked
-        # Random data compresses less than repetitive data, but should still be compressed
-        assert stats.memory_usage_bytes < len(
-            large_value
-        )  # Verify compression is working
+def test_every_public_name_in_the_cache_module_has_a_caller() -> None:
+    """#305: the interface, the adapters and the unused stats fields are gone."""
+    source = (SRC / "content" / "cache.py").read_text(encoding="utf-8")
+    public = [
+        node.name
+        for node in ast.parse(source).body
+        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+        and not node.name.startswith("_")
+    ]
+    assert public, "no public names found"
+    others = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in SRC.rglob("*.py")
+        if path.name != "cache.py"
+    )
+    unused = [name for name in public if not re.search(rf"\b{name}\b", others)]
+    assert not unused, f"public cache names nothing in src uses: {unused}"

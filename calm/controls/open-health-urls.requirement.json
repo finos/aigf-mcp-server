@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/finos/aigf-mcp-server/main/calm/controls/open-health-urls.requirement.json",
+  "title": "Health URLs that need no token",
+  "description": "The recorded exemption from authentication: the URLs a load balancer may call without a token, and what they may reveal. Written in this repository because FINOS publishes no control requirement for an MCP server (#270). The first three properties are the ones the CALM control-requirement meta-schema requires of every control.",
+  "type": "object",
+  "properties": {
+    "control-id": {
+      "type": "string",
+      "description": "The key of this control in the architecture file."
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Every path this control opens. The sign-in metadata document is the one other path served without a token; its exemption is declared on its interface, not here (#324)."
+    },
+    "authentication": {
+      "const": "none"
+    },
+    "response-body": {
+      "const": "empty",
+      "description": "The answer is a status code alone, so the URLs reveal nothing but up or not."
+    },
+    "exemption-recorded-in": {
+      "type": "string",
+      "description": "Where the exemption and its reasoning are written down."
+    }
+  },
+  "required": [
+    "control-id",
+    "name",
+    "description",
+    "paths",
+    "authentication",
+    "response-body",
+    "exemption-recorded-in"
+  ],
+  "additionalProperties": false
+}

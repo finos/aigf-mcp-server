@@ -6,9 +6,12 @@ encoding issues, and various delimiter styles.
 """
 
 import codecs
+import datetime
+import sys
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from finos_mcp.content.parse import (
     FrontmatterParser,
@@ -80,8 +83,8 @@ No frontmatter here."""
         assert frontmatter == {}
         assert body.strip() == "# Content after empty frontmatter"
 
-    def test_malformed_yaml_recovery(self, parser):
-        """Test recovery from malformed YAML."""
+    def test_malformed_yaml_gives_no_metadata(self, parser):
+        """Malformed frontmatter is not repaired line by line (#359)."""
         content = """---
 title: Test Document
 author: John Doe: Senior Developer
@@ -93,11 +96,8 @@ Content here."""
 
         frontmatter, body = parser.parse(content)
 
-        # Should still extract what it can
-        assert "title" in frontmatter
-        assert frontmatter["title"] == "Test Document"
-        assert "published" in frontmatter
-        assert body.strip() == "Content here."
+        assert set(frontmatter) == {"_parsing_error", "_raw_frontmatter"}
+        assert body == "Content here."
 
     def test_bom_detection_utf8(self, parser):
         """Test BOM detection for UTF-8."""
@@ -173,8 +173,8 @@ Unicode content with accents: café, naïve."""
         assert frontmatter["author"] == "Naïve"
         assert "café" in body
 
-    def test_excessive_whitespace_normalization(self, parser):
-        """Test normalization of excessive whitespace."""
+    def test_excessive_whitespace_is_kept(self, parser):
+        """Blank lines in frontmatter and body do not stop the parse."""
         content = """---
 title: Spaced Document
 
@@ -193,8 +193,8 @@ With lots of spaces."""
 
         assert frontmatter["title"] == "Spaced Document"
         assert frontmatter["author"] == "Test Author"
-        # Should normalize excessive newlines
-        assert "\n\n\n" not in body
+        # The body is served as written: its blank lines stay (#352).
+        assert body == "# Content\n\n\nWith lots of spaces."
 
     def test_yaml_type_conversion(self, parser):
         """Test YAML type conversion."""
@@ -226,35 +226,28 @@ Content."""
         assert isinstance(frontmatter["list_value"], list)
         assert len(frontmatter["list_value"]) == 2
 
-    def test_manual_yaml_extraction(self, parser):
-        """Test manual extraction when YAML parsing fails."""
-        # Completely broken YAML that should trigger manual extraction
-        content = """---
-title: Manual Extraction Test
-author: Test Author
-broken_syntax: [invalid yaml without closing bracket
-another_field: valid_value
----
+    @pytest.mark.parametrize("value", ["!!int x"])
+    def test_a_value_safe_load_refuses_gives_no_metadata(self, parser, value):
+        """safe_load raises ValueError or AttributeError here, not YAMLError.
 
-Manual extraction content."""
+        parse() caught it and served the raw frontmatter as the body (#359).
+        """
+        frontmatter, body = parser.parse(f"---\ntitle: A\nd: {value}\n---\nbody")
 
-        frontmatter, body = parser.parse(content)
+        assert set(frontmatter) == {"_parsing_error", "_raw_frontmatter"}
+        assert body == "body"
+        assert parser.get_stats()["malformed_yaml"] == 1
 
-        # Should extract what it can manually
-        assert "title" in frontmatter or "_parsing_error" in frontmatter
-        assert body.strip() == "Manual extraction content."
+    @pytest.mark.parametrize("error", [ValueError, RecursionError, KeyError])
+    def test_a_failed_step_raises_rather_than_serving_the_raw_text(self, parser, error):
+        """It answered ({}, content): the whole document, frontmatter
+        included, published as the body (#366). The old test mocked the step
+        to succeed, so it never reached the handler."""
+        with patch.object(parser, "detect_and_remove_bom", side_effect=error("broken")):
+            with pytest.raises(error, match="broken"):
+                parser.parse("---\ntitle: A\n---\nbody")
 
-    def test_encoding_error_handling(self, parser):
-        """Test handling of encoding errors."""
-        # Simulate encoding issues by providing invalid UTF-8 bytes
-        with patch.object(parser, "detect_and_remove_bom") as mock_bom:
-            mock_bom.return_value = ("corrupted content", None)
-
-            frontmatter, body = parser.parse("corrupted content")
-
-            # Should handle gracefully without crashing
-            assert isinstance(frontmatter, dict)
-            assert isinstance(body, str)
+        assert parser.get_stats()["failed"] == 1
 
     def test_parser_statistics(self, parser):
         """Test parser statistics tracking."""
@@ -460,3 +453,239 @@ This simulates GitHub Pages frontmatter."""
         assert isinstance(frontmatter["categories"], list)
         assert isinstance(frontmatter["tags"], list)
         assert "frontmatter" in frontmatter["tags"]
+
+
+@pytest.mark.unit
+class TestFrontmatterOnlyAtTheStart:
+    """Frontmatter opens the document; a later pair of rules is body (#350)."""
+
+    def test_two_rules_in_the_body_are_not_frontmatter(self, parser):
+        content = "# Intro\n\nText\n\n---\n\nmiddle: x\n\n---\n\nEnd"
+
+        frontmatter, body = parser.parse(content)
+
+        assert frontmatter == {}
+        assert body == content
+
+    def test_frontmatter_then_rules_in_the_body(self, parser):
+        content = "---\ntitle: A\n---\n\nText\n\n---\n\nmiddle: x\n\n---\n\nEnd"
+
+        frontmatter, body = parser.parse(content)
+
+        assert frontmatter == {"title": "A"}
+        assert body == "Text\n\n---\n\nmiddle: x\n\n---\n\nEnd"
+
+
+@pytest.mark.unit
+class TestFrontmatterThatEndsTheDocument:
+    """A closing `---` may be the last line, with nothing after it (#351)."""
+
+    def test_a_document_that_is_only_frontmatter(self, parser):
+        frontmatter, body = parser.parse("---\ntitle: A\n---")
+
+        assert frontmatter == {"title": "A"}
+        assert body == ""
+
+    def test_trailing_whitespace_after_the_closing_rule(self, parser):
+        frontmatter, body = parser.parse("---\ntitle: A\n---  \n\n")
+
+        assert frontmatter == {"title": "A"}
+        assert body == ""
+
+    def test_a_longer_rule_does_not_close_frontmatter(self, parser):
+        frontmatter, _ = parser.parse("---\ntitle: A\n----")
+
+        assert frontmatter == {}
+
+
+@pytest.mark.unit
+class TestTheBodyIsServedAsWritten:
+    """The parser does not rewrite the characters or blank lines of a body (#352)."""
+
+    def test_compatibility_characters_and_code_block_blank_lines(self, parser):
+        body = "```\na\n\n\n\nb\n```\nx\u00b2 \ufb01 \uff21"
+
+        _, parsed = parser.parse("---\ntitle: A\n---\n" + body)
+
+        assert parsed == body
+
+    @pytest.mark.parametrize(
+        "head", ["---\ntitle: A\n---\n", "---\ntitle: A\n---\n\n  \n", ""]
+    )
+    def test_the_first_line_keeps_its_indentation(self, parser, head):
+        """An indented code block that opens a body stays code (#370).
+
+        Only the blank lines above it go.
+        """
+        body = "    indented code\n    more code\n\nprose"
+
+        _, parsed = parser.parse(head + body)
+
+        assert parsed == body
+
+    def test_line_endings_are_still_normalized(self, parser):
+        _, parsed = parser.parse("---\r\ntitle: A\r\n---\r\none\r\ntwo\rthree")
+
+        assert parsed == "one\ntwo\nthree"
+
+
+@pytest.mark.unit
+class TestUtf32ByteOrderMarks:
+    """A UTF-32 BOM is not read as the UTF-16 BOM it starts with (#353)."""
+
+    @pytest.mark.parametrize("encoding", ["utf-32", "utf-32-le", "utf-32-be"])
+    def test_utf32_bytes_decode_as_utf32(self, parser, encoding):
+        text = "---\ntitle: A\n---\nbody"
+        raw = text.encode(encoding)
+        if encoding != "utf-32":
+            bom = (
+                codecs.BOM_UTF32_LE if encoding.endswith("le") else codecs.BOM_UTF32_BE
+            )
+            raw = bom + raw
+
+        frontmatter, body = parser.parse(raw)
+
+        assert frontmatter == {"title": "A"}
+        assert body == "body"
+
+
+@pytest.mark.unit
+class TestDeeplyNestedFrontmatter:
+    """Nesting deep enough to exhaust the stack is unparseable, not fatal (#354)."""
+
+    def test_the_body_is_still_served(self, parser):
+        nesting = "[" * (sys.getrecursionlimit() * 5)
+
+        frontmatter, body = parser.parse(f"---\nt: {nesting}\n---\nbody")
+
+        assert body == "body"
+        assert "recursion" in frontmatter["_parsing_error"]
+        assert parser.get_stats()["malformed_yaml"] == 1
+
+
+@pytest.mark.unit
+class TestMalformedFrontmatterIsNotRepaired:
+    """No line-by-line repair: it returned wrong data as a success (#359)."""
+
+    def test_a_block_scalar_does_not_become_keys(self, parser):
+        result = parser.parse_yaml_safely(
+            "title: T\ndescription: |\n  Note: a\n  b\nbad: ["
+        )
+
+        assert set(result) == {"_parsing_error", "_raw_frontmatter"}
+
+    def test_a_nested_mapping_is_not_flattened(self, parser):
+        result = parser.parse_yaml_safely("parent:\n  child: a: b\n  other: c")
+
+        assert set(result) == {"_parsing_error", "_raw_frontmatter"}
+
+
+@pytest.mark.unit
+def test_a_reset_restores_every_counter_a_new_parser_has(reset_stats):
+    """The reset and the constructor share one list of counters (#358)."""
+    parse_frontmatter("---\ntitle: A\n---\nbody")
+
+    reset_parser_stats()
+
+    assert get_parser_stats() == FrontmatterParser().get_stats()
+
+
+@pytest.mark.unit
+class TestFormatCharactersBeforeTheFrontmatter:
+    """A zero-width character before `---` does not hide the frontmatter (#362)."""
+
+    @pytest.mark.parametrize(
+        "lead", ["\ufeff", "\ufeff\ufeff", "\u200b", "\u2060", "\ufeff \u200b\n"]
+    )
+    def test_the_frontmatter_is_still_read(self, parser, lead):
+        frontmatter, body = parser.parse(f"{lead}---\ntitle: A\n---\nbody")
+
+        assert frontmatter == {"title": "A"}
+        assert body == "body"
+
+    @pytest.mark.parametrize("mark", ["\u200f", "\u202b", "\u2067"])
+    def test_a_document_without_frontmatter_keeps_its_direction_mark(
+        self, parser, mark
+    ):
+        frontmatter, body = parser.parse(f"{mark}\u0645\u0631\u062d\u0628\u0627")
+
+        assert frontmatter == {}
+        assert body.startswith(mark)
+
+    def test_a_rule_that_opens_a_document_is_not_frontmatter(self, parser):
+        frontmatter, body = parser.parse("\u200f---\nbody text after a rule")
+
+        assert frontmatter == {}
+        assert body == "\u200f---\nbody text after a rule"
+
+    def test_a_format_character_inside_the_body_is_kept(self, parser):
+        _, body = parser.parse("---\ntitle: A\n---\nzero\u200bwidth")
+
+        assert body == "zero\u200bwidth"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("frontmatter", ["Just text", "- a\n- b", "42"])
+def test_frontmatter_that_is_not_a_mapping_gives_no_metadata(parser, frontmatter):
+    """Valid YAML, but no keys: nothing to invent a `content` key for (#363)."""
+    metadata, body = parser.parse(f"---\n{frontmatter}\n---\nbody")
+
+    assert set(metadata) == {"_parsing_error", "_raw_frontmatter"}
+    assert "not a mapping" in metadata["_parsing_error"]
+    assert parser.get_stats()["malformed_yaml"] == 1
+    assert body == "body"
+
+
+@pytest.mark.unit
+def test_frontmatter_and_framework_documents_load_yaml_in_one_place(
+    parser, monkeypatch
+):
+    """One catch around safe_load, not two copies that drift (#364)."""
+    from finos_mcp.content import parse
+
+    monkeypatch.setattr(parse, "_load_yaml", lambda text: (None, ValueError("one")))
+
+    assert parse.parse_yaml_document("title: A") is None
+    assert parser.parse_yaml_safely("title: A")["_parsing_error"] == "one"
+
+
+@pytest.mark.unit
+class TestAnImpossibleDateIsText:
+    """One impossible date does not discard the other fields (#365)."""
+
+    def test_the_title_beside_it_is_kept(self, parser):
+        frontmatter, body = parser.parse(
+            "---\ntitle: A\nlast_updated: 2024-02-30\n---\nbody"
+        )
+
+        assert frontmatter == {"title": "A", "last_updated": "2024-02-30"}
+        assert body == "body"
+
+    def test_a_tagged_value_that_is_no_timestamp_is_text(self, parser):
+        frontmatter, _ = parser.parse(
+            "---\ntitle: A\nreviewed: !!timestamp soon\n---\nb"
+        )
+
+        assert frontmatter == {"title": "A", "reviewed": "soon"}
+
+    def test_a_real_date_is_still_a_date(self, parser):
+        frontmatter, _ = parser.parse("---\nlast_updated: 2024-02-29\n---\nbody")
+
+        assert frontmatter == {"last_updated": datetime.date(2024, 2, 29)}
+
+    def test_a_framework_document_with_one_is_still_parsed(self):
+        from finos_mcp.content.parse import parse_yaml_document
+
+        assert parse_yaml_document("title: T\nreviewed: 2023-13-01") == {
+            "title": "T",
+            "reviewed": "2023-13-01",
+        }
+
+    def test_the_loader_is_still_safe(self):
+        """_load_yaml uses yaml.load with a SafeLoader subclass; prove it."""
+        from finos_mcp.content.parse import _load_yaml
+
+        result, error = _load_yaml("x: !!python/object/apply:os.getcwd []")
+
+        assert result is None
+        assert isinstance(error, yaml.constructor.ConstructorError)

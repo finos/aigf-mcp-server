@@ -1,6 +1,9 @@
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
 """Structured logging for FINOS MCP Server.
 
-Copyright 2024 Hugo Calderon
+Copyright 2025 FINOS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +32,7 @@ import time
 import uuid
 from typing import Any, ClassVar, Optional
 
-from .config import get_settings
+from .config import GITHUB_TOKEN_PREFIXES, get_settings
 
 # Context variable for request correlation ID
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
@@ -40,8 +43,8 @@ request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
 class SecureJSONFormatter(logging.Formatter):
     """JSON formatter with PII/secret redaction capabilities.
 
-    Automatically redacts:
-    - GitHub tokens (ghp_, gho_, ghr_, ghs_ prefixes)
+    Automatically redacts, in the message, the exception and the extra fields:
+    - GitHub tokens (every prefix in ``config.GITHUB_TOKEN_PREFIXES``, #290)
     - URLs with authentication (user:pass@host)
     - Authorization headers
     - API keys and secrets
@@ -49,14 +52,16 @@ class SecureJSONFormatter(logging.Formatter):
 
     # Patterns for sensitive data redaction
     REDACTION_PATTERNS: ClassVar[list[tuple[re.Pattern[str], str]]] = [
-        # GitHub tokens (various types)
+        # GitHub tokens, one pattern for every prefix the settings know. A
+        # token body is 36 characters or more in every form GitHub issues.
         (
-            re.compile(r"gh[prs]_[A-Za-z0-9_]{36,255}", re.IGNORECASE),
+            re.compile(
+                "(?:"
+                + "|".join(re.escape(prefix) for prefix in GITHUB_TOKEN_PREFIXES)
+                + r")[A-Za-z0-9_]{36,255}",
+                re.IGNORECASE,
+            ),
             "[REDACTED_GITHUB_TOKEN]",
-        ),
-        (
-            re.compile(r"gho_[A-Za-z0-9_]{36,255}", re.IGNORECASE),
-            "[REDACTED_GITHUB_OAUTH_TOKEN]",
         ),
         # URLs with authentication
         (
@@ -126,10 +131,16 @@ class SecureJSONFormatter(logging.Formatter):
 
         # Add exception information if present
         if record.exc_info:
+            # An exception's words are whatever raised it put there, a
+            # credential included, so they pass the same redaction (#290).
             log_data["exception"] = {
                 "type": record.exc_info[0].__name__ if record.exc_info[0] else None,
-                "message": str(record.exc_info[1]) if record.exc_info[1] else None,
-                "traceback": self.formatException(record.exc_info),
+                "message": self._redact_sensitive_data(str(record.exc_info[1]))
+                if record.exc_info[1]
+                else None,
+                "traceback": self._redact_sensitive_data(
+                    self.formatException(record.exc_info)
+                ),
             }
 
         # Add extra fields from log record
@@ -208,17 +219,6 @@ class SecureJSONFormatter(logging.Formatter):
         return result
 
 
-class CorrelationIdFilter(logging.Filter):
-    """Logging filter that adds correlation ID to log records."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Add correlation ID to log record if available."""
-        correlation_id = request_id_var.get()
-        if correlation_id:
-            record.correlation_id = correlation_id
-        return True
-
-
 def generate_correlation_id() -> str:
     """Generate a new correlation ID for request tracing."""
     return str(uuid.uuid4())
@@ -241,22 +241,41 @@ def set_correlation_id(correlation_id: str | None = None) -> str:
     return correlation_id
 
 
-def get_correlation_id() -> str | None:
-    """Get current correlation ID from context."""
-    try:
-        return request_id_var.get()
-    except LookupError:
-        return None
+def _bare_app_logger(logger_name: str = "finos-ai-governance-mcp") -> logging.Logger:
+    """The application logger before the settings are read.
+
+    Modules take their loggers at import, before ``validate_settings_on_startup``
+    has built the settings, so this reads none: it formats and redacts as the
+    configured logger does, and leaves the level to the root default until
+    ``setup_structured_logging`` sets it (#300).
+    """
+    logger = logging.getLogger(logger_name)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            SecureJSONFormatter(include_timestamp=True, include_correlation_id=True)
+        )
+        logger.addHandler(handler)
+    logger.propagate = False
+    return logger
 
 
 def setup_structured_logging(
-    logger_name: str = "finos-ai-governance-mcp", force_json: bool = False
+    logger_name: str = "finos-ai-governance-mcp",
 ) -> logging.Logger:
     """Setup structured JSON logging for the application.
 
+    Reads the settings, so it is called once, by
+    ``validate_settings_on_startup``, after they are built; ``get_logger``
+    does not call it (#300).
+
+    One formatter in both modes. The debug mode used to install a plain
+    formatter naming ``%(correlation_id)s``, a field only a document fetch
+    set, so every other record became a "Logging error" with a stack, and
+    nothing was redacted (#299).
+
     Args:
         logger_name: Name of the logger to configure
-        force_json: Force JSON output even in development mode
 
     Returns:
         Configured logger instance
@@ -278,35 +297,23 @@ def setup_structured_logging(
     console_handler = logging.StreamHandler()
     console_handler.setLevel(log_level)
 
-    # Choose formatter based on debug mode and force_json flag
-    use_json = force_json or not settings.debug_mode
-
-    formatter: logging.Formatter
-    if use_json:
-        # Use JSON formatter for production/structured logging
-        formatter = SecureJSONFormatter(
-            include_timestamp=True, include_correlation_id=True
-        )
-    else:
-        # Use human-readable formatter for development
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(correlation_id)s]"
-            if settings.debug_mode
-            else "%(name)s - %(levelname)s - %(message)s"
-        )
-
+    formatter = SecureJSONFormatter(include_timestamp=True, include_correlation_id=True)
     console_handler.setFormatter(formatter)
-
-    # Add correlation ID filter
-    correlation_filter = CorrelationIdFilter()
-    console_handler.addFilter(correlation_filter)
-    logger.addFilter(correlation_filter)
 
     # Add handler to logger
     logger.addHandler(console_handler)
 
     # Prevent propagation to root logger
     logger.propagate = False
+
+    # Records of other libraries (httpx, fastmcp, uvicorn) reach the root
+    # handler. It formats with the same redaction, so a credential in a
+    # third-party message is not logged whole either (#290).
+    root = logging.getLogger()
+    if not root.handlers:
+        root.addHandler(logging.StreamHandler())
+    for handler in root.handlers:
+        handler.setFormatter(formatter)
 
     return logger
 
@@ -355,53 +362,6 @@ def log_http_request(
     logger.log(log_level, f"HTTP {method} {url}", extra=log_data)
 
 
-def log_mcp_request(
-    logger: logging.Logger,
-    method: str,
-    *,
-    request_id: str | None = None,
-    params: dict[str, Any] | None = None,
-    error: str | None = None,
-    response_time: float | None = None,
-) -> None:
-    """Log MCP protocol request with structured data.
-
-    Args:
-        logger: Logger instance to use
-        method: MCP method name
-        request_id: MCP request ID
-        params: Request parameters (will be redacted)
-        error: Error message if request failed
-        response_time: Request duration in seconds
-
-    """
-    log_data: dict[str, Any] = {
-        "event_type": "mcp_request",
-        "mcp_method": method,
-    }
-
-    if request_id:
-        log_data["mcp_request_id"] = request_id
-
-    if params:
-        log_data["mcp_params"] = params  # Will be redacted by formatter
-
-    if error:
-        log_data["error"] = error
-
-    if response_time is not None:
-        log_data["response_time_ms"] = round(response_time * 1000, 2)
-
-    # Log level based on success/failure
-    log_level = logging.ERROR if error else logging.INFO
-
-    message = f"MCP {method}"
-    if error:
-        message += f" failed: {error}"
-
-    logger.log(log_level, message, extra=log_data)
-
-
 def create_child_logger(
     parent_logger: logging.Logger, child_name: str
 ) -> logging.Logger:
@@ -416,12 +376,10 @@ def create_child_logger(
 
     """
     child_logger_name = f"{parent_logger.name}.{child_name}"
-    child_logger = logging.getLogger(child_logger_name)
-
-    # Child will inherit parent's handlers and level
-    child_logger.setLevel(parent_logger.level)
-
-    return child_logger
+    # No level of its own: the child follows the parent, whose level is set
+    # once by validate_settings_on_startup(). An explicit copy of the parent's
+    # level at creation froze whatever it was at import time (#300).
+    return logging.getLogger(child_logger_name)
 
 
 class LoggerManager:
@@ -446,7 +404,7 @@ class LoggerManager:
 
         """
         if self._app_logger is None:
-            self._app_logger = setup_structured_logging()
+            self._app_logger = _bare_app_logger()
 
         if name:
             return create_child_logger(self._app_logger, name)

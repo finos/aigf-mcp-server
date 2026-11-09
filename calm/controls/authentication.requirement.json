@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/finos/aigf-mcp-server/main/calm/controls/authentication.requirement.json",
+  "title": "Authentication on a networked MCP transport",
+  "description": "What a networked transport of this server checks before a tool call is served. Written in this repository because FINOS publishes no control requirement for an MCP server (#270). The first three properties are the ones the CALM control-requirement meta-schema requires of every control.",
+  "type": "object",
+  "properties": {
+    "control-id": {
+      "type": "string",
+      "description": "The key of this control in the architecture file."
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "token-format": {
+      "const": "JWT bearer token",
+      "description": "The only token format the server accepts."
+    },
+    "verified-claims": {
+      "type": "array",
+      "items": {
+        "enum": ["iss", "aud", "exp", "sub"]
+      },
+      "minItems": 4,
+      "uniqueItems": true,
+      "description": "Every claim the server checks on each token whatever the settings. All four are required: a token without exp is refused (#286), and one without sub is refused because rate limits and the call log are keyed on it (#320). nbf is honoured when present and is not listed because a token may omit it; scope is checked only when the next property's setting is set (#324)."
+    },
+    "scope-checked-when": {
+      "const": "FINOS_MCP_MCP_AUTH_REQUIRED_SCOPES",
+      "description": "The setting that, when set, names the scopes every token must hold. Unset, the scope claim is not checked."
+    },
+    "key-sources": {
+      "type": "array",
+      "items": {
+        "enum": ["FINOS_MCP_MCP_AUTH_JWKS_URI", "FINOS_MCP_MCP_AUTH_PUBLIC_KEY"]
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "The settings a deployer may give the signing keys through; exactly one is set."
+    },
+    "required-on-transports": {
+      "type": "array",
+      "items": {
+        "enum": ["http", "streamable-http", "sse"]
+      },
+      "minItems": 3,
+      "uniqueItems": true,
+      "description": "The transports that do not start without authentication."
+    },
+    "exempt-transports": {
+      "const": ["stdio"],
+      "description": "The transports with no network boundary to authenticate."
+    },
+    "insecure-override-setting": {
+      "const": "FINOS_MCP_ALLOW_INSECURE_HTTP",
+      "description": "The one setting that lets a networked transport start without authentication; default false."
+    }
+  },
+  "required": [
+    "control-id",
+    "name",
+    "description",
+    "token-format",
+    "verified-claims",
+    "scope-checked-when",
+    "key-sources",
+    "required-on-transports",
+    "exempt-transports",
+    "insecure-override-setting"
+  ],
+  "additionalProperties": false
+}

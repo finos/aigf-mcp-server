@@ -1,0 +1,80 @@
+name: Go-Live Gate
+
+# scripts/go-live-gate.sh was run only by hand. Gate 6 was broken from the mcp 2
+# migration (#162) until #181 and no check failed, because nothing ran it (#195).
+on:
+  # Weekly on Mondays at 7 AM UTC, so a gate broken by something outside the
+  # tree -- a new advisory, a ref pushed to the remote -- fails within a week.
+  schedule:
+    - cron: '0 7 * * 1'
+  # A change to the gate, to a script it calls or to the document Gate 11
+  # compares with the repository's visibility is tested by running the gate.
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/go-live-gate.yml'
+      - 'SECURITY.md'
+  # Allow manual trigger, which is how a release day runs it
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go-live-gate:
+    name: Go-Live Gate (all automated gates)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        # Every gate resolves its interpreter through scripts/project-python.sh,
+        # which is virtualenv-based and will not fall back to a bare system
+        # interpreter -- that fallback is what let a stale environment become the
+        # audited artefact for six months (#89). Creating the virtualenv here is
+        # what makes a runner resolve the same way a laptop does; without it the
+        # shim has nothing to find. $GITHUB_PATH persists across steps, so later
+        # steps need no `source`, but this step still does.
+        python -m venv venv
+        echo "$PWD/venv/bin" >> "$GITHUB_PATH"
+        # shellcheck source=/dev/null
+        source venv/bin/activate
+        python -m pip install --upgrade pip setuptools
+        pip install -e .[security,dev]
+
+    # Gates 5, 6 and 7 each start the real server, and each start lists three
+    # directories through the GitHub API unless this cache is warm. The gate
+    # runs unauthenticated against a 60 requests/hour per-IP limit shared
+    # across GitHub-hosted runners, the same as the functional-gate job.
+    - name: Restore discovery cache
+      uses: actions/cache@v6
+      with:
+        path: .cache/discovery
+        key: finos-discovery-${{ github.run_id }}
+        restore-keys: |
+          finos-discovery-
+
+    - name: Run every automated go-live gate
+      env:
+        # Gate 9 fetches every ref the remote advertises with the credentials
+        # checkout left behind; Gate 10 asks the API about HEAD through gh. On
+        # a pull request HEAD is the synthetic merge commit, which the API can
+        # read. Gate 11 asks the API whether the reporting form is available.
+        GH_TOKEN: ${{ github.token }}
+        # Where the cache step above restores the list file; without it the
+        # server writes under ~/.cache/finos-mcp and the cache saves nothing
+        # (#406).
+        FINOS_MCP_DISCOVERY_CACHE_DIR: ${{ github.workspace }}/.cache/discovery
+      run: |
+        ./scripts/go-live-gate.sh

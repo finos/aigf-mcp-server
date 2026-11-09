@@ -5,7 +5,7 @@ Tests to ensure the server can handle resource-intensive requests without
 allowing denial of service attacks through oversized requests.
 """
 
-from unittest.mock import patch
+from typing import Any
 
 import pytest
 
@@ -21,7 +21,6 @@ class TestRequestSizeLimits:
         return RequestSizeValidator(
             max_tool_result_size=5_000_000,  # 5MB
             max_resource_size=1_000_000,  # 1MB
-            max_request_params_size=100_000,  # 100KB
         )
 
     def test_validates_tool_result_size_limits(self, request_validator):
@@ -40,25 +39,15 @@ class TestRequestSizeLimits:
         with pytest.raises(ValueError, match="Resource content exceeds size limit"):
             request_validator.validate_resource_size(large_resource)
 
-    def test_validates_request_parameters_size(self, request_validator):
-        """Test that request parameters exceeding size limits are rejected."""
-        # Simulate 200KB parameters (exceeds 100KB limit)
-        large_params = {"data": "x" * 200_000}
-
-        with pytest.raises(ValueError, match="Request parameters exceed size limit"):
-            request_validator.validate_request_params_size(large_params)
-
     def test_allows_normal_sized_requests(self, request_validator):
         """Test that normal-sized requests are allowed through."""
         # Normal sizes that should pass
         normal_result = ["small result"]
         normal_resource = "small resource content"
-        normal_params = {"query": "normal query"}
 
         # These should not raise exceptions
         request_validator.validate_tool_result_size(normal_result)
         request_validator.validate_resource_size(normal_resource)
-        request_validator.validate_request_params_size(normal_params)
 
     def test_calculates_content_size_accurately(self, request_validator):
         """Test that content size calculation is accurate for various data types."""
@@ -77,7 +66,6 @@ class TestRequestSizeLimits:
         # Empty content
         request_validator.validate_tool_result_size([])
         request_validator.validate_resource_size("")
-        request_validator.validate_request_params_size({})
 
         # None values
         request_validator.validate_resource_size(None)
@@ -94,7 +82,6 @@ class TestDoSProtection:
         return DoSProtector(
             max_requests_per_minute=60,
             max_concurrent_requests=10,
-            request_timeout_seconds=30,
         )
 
     @pytest.mark.asyncio
@@ -143,23 +130,6 @@ class TestDoSProtection:
         assert request_id is not None
 
     @pytest.mark.asyncio
-    async def test_request_timeout_protection(self, dos_protector):
-        """Test that long-running requests are timed out."""
-        client_id = "test_client"
-
-        # Start a request that will timeout
-        request_id = await dos_protector.start_request(client_id)
-        start_time = dos_protector._get_current_time()
-
-        # Mock timeout scenario
-        with patch.object(dos_protector, "_get_current_time") as mock_time:
-            # Simulate 31 seconds have passed (exceeds 30s timeout)
-            mock_time.return_value = start_time + 31
-
-            # Check if request is considered timed out
-            assert dos_protector._is_request_timed_out(client_id, request_id) is True
-
-    @pytest.mark.asyncio
     async def test_different_clients_have_separate_limits(self, dos_protector):
         """Test that different clients have separate rate limiting."""
         client1 = "client_1"
@@ -181,7 +151,6 @@ class TestResourceExhaustion:
         validator = RequestSizeValidator(
             max_tool_result_size=1_000_000,  # 1MB limit
             max_resource_size=500_000,  # 500KB limit
-            max_request_params_size=50_000,  # 50KB limit
         )
 
         # Simulate an attack with extremely large data
@@ -194,15 +163,12 @@ class TestResourceExhaustion:
         with pytest.raises(ValueError):
             validator.validate_resource_size(attack_data)
 
-        with pytest.raises(ValueError):
-            validator.validate_request_params_size({"attack": attack_data})
-
     def test_handles_deeply_nested_data_structures(self):
         """Test that deeply nested data doesn't cause stack overflow."""
         validator = RequestSizeValidator()
 
         # Create deeply nested structure
-        nested = {}
+        nested: dict[str, Any] = {}
         current = nested
         for _i in range(1000):  # 1000 levels deep
             current["next"] = {}
@@ -213,16 +179,8 @@ class TestResourceExhaustion:
         size = validator._calculate_content_size(nested)
         assert size > 0
 
-    def test_concurrent_request_memory_limits(self):
-        """Test that concurrent requests don't exceed memory limits."""
-        validator = RequestSizeValidator(
-            max_concurrent_memory_mb=50
-        )  # 50MB total limit
-
-        # Simulate multiple concurrent requests each using memory
-        request_sizes = [10_000_000] * 6  # 6 requests of 10MB each (60MB total)
-
-        with pytest.raises(
-            ValueError, match="Total concurrent memory usage exceeds limit"
-        ):
-            validator.validate_concurrent_memory_usage(request_sizes)
+    # test_concurrent_request_memory_limits was removed in #23 along with
+    # validate_concurrent_memory_usage. Nothing populated the accounting it checked,
+    # so the assertion described a limit the running server never applied. Concurrency
+    # is now bounded by request count in DoSProtector, enforced in dos_middleware and
+    # covered by tests/security/test_dos_middleware.py.

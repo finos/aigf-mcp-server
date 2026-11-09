@@ -1,7 +1,7 @@
 name: Feature Request
 description: Suggest an idea for this project
 title: "[Feature]: "
-labels: ["enhancement", "needs-triage"]
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
@@ -32,6 +32,13 @@ body:
       label: Alternatives Considered
       description: Describe alternatives you've considered
       placeholder: A clear and concise description of any alternative solutions or features you've considered.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe the specific use case this feature would enable.
+      placeholder: Who would use it, and what they could do that they cannot do today.
 
   - type: dropdown
     id: priority
@@ -77,7 +84,7 @@ body:
     id: terms
     attributes:
       label: Code of Conduct
-      description: By submitting this issue, you agree to follow our Code of Conduct
+      description: By submitting this issue, you agree to follow the [Code of Conduct](https://community.finos.org/docs/governance/code-of-conduct)
       options:
         - label: I agree to follow this project's Code of Conduct
           required: true

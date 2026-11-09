@@ -1,8 +1,19 @@
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Request size validation and DoS protection for the MCP server.
 
 Provides comprehensive protection against denial of service attacks through
 oversized requests, request flooding, and resource exhaustion.
+
+This module holds the state and the limit checks only. They are enforced at the MCP
+protocol boundary by security.dos_middleware; adding a check here without a call site
+there produces a control that looks tested and protects nothing (issue #23).
+
+Per-request memory accounting was removed deliberately: nothing populated it, it
+duplicates the limits the OS and container runtime already impose, and wiring it would
+have meant threading a size estimate through every call site for no added protection.
 """
 
 import asyncio
@@ -23,28 +34,27 @@ class RequestSizeValidator:
         self,
         max_tool_result_size: int = 5_000_000,  # 5MB
         max_resource_size: int = 1_000_000,  # 1MB
-        max_request_params_size: int = 100_000,  # 100KB
-        max_concurrent_memory_mb: int = 50,  # 50MB total concurrent
     ):
         """Initialize request size validator.
+
+        Request parameters have no limit here: each one is bounded by the
+        ``Field`` its tool, resource or prompt declares, and fastmcp refuses a
+        value over that bound before the function runs (#322).
 
         Args:
             max_tool_result_size: Maximum size for tool results in bytes
             max_resource_size: Maximum size for individual resources in bytes
-            max_request_params_size: Maximum size for request parameters in bytes
-            max_concurrent_memory_mb: Maximum total concurrent memory usage in MB
         """
         self.max_tool_result_size = max_tool_result_size
         self.max_resource_size = max_resource_size
-        self.max_request_params_size = max_request_params_size
-        self.max_concurrent_memory = max_concurrent_memory_mb * 1_000_000
-
-        # Track concurrent memory usage
-        self._concurrent_requests: dict[str, int] = {}
-        self._memory_lock = asyncio.Lock()
 
     def validate_tool_result_size(self, result: list[Any]) -> None:
         """Validate tool result size.
+
+        Callers must pass values this class can measure at full size - str, bytes,
+        list or dict. Anything else is truncated to 1000 bytes by
+        _calculate_content_size, which would silently disable this limit. See
+        security.dos_middleware._measurable_tool_payload.
 
         Args:
             result: Tool execution result
@@ -83,70 +93,6 @@ class RequestSizeValidator:
                 self.max_resource_size,
             )
             raise ValueError(f"Resource content exceeds size limit ({size} bytes)")
-
-    def validate_request_params_size(self, params: dict[str, Any]) -> None:
-        """Validate request parameters size.
-
-        Args:
-            params: Request parameters
-
-        Raises:
-            ValueError: If parameters exceed size limit
-        """
-        size = self._calculate_content_size(params)
-
-        if size > self.max_request_params_size:
-            logger.warning(
-                "Request parameters size exceeded limit: %d bytes > %d bytes",
-                size,
-                self.max_request_params_size,
-            )
-            raise ValueError(f"Request parameters exceed size limit ({size} bytes)")
-
-    def validate_concurrent_memory_usage(self, request_sizes: list[int]) -> None:
-        """Validate that concurrent requests don't exceed memory limits.
-
-        Args:
-            request_sizes: List of sizes for concurrent requests
-
-        Raises:
-            ValueError: If total concurrent usage exceeds limit
-        """
-        total_concurrent = sum(request_sizes)
-
-        if total_concurrent > self.max_concurrent_memory:
-            logger.warning(
-                "Concurrent memory usage exceeded limit: %d bytes > %d bytes",
-                total_concurrent,
-                self.max_concurrent_memory,
-            )
-            raise ValueError(
-                f"Total concurrent memory usage exceeds limit ({total_concurrent} bytes)"
-            )
-
-    async def start_request_tracking(self, request_id: str, size: int) -> None:
-        """Start tracking memory usage for a request.
-
-        Args:
-            request_id: Unique request identifier
-            size: Memory size being used by the request
-        """
-        async with self._memory_lock:
-            self._concurrent_requests[request_id] = size
-
-    async def complete_request_tracking(self, request_id: str) -> None:
-        """Complete tracking for a request.
-
-        Args:
-            request_id: Request identifier to stop tracking
-        """
-        async with self._memory_lock:
-            self._concurrent_requests.pop(request_id, None)
-
-    async def get_current_memory_usage(self) -> int:
-        """Get current total memory usage across all tracked requests."""
-        async with self._memory_lock:
-            return sum(self._concurrent_requests.values())
 
     def _calculate_content_size(self, content: Any) -> int:
         """Calculate the size of content in bytes with protection against infinite recursion.
@@ -237,24 +183,30 @@ class DoSProtector:
         self,
         max_requests_per_minute: int = 60,
         max_concurrent_requests: int = 10,
-        request_timeout_seconds: int = 30,
         cleanup_interval_seconds: int = 60,
+        max_tracked_clients: int = 10000,
     ):
         """Initialize DoS protector.
+
+        A concurrency slot is held until the call that took it returns; the
+        middleware releases it in ``finally``. There is no expiry: one gave a
+        running call's slot away after a timeout, so the limit bounded only
+        fast calls (#288).
 
         Args:
             max_requests_per_minute: Maximum requests per client per minute
             max_concurrent_requests: Maximum concurrent requests per client
-            request_timeout_seconds: Timeout for individual requests
             cleanup_interval_seconds: How often to clean up old tracking data
+            max_tracked_clients: Upper bound on distinct client keys held in memory
         """
         self.max_requests_per_minute = max_requests_per_minute
         self.max_concurrent_requests = max_concurrent_requests
-        self.request_timeout = request_timeout_seconds
         self.cleanup_interval = cleanup_interval_seconds
+        self.max_tracked_clients = max_tracked_clients
 
         # Rate limiting tracking
-        self._request_history: dict[str, deque] = defaultdict(deque)
+        # Each deque holds request timestamps (time.time() floats) for one client.
+        self._request_history: dict[str, deque[float]] = defaultdict(deque)
         self._concurrent_requests: dict[str, dict[str, float]] = defaultdict(dict)
         self._last_cleanup = time.time()
         self._lock = asyncio.Lock()
@@ -271,6 +223,11 @@ class DoSProtector:
         current_time = self._get_current_time()
 
         async with self._lock:
+            # Must run before the defaultdict access below, which would otherwise
+            # create the entry and hide the fact that this client is new.
+            if client_id not in self._request_history:
+                self._evict_if_at_capacity(current_time)
+
             # Clean up old requests
             self._cleanup_old_requests(client_id, current_time)
 
@@ -305,9 +262,6 @@ class DoSProtector:
         request_id = str(uuid.uuid4())
 
         async with self._lock:
-            # Clean up timed out requests
-            self._cleanup_timed_out_requests(client_id, current_time)
-
             # Check concurrent request limit
             concurrent_count = len(self._concurrent_requests[client_id])
 
@@ -341,27 +295,52 @@ class DoSProtector:
                     "Completed request %s for client %s", request_id, client_id
                 )
 
-    async def get_client_stats(self, client_id: str) -> dict[str, Any]:
-        """Get statistics for a client.
+    def _evict_if_at_capacity(self, current_time: float) -> None:
+        """Make room for a new client key, bounding tracked-client memory.
 
-        Args:
-            client_id: Client identifier
+        Client keys are derived from caller identity, so a spray of requests from
+        many distinct sources would otherwise grow the tracking tables without
+        limit between the 60s periodic_cleanup passes.
 
-        Returns:
-            Dictionary with client statistics
+        Expired entries are dropped first. If that frees nothing, the client with
+        the fewest requests in the window is evicted, ties broken by whichever
+        was least recently active.
+
+        Evicting by lowest request count is the security-relevant choice, and the
+        reason is not obvious. Evicting the least recently active instead looks
+        reasonable but is exploitable: a client that has just burst up to its
+        limit has an older last-request timestamp than a spray of fresh keys, so
+        an attacker at the limit could spray max_tracked_clients keys, evict
+        their own entry, and come back with a clean budget. Ordering by request
+        count makes the entry nearest its limit the last one evicted, so
+        displacing it costs the attacker more requests than the limit it buys.
         """
-        current_time = self._get_current_time()
+        if len(self._request_history) < self.max_tracked_clients:
+            return
 
-        async with self._lock:
-            self._cleanup_old_requests(client_id, current_time)
-            self._cleanup_timed_out_requests(client_id, current_time)
+        for tracked_id in list(self._request_history.keys()):
+            self._cleanup_old_requests(tracked_id, current_time)
+            if not self._request_history[
+                tracked_id
+            ] and not self._concurrent_requests.get(tracked_id):
+                del self._request_history[tracked_id]
+                self._concurrent_requests.pop(tracked_id, None)
 
-            return {
-                "requests_last_minute": len(self._request_history[client_id]),
-                "concurrent_requests": len(self._concurrent_requests[client_id]),
-                "rate_limit": self.max_requests_per_minute,
-                "concurrent_limit": self.max_concurrent_requests,
-            }
+        if len(self._request_history) < self.max_tracked_clients:
+            return
+
+        def eviction_rank(tracked_id: str) -> tuple[int, float]:
+            history = self._request_history[tracked_id]
+            return (len(history), history[-1] if history else 0.0)
+
+        evicted_id = min(self._request_history, key=eviction_rank)
+        logger.warning(
+            "Client tracking table full (%d entries); evicting least active client %s",
+            self.max_tracked_clients,
+            evicted_id,
+        )
+        del self._request_history[evicted_id]
+        self._concurrent_requests.pop(evicted_id, None)
 
     def _cleanup_old_requests(self, client_id: str, current_time: float) -> None:
         """Clean up request history older than 1 minute."""
@@ -370,31 +349,6 @@ class DoSProtector:
         history = self._request_history[client_id]
         while history and history[0] < cutoff_time:
             history.popleft()
-
-    def _cleanup_timed_out_requests(self, client_id: str, current_time: float) -> None:
-        """Clean up requests that have timed out."""
-        if client_id not in self._concurrent_requests:
-            return
-
-        timed_out = []
-        for request_id, start_time in self._concurrent_requests[client_id].items():
-            if current_time - start_time > self.request_timeout:
-                timed_out.append(request_id)
-
-        for request_id in timed_out:
-            self._concurrent_requests[client_id].pop(request_id, None)
-            logger.warning("Request %s for client %s timed out", request_id, client_id)
-
-    def _is_request_timed_out(self, client_id: str, request_id: str) -> bool:
-        """Check if a specific request has timed out."""
-        if client_id not in self._concurrent_requests:
-            return False
-
-        if request_id not in self._concurrent_requests[client_id]:
-            return False
-
-        start_time = self._concurrent_requests[client_id][request_id]
-        return (self._get_current_time() - start_time) > self.request_timeout
 
     def _get_current_time(self) -> float:
         """Get current time (mockable for testing)."""
@@ -411,7 +365,6 @@ class DoSProtector:
             # Clean up all clients
             for client_id in list(self._request_history.keys()):
                 self._cleanup_old_requests(client_id, current_time)
-                self._cleanup_timed_out_requests(client_id, current_time)
 
                 # Remove empty client entries
                 if (

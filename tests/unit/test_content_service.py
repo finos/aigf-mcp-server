@@ -5,11 +5,16 @@ This module tests the actual ContentService implementation instead of mocking it
 to achieve proper code coverage for the content service functionality.
 """
 
+import logging
 import time
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from finos_mcp import service as facade_module
+from finos_mcp.content import cache as cache_module
+from finos_mcp.content import fetch as fetch_module
+from finos_mcp.content import service as service_module
 from finos_mcp.content.service import (
     ContentService,
     ContentServiceManager,
@@ -20,6 +25,7 @@ from finos_mcp.content.service import (
     close_content_service,
     get_content_service,
 )
+from finos_mcp.fastmcp_main import cleanup_resources
 
 
 @pytest.mark.unit
@@ -39,13 +45,7 @@ class TestContentServiceInitialization:
             assert service.start_time is not None
             assert isinstance(service.start_time, float)
 
-            # Verify circuit breakers are created
-            assert service.fetch_circuit_breaker is not None
-            assert service.cache_circuit_breaker is not None
-            assert service.fetch_circuit_breaker.state == "closed"
-            assert service.cache_circuit_breaker.state == "closed"
-
-            # Verify lazy initialization
+            # No components of its own until given some
             assert service._http_client is None
             assert service._cache is None
 
@@ -60,9 +60,7 @@ class TestContentServiceInitialization:
         """Test OperationResult enum values."""
         assert OperationResult.SUCCESS.value == "success"
         assert OperationResult.CACHE_HIT.value == "cache_hit"
-        assert OperationResult.FALLBACK.value == "fallback"
         assert OperationResult.FAILURE.value == "failure"
-        assert OperationResult.CIRCUIT_OPEN.value == "circuit_open"
 
 
 @pytest.mark.unit
@@ -169,9 +167,11 @@ class TestContentServiceOperations:
         service.successful_requests = 85
         service.failed_requests = 15
 
-        # Simulate circuit breaker trips by setting failure counts
-        service.fetch_circuit_breaker.failure_count = 2
-        service.fetch_circuit_breaker.last_failure_time = 1234567890.0
+        # Two failures of the content host, as the HTTP client's breaker counts
+        # them
+        breaker = await service.content_host_breaker()
+        breaker.on_failure("fetch failed")
+        breaker.on_failure("fetch failed")
 
         health = await service.get_health_status()
 
@@ -210,24 +210,6 @@ class TestContentServiceOperations:
         service.failed_requests = 70
         health = await service.get_health_status()
         assert health.status == ServiceStatus.CRITICAL
-
-    @pytest.mark.asyncio
-    async def test_reset_health(self, service):
-        """Test health reset functionality."""
-        # Set some statistics
-        service.total_requests = 100
-        service.successful_requests = 85
-        service.failed_requests = 15
-        service.circuit_breaker_trips = 2
-
-        # Reset health
-        await service.reset_health()
-
-        # Verify reset
-        assert service.total_requests == 0
-        assert service.successful_requests == 0
-        assert service.failed_requests == 0
-        assert service.circuit_breaker_trips == 0
 
     @pytest.mark.asyncio
     async def test_get_service_diagnostics(self, service):
@@ -287,6 +269,29 @@ class TestGetDocumentFunctionality:
             except Exception:  # noqa: S110
                 # Ignore cleanup errors in tests - exceptions during test cleanup are expected
                 pass
+
+    @pytest.mark.asyncio
+    async def test_a_parse_failure_is_raised_and_counted(self, service):
+        """It escaped get_document without touching failed_requests (#366)."""
+        from finos_mcp.exceptions import ContentValidationError
+
+        with (
+            patch.object(service, "_cache_get_with_boundary", return_value=None),
+            patch.object(
+                service,
+                "_fetch_content_with_boundary",
+                return_value="---\nt: a\n---\nb",
+            ),
+            patch(
+                "finos_mcp.content.service.parse_frontmatter",
+                side_effect=ValueError("broken"),
+            ),
+        ):
+            with pytest.raises(ContentValidationError):
+                await service.get_document("risk", "ri-1_x.md")
+
+        assert service.failed_requests == 1
+        assert service.successful_requests == 0
 
     @pytest.mark.asyncio
     async def test_get_document_mitigation_success(self, service):
@@ -370,13 +375,17 @@ class TestGetDocumentFunctionality:
 
     @pytest.mark.asyncio
     async def test_get_document_fetch_failure(self, service):
-        """Test document retrieval when fetch fails."""
+        """Test document retrieval when fetch fails.
+
+        The one fetch route is patched (#312 removed the Contents API fallback
+        that used to make this test reach api.github.com, see #119).
+        """
         with (
             patch.object(service, "_cache_get_with_boundary") as mock_cache_get,
             patch.object(service, "_fetch_content_with_boundary") as mock_fetch,
         ):
             mock_cache_get.return_value = None  # Cache miss
-            mock_fetch.return_value = None  # Fetch failure
+            mock_fetch.return_value = None  # content host failure
 
             result = await service.get_document("mitigation", "missing-file.md")
 
@@ -416,31 +425,14 @@ class TestErrorBoundaryProtection:
                 pass
 
     @pytest.mark.asyncio
-    async def test_error_boundary_circuit_breaker_error(self, service):
-        """Test ErrorBoundary handling CircuitBreakerError."""
+    async def test_the_content_host_breaker_is_the_http_clients(self, service):
+        """The service reads the HTTP client's per-host breaker; it keeps none."""
+        breaker = await service.content_host_breaker()
+        client = await service._get_http_client()
 
-        # Test that circuit breaker exists and can track failures
-        assert hasattr(service, "fetch_circuit_breaker")
-        assert service.fetch_circuit_breaker.failure_count == 0
-
-    @pytest.mark.asyncio
-    async def test_error_boundary_timeout_error(self, service):
-        """Test circuit breaker basic functionality."""
-        # Test that circuit breaker exists and has expected attributes
-        assert hasattr(service, "fetch_circuit_breaker")
-        assert hasattr(service.fetch_circuit_breaker, "state")
-        assert service.fetch_circuit_breaker.state == "closed"
-
-    @pytest.mark.asyncio
-    async def test_error_boundary_generic_exception(self, service):
-        """Test circuit breaker attributes."""
-        # Test that circuit breakers exist
-        assert hasattr(service, "fetch_circuit_breaker")
-        assert hasattr(service, "cache_circuit_breaker")
-
-        # Verify they start in closed state
-        assert service.fetch_circuit_breaker.state == "closed"
-        assert service.cache_circuit_breaker.state == "closed"
+        assert breaker is client.circuit_breaker(service.settings.base_url)
+        assert breaker.state == "closed"
+        assert not hasattr(service, "fetch_circuit_breaker")
 
     @pytest.mark.asyncio
     async def test_get_document_cache_hit(self, service):
@@ -562,32 +554,23 @@ class TestErrorBoundaries:
                 # Ignore cleanup errors in tests - exceptions during test cleanup are expected
                 pass
 
-    def test_error_boundaries_initialization(self, service):
-        """Test that error boundaries are properly initialized."""
-        # Verify circuit breakers exist and have expected attributes
-        assert hasattr(service.fetch_circuit_breaker, "failure_count")
-        assert hasattr(service.cache_circuit_breaker, "failure_count")
+    @pytest.mark.asyncio
+    async def test_error_boundary_stats_in_diagnostics(self, service):
+        """The diagnostics report the content host's breaker as the health tool reads it."""
+        breaker = await service.content_host_breaker()
+        for _ in range(5):
+            breaker.on_failure("fetch failed")
 
-    def test_error_boundary_stats_in_diagnostics(self, service):
-        """Test that circuit breaker stats are included in diagnostics."""
-        # Manually trigger some errors for testing
-        service.fetch_circuit_breaker.failure_count = 5
-        service.cache_circuit_breaker.failure_count = 1
+        diagnostics = await service.get_service_diagnostics()
 
-        # Circuit breakers don't have get_health_info(), check failure counts
-        error_boundaries = {
-            "fetch": {"failure_count": service.fetch_circuit_breaker.failure_count},
-            "cache": {"failure_count": service.cache_circuit_breaker.failure_count},
-        }
+        fetch = diagnostics["error_boundaries"]["fetch"]
+        assert fetch["status"] == "open"
+        assert fetch["failure_count"] == 5
+        assert fetch["last_failure_time"] == breaker.last_failure_time
 
-        assert "fetch" in error_boundaries
-        assert "cache" in error_boundaries
-        assert error_boundaries["fetch"]["failure_count"] == 5
-        assert error_boundaries["cache"]["failure_count"] == 1
-
-        # Circuit breakers have simple structure, not health info
-        assert isinstance(error_boundaries["fetch"]["failure_count"], int)
-        assert isinstance(error_boundaries["cache"]["failure_count"], int)
+        breaker.on_success()
+        diagnostics = await service.get_service_diagnostics()
+        assert diagnostics["error_boundaries"]["fetch"]["status"] == "closed"
 
 
 @pytest.mark.unit
@@ -621,9 +604,8 @@ class TestServiceStatistics:
         service.successful_requests = 8
         service.failed_requests = 2
 
-        # Simulate circuit breaker failures
-        service.fetch_circuit_breaker.failure_count = 1
-        service.fetch_circuit_breaker.last_failure_time = 1234567890.0
+        # One failure of the content host
+        (await service.content_host_breaker()).on_failure("fetch failed")
 
         health = await service.get_health_status()
         assert health.total_requests == 10
@@ -651,3 +633,374 @@ class TestServiceStatistics:
         service.failed_requests = 5
         health = await service.get_health_status()
         assert health.success_rate == 0.0
+
+
+#: The logger this module writes shutdown records to -- both the service and its
+#: manager use ``get_logger("content_service")``. Spelled out rather than read off
+#: the module, and asserted on each record, because ``caplog.at_level`` names a
+#: logger it will happily create if it does not exist: a test naming the wrong
+#: one still sees the records via the handler pytest attaches to the
+#: non-propagating parent, and passes while pinning nothing.
+SERVICE_LOGGER = "finos-ai-governance-mcp.content_service"
+
+#: The logger ``cleanup_resources()`` writes the shutdown summary to. Spelled
+#: out for the same reason, and needed here because the summary is the record
+#: #100 is about and it is not written by ``service.py``.
+CLEANUP_LOGGER = "finos-ai-governance-mcp.fastmcp_main"
+
+
+@pytest.fixture
+def _isolate_global_managers():
+    """Empty the cache and HTTP-client singletons, and put them back after.
+
+    Any test that drives the real ``cleanup_resources()`` needs this.
+    ``fastmcp_main`` imports its closers from ``.content.cache`` and
+    ``.content.fetch`` directly, so patching the names ``service.py`` sees does
+    nothing to positions 2 and 3 -- they run the genuine ``close_http_client()``
+    and ``close_cache()`` against the process-wide managers.
+
+    Emptying them first is also what makes the composition faithful rather than
+    merely safe: on the server's own path position 1 has already cleared both by
+    the time positions 2 and 3 run, so ``None`` is the state they really see.
+    Restoring afterwards is not optional, and the reason is the two assignments
+    below rather than anything ``close_cache()`` does: this fixture nulls
+    ``CacheManager``'s cache, loop and lock and ``HTTPClientManager``'s client
+    and loop, and without the restore every later test in the process runs
+    against emptied managers.
+
+    It used to have a second reason -- position 3 fell through to
+    ``_ensure_loop_context()``, which rebound ``CacheManager._loop`` to this
+    test's loop and installed a fresh ``asyncio.Lock`` on it (issue #106). The
+    early return added for #106 removed that, so do not check the old reason,
+    find it no longer holds, and delete the ``finally``; the first reason is
+    sufficient on its own.
+    """
+    cache_manager = cache_module._cache_manager
+    http_manager = fetch_module._http_client_manager
+    saved_cache = cache_manager._cache
+    saved_http = (http_manager._http_client, http_manager._loop)
+
+    cache_manager._cache = None
+    http_manager._http_client, http_manager._loop = None, None
+    try:
+        yield
+    finally:
+        cache_manager._cache = saved_cache
+        http_manager._http_client, http_manager._loop = saved_http
+
+
+@pytest.mark.unit
+class TestContentServiceShutdownReporting:
+    """What shutdown says it did, for the resources it is the one that closes.
+
+    ``ContentService.close()`` -- not ``cleanup_resources()`` -- is what closes
+    the cache and the HTTP client on the server's own path: ``cleanup_resources()``
+    reaches ``close_content_service()`` first, and by the time positions 2 and 3
+    run, both singletons are already ``None``. So this is where a shutdown
+    transcript is actually written, and where a false claim does its damage.
+    """
+
+    @pytest.mark.asyncio
+    async def test_close_does_not_claim_the_resources_were_closed(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Returning without raising is not the same as having closed anything.
+
+        Both closers legitimately *discard* their resource and return normally
+        when the loop that created it is dead, each saying so at INFO. Reporting
+        "Cache closed successfully" on the strength of a clean return put a
+        contradiction one line below the truth, in the DEBUG transcript someone
+        reads while hunting a resource that outlived the process.
+        """
+        service = ContentService()
+
+        with (
+            patch("finos_mcp.content.service.close_cache", AsyncMock()),
+            patch("finos_mcp.content.service.close_http_client", AsyncMock()),
+            caplog.at_level(logging.DEBUG, logger=SERVICE_LOGGER),
+        ):
+            await service.close()
+
+        claims = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == SERVICE_LOGGER and "closed successfully" in r.getMessage()
+        ]
+        assert claims == [], (
+            f"close() may only report that the call returned, not that the "
+            f"resource was closed; got {claims}"
+        )
+
+        # A prohibition on its own protects the old phrase from coming back and
+        # nothing else: deleting both replacement lines outright left this test,
+        # and the whole file, green. What the DEBUG transcript is actually for is
+        # showing that each close was reached, so pin the lines that show it.
+        returned = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == SERVICE_LOGGER and r.levelno == logging.DEBUG
+        ]
+        assert returned == ["Cache close returned", "HTTP client close returned"], (
+            f"both closes must be recorded, in order; got {returned}"
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("_isolate_global_managers")
+    async def test_a_failed_shutdown_reaches_the_summary_as_an_ERROR(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A resource that failed to close must be visible to `grep ERROR`.
+
+        Driven through the production composition rather than a stub, because
+        the stub is what hid this. A bare object whose ``close()`` raises does
+        reach ``close_content_service()``'s handler -- but production never puts
+        anything except a ``ContentService`` on that manager, and a
+        ``ContentService`` catches both of its own awaits. So the only failures a
+        real shutdown can have are a failing ``close_cache()`` and a failing
+        ``close_http_client()``, and against those the transcript used to read:
+
+            WARNING content_service  Error closing cache: ...
+            WARNING content_service  Error closing HTTP client: ...
+            INFO    content_service  Content service shutdown complete
+            INFO    content_service  Global content service closed
+            INFO    fastmcp_main     Resource cleanup completed successfully
+
+        Zero ERROR records for two stranded resources -- the exact condition
+        #100 exists to remove, surviving the fix for it because the test that
+        checked the fix never built a real service.
+        """
+        manager = service_module._content_service_manager
+        saved = manager._content_service
+
+        service = ContentService()
+        manager._content_service = service
+
+        # Read inside the try, because the ``finally`` below puts ``saved`` back
+        # and an assertion after it would be measuring the value the singleton
+        # held before this test ran. Mutation-checked: with the read after the
+        # restore, replacing ``close_content_service()``'s
+        # ``finally: self._content_service = None`` with ``finally: pass`` left
+        # this test green.
+        cleared: object = "cleanup_resources() did not return"
+
+        # Positions 2 and 3 run the real closers -- only position 1's are
+        # patched below -- so state what they find. On the server's path
+        # position 1 has already cleared both; here it fails before it can, and
+        # the fixture has cleared them instead.
+        assert cache_module._cache_manager._cache is None
+        assert fetch_module._http_client_manager._http_client is None
+
+        boom = RuntimeError("Event loop is closed")
+        try:
+            with (
+                patch(
+                    "finos_mcp.content.service.close_cache",
+                    AsyncMock(side_effect=boom),
+                ),
+                patch(
+                    "finos_mcp.content.service.close_http_client",
+                    AsyncMock(side_effect=boom),
+                ),
+                caplog.at_level(logging.DEBUG, logger=SERVICE_LOGGER),
+                caplog.at_level(logging.DEBUG, logger=CLEANUP_LOGGER),
+            ):
+                await cleanup_resources()
+            cleared = manager._content_service
+        finally:
+            manager._content_service = saved
+
+        errors = [
+            r
+            for r in caplog.records
+            if r.levelno >= logging.ERROR and r.name == CLEANUP_LOGGER
+        ]
+        assert len(errors) == 1, (
+            "two resources failed to close, so shutdown must produce an ERROR "
+            f"record; got {[(r.levelname, r.name, r.getMessage()) for r in caplog.records]}"
+        )
+        assert "content service" in errors[0].getMessage(), errors[0].getMessage()
+
+        # The individual failures stay at WARNING and keep naming the resource,
+        # which is the only place the specific resource appears at all.
+        warnings = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING and r.name == SERVICE_LOGGER
+        ]
+        assert warnings == [
+            "Error closing cache: Event loop is closed",
+            "Error closing HTTP client: Event loop is closed",
+        ], f"got {warnings}"
+
+        # Nothing on the failure path may claim a clean close. Each of these
+        # three lines did, in this order, directly under the two warnings above.
+        messages = [r.getMessage() for r in caplog.records]
+        for claim in (
+            "Content service shutdown complete",
+            "Global content service closed",
+            "Resource cleanup completed successfully",
+        ):
+            assert not any(claim in m for m in messages), (
+                f"a shutdown that stranded two resources reported {claim!r}"
+            )
+
+        assert cleared is None, (
+            f"the reference must be cleared on the failure path too; got {cleared!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_failed_close_leaves_the_service_reusable(self) -> None:
+        """Both references are dropped whether or not their close succeeded.
+
+        ``_cache`` was never cleared at all and ``_http_client`` was cleared
+        after its await, so a raise left it set. A service that survives a failed
+        close is still reachable through ``ContentServiceManager``, whose
+        reference ``close_content_service()`` clears only in its own
+        ``finally``, and it then serves from a client the manager has already
+        released, and from a ``TTLCache`` whose
+        ``asyncio.Lock`` belongs to a loop that is gone: the first
+        ``cache.get()`` from a new loop raises "got Future attached to a
+        different loop".
+        """
+        service = ContentService()
+
+        boom = RuntimeError("Event loop is closed")
+        with (
+            patch("finos_mcp.content.service.close_cache", AsyncMock(side_effect=boom)),
+            patch(
+                "finos_mcp.content.service.close_http_client",
+                AsyncMock(side_effect=boom),
+            ),
+            pytest.raises(RuntimeError, match="cache, HTTP client"),
+        ):
+            await service.close()
+
+    @pytest.mark.asyncio
+    async def test_a_failing_cache_close_does_not_strand_the_http_client(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Raising is deferred until every close has been attempted.
+
+        The paired control for the test above: reporting the failure upward is
+        only safe if it happens *after* the second close, and raising at the
+        first ``except`` would strand the HTTP client on every failing shutdown
+        while still producing the ERROR record the test above asserts.
+        """
+        service = ContentService()
+
+        http_close = AsyncMock()
+        with (
+            patch(
+                "finos_mcp.content.service.close_cache",
+                AsyncMock(side_effect=RuntimeError("Event loop is closed")),
+            ),
+            patch("finos_mcp.content.service.close_http_client", http_close),
+            caplog.at_level(logging.DEBUG, logger=SERVICE_LOGGER),
+        ):
+            with pytest.raises(RuntimeError, match="failed to close: cache"):
+                await service.close()
+
+        http_close.assert_awaited_once()
+        assert service._http_client is None, (
+            "the HTTP client was closed but the service kept its reference"
+        )
+
+
+@pytest.fixture
+def _isolate_the_service_singleton():
+    """Empty the content-service singleton, and put it back after.
+
+    Only one singleton is named here, and that is the point of #114 rather
+    than an oversight in the fixture: after the collapse there is exactly one
+    manager holding a ``ContentService``. A fixture that had to reset two
+    would be re-stating the defect these tests exist to close.
+    """
+    manager = service_module._content_service_manager
+    saved = manager._content_service
+    manager._content_service = None
+    try:
+        yield
+    finally:
+        manager._content_service = saved
+
+
+@pytest.mark.unit
+@pytest.mark.usefixtures("_isolate_the_service_singleton")
+class TestOneManagerHoldsTheService:
+    """#114: two singletons held one service and only one was on shutdown.
+
+    ``AsyncServiceManager`` memoised what ``ContentServiceManager`` already
+    held -- the same instance, measured by identity -- so it was a consumer
+    caching a manager's object, the shape #124 fixed one layer down inside
+    ``ContentService`` itself.
+
+    What that cost is not the stale reference the issue's title describes. It
+    is that the two singletons *disagree* after a shutdown, and the second
+    shutdown then closes nothing while reporting success::
+
+        shutdown 1 closed:                      [<the service>]
+        still serving the same instance:        True
+        ContentServiceManager singleton empty:  True
+        shutdown 2 closed:                      NOTHING
+        ...while the service is still live:     True
+
+    Both tests below drive ``get_service()`` rather than
+    ``get_content_service()`` deliberately: the tool bodies call the first, so
+    it is the surface a caller actually reaches, and asserting on the second
+    would pass against the unfixed code.
+    """
+
+    async def test_the_service_shutdown_closed_is_not_handed_out_again(self) -> None:
+        """Shutdown closes the service; the next caller must not get that one."""
+        first = await facade_module.get_service()
+        assert service_module._content_service_manager._content_service is first, (
+            "get_service() did not populate the singleton shutdown reaches, so "
+            "this test would not exercise the path #114 is about"
+        )
+
+        await close_content_service()
+        assert service_module._content_service_manager._content_service is None, (
+            "shutdown did not clear the singleton; the precondition is not met"
+        )
+
+        second = await facade_module.get_service()
+        assert second is not first, (
+            "get_service() handed back the service shutdown had just closed, so "
+            "a second manager is still holding it"
+        )
+
+    async def test_a_second_shutdown_closes_what_the_first_one_left(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The strand: two disagreeing singletons make a shutdown a silent no-op.
+
+        The counter wraps the real ``close()`` rather than replacing it, so the
+        service is genuinely closed and the second shutdown is measured against
+        the same object graph production would have.
+        """
+        closed: list[int] = []
+        real_close = service_module.ContentService.close
+
+        async def counting_close(inner_self: ContentService) -> None:
+            closed.append(id(inner_self))
+            await real_close(inner_self)
+
+        monkeypatch.setattr(service_module.ContentService, "close", counting_close)
+
+        service = await facade_module.get_service()
+        await close_content_service()
+        assert closed == [id(service)], (
+            f"the first shutdown did not close the service; got {closed}"
+        )
+
+        # The server keeps serving between the two shutdowns, which is what an
+        # in-process restart does and what makes the second one non-trivial.
+        still_serving = await facade_module.get_service()
+
+        closed.clear()
+        await close_content_service()
+        assert closed == [id(still_serving)], (
+            "the second shutdown closed nothing while a live ContentService was "
+            "still reachable through get_service(); it reported success having "
+            f"stranded it. closed={closed}"
+        )

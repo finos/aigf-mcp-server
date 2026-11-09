@@ -1,7 +1,19 @@
-SPDXVersion: SPDX-2.0
+SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
-Creator: FINOS
-PackageName: aigf-mcp-server
-PackageOriginator: FINOS
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: finos-ai-governance-mcp-server-license
+DocumentNamespace: https://spdx.org/spdxdocs/finos-ai-governance-mcp-server-license-39e95dbf-0cfc-468f-9391-967f3a9d5e4e
+Creator: Organization: FINOS (info@finos.org)
+Created: 2026-09-10T11:50:11Z
+DocumentComment: <text>Package-level licensing metadata for the software implementation, not a dependency or file inventory. Governance content has separate attribution and licensing in FINOS-LICENSE.md.</text>
+
+PackageName: finos-ai-governance-mcp-server
+SPDXID: SPDXRef-Package
+PackageOriginator: Organization: FINOS (info@finos.org)
+PackageDownloadLocation: NOASSERTION
+FilesAnalyzed: false
 PackageHomePage: https://github.com/finos/aigf-mcp-server
+PackageLicenseConcluded: Apache-2.0
 PackageLicenseDeclared: Apache-2.0
+PackageCopyrightText: Copyright 2025 FINOS
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-Package

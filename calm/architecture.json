@@ -1,0 +1,406 @@
+{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "metadata": {
+    "description": "FINOS CALM 1.2 description of the FINOS AI Governance Framework MCP server: who calls it, what it calls, how a document reaches a client, and the controls on each path (#270). Every host, path, transport and setting named here is compared with the code by tests/unit/test_calm_architecture.py. The CALM schema check runs by hand from the repository root: npx --yes @finos/calm-cli@1.62.0 validate -a calm/architecture.json --strict -f pretty. The requirement-url values are relative to the repository root because the CLI resolves them against the current directory.",
+    "repository": "https://github.com/finos/aigf-mcp-server",
+    "written": "2026-10-12"
+  },
+  "nodes": [
+    {
+      "unique-id": "mcp-client",
+      "node-type": "actor",
+      "name": "MCP client",
+      "description": "An AI application or agent host that calls the server's tools. Over stdio it starts the server itself; over HTTP it presents a bearer token from the authorization server."
+    },
+    {
+      "unique-id": "deployment-platform",
+      "node-type": "actor",
+      "name": "Deployment platform",
+      "description": "The load balancer or orchestrator in front of a networked server. It polls the two health URLs and, in the deployments the deployment guide describes, terminates TLS: the server itself listens in plain HTTP."
+    },
+    {
+      "unique-id": "finos-mcp-server",
+      "node-type": "service",
+      "name": "FINOS AI Governance Framework MCP server",
+      "description": "One Python process serving read-only MCP tools, resources and prompts over the documents of finos/ai-governance-framework; docs/api/mcp-tools.md is the inventory. It writes nothing upstream and calls no other system on a caller's input. FINOS_MCP_MCP_TRANSPORT selects one of the interfaces below.",
+      "interfaces": [
+        {
+          "unique-id": "stdio",
+          "transports": ["stdio"],
+          "authentication": "none",
+          "exemption": "No network boundary; the authentication control lists stdio under exempt-transports.",
+          "description": "Started by the client, one process per client, in a working directory the client chooses. No network port and no authentication, because there is no network boundary. Settings come from the environment the client passes; a dotenv file is read only when FINOS_MCP_ENV_FILE names it, never the working directory's .env."
+        },
+        {
+          "unique-id": "mcp-http",
+          "transports": ["http", "streamable-http"],
+          "host": "127.0.0.1",
+          "port": 8000,
+          "path": "/mcp",
+          "authentication": "OAuth 2.0 bearer token",
+          "description": "The MCP endpoint of the http and streamable-http transports. Host and port are FINOS_MCP_MCP_HOST and FINOS_MCP_MCP_PORT; the values here are the defaults. Plain HTTP; TLS is the deployment platform's. The server cannot see that: an http:// FINOS_MCP_MCP_AUTH_BASE_URL is refused at startup unless FINOS_MCP_ALLOW_INSECURE_HTTP is set, and a bind host other than loopback with authentication on is logged as a WARNING at startup (#323)."
+        },
+        {
+          "unique-id": "mcp-sse",
+          "transports": ["sse"],
+          "host": "127.0.0.1",
+          "port": 8000,
+          "paths": ["/sse", "/messages"],
+          "authentication": "OAuth 2.0 bearer token",
+          "description": "The sse transport serves /sse and /messages and no /mcp. Same host, port and authentication as mcp-http."
+        },
+        {
+          "unique-id": "healthz",
+          "path": "/healthz",
+          "methods": ["GET", "HEAD"],
+          "authentication": "none",
+          "exemption": "open-health-urls",
+          "description": "200 with an empty body while the process serves. Not part of the MCP surface."
+        },
+        {
+          "unique-id": "readyz",
+          "path": "/readyz",
+          "methods": ["GET", "HEAD"],
+          "authentication": "none",
+          "exemption": "open-health-urls",
+          "description": "200 with an empty body when the server can fetch documents as far as it knows, 503 otherwise: before the first probe of the content host has finished, while the last one got no answer, a 429 or a 5xx, and while the document fetch breaker is open."
+        },
+        {
+          "unique-id": "oauth-protected-resource-metadata",
+          "paths": ["/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-protected-resource/sse"],
+          "methods": ["GET", "HEAD", "OPTIONS"],
+          "authentication": "none",
+          "exemption": "A client reads it before it has a token (RFC 9728); docs/deployment.md, section Behind a reverse proxy, says to route it without a token check.",
+          "description": "The RFC 9728 document naming FINOS_MCP_MCP_AUTH_ISSUER as the authorization server, at the MCP path of the transport: /mcp on http and streamable-http, /sse on sse. Served only when FINOS_MCP_MCP_AUTH_BASE_URL is set; a path in that URL precedes the MCP path in this one. A 401 from the MCP endpoint points at it."
+        }
+      ],
+      "controls": {
+        "outbound-host-allowlist": {
+          "description": "Every request of the content HTTP client is refused unless its host is on the allowlist, and a redirect is not followed. The allowlist is the two GitHub hosts plus the host of FINOS_MCP_BASE_URL, so a GitHub Enterprise server or a mirror works without widening it. The one other outbound request, the fetch of the signing keys, is made by the token verifier and is covered by its own check: the JWKS URI must be a public address unless FINOS_MCP_ALLOW_INSECURE_JWKS_URI is set.",
+          "requirements": [
+            {
+              "requirement-url": "calm/controls/outbound-host-allowlist.requirement.json",
+              "config": {
+                "control-id": "outbound-host-allowlist",
+                "name": "Outbound host allowlist",
+                "description": "is_allowed_fetch_target in security/content_filter.py, applied by content/fetch.py to every URL the HTTP client is asked for; follow_redirects is off on the one httpx client it holds.",
+                "default-hosts": ["api.github.com", "raw.githubusercontent.com"],
+                "configured-host-setting": "FINOS_MCP_BASE_URL",
+                "scheme": "https",
+                "redirects": "not followed"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "unique-id": "content-host",
+      "node-type": "system",
+      "name": "Content host",
+      "description": "The host the documents are fetched from: raw.githubusercontent.com unless FINOS_MCP_BASE_URL names another, such as a GitHub Enterprise server or a mirror. The corpus is the docs directory of finos/ai-governance-framework at ref main, which moves; a deployer who wants a fixed state pins a ref in FINOS_MCP_BASE_URL. Reached with HTTPS, the /readyz probes included. A FINOS_MCP_BASE_URL the client would refuse, one that is not https, names localhost or a non-public address literal, or carries a query or fragment, stops startup with the reason (#298); a mirror on a private address is not supported.",
+      "interfaces": [
+        {
+          "unique-id": "raw-documents",
+          "host": "raw.githubusercontent.com",
+          "path": "/finos/ai-governance-framework/main/docs",
+          "setting": "FINOS_MCP_BASE_URL",
+          "description": "The default of FINOS_MCP_BASE_URL, split into host and path."
+        }
+      ]
+    },
+    {
+      "unique-id": "github-api",
+      "node-type": "system",
+      "name": "GitHub REST API",
+      "description": "Lists the three content directories so the server knows which documents exist; it serves no document body. 60 requests an hour without FINOS_MCP_GITHUB_TOKEN. Not asked when FINOS_MCP_BASE_URL names a host the API cannot address.",
+      "interfaces": [
+        {
+          "unique-id": "rest-api",
+          "host": "api.github.com"
+        }
+      ]
+    },
+    {
+      "unique-id": "authorization-server",
+      "node-type": "system",
+      "name": "Authorization server",
+      "description": "The OAuth 2.0 server that issues the tokens clients present on a networked transport. It is the deployer's, not part of this repository, and is named by setting.",
+      "interfaces": [
+        {
+          "unique-id": "issuer",
+          "setting": "FINOS_MCP_MCP_AUTH_ISSUER",
+          "description": "The issuer every token must carry, and the authorization server the metadata document names. FINOS_MCP_MCP_AUTH_AUDIENCE is the other claim every token must match; FINOS_MCP_MCP_AUTH_REQUIRED_SCOPES, when set, names the scopes each token must hold."
+        },
+        {
+          "unique-id": "jwks",
+          "setting": "FINOS_MCP_MCP_AUTH_JWKS_URI",
+          "description": "Where the server fetches the signing keys: at the first token verification, then for a key id the set it holds does not name and once that set is older than an hour, at most once in 60 seconds (#285). Over HTTPS to a public address unless FINOS_MCP_ALLOW_INSECURE_JWKS_URI is set. FINOS_MCP_MCP_AUTH_PUBLIC_KEY is the alternative: one static key and no fetch."
+        }
+      ]
+    },
+    {
+      "unique-id": "discovery-list-file",
+      "node-type": "data-asset",
+      "name": "Discovery list file",
+      "description": "The last directory listing the GitHub REST API gave, with the base_url it was read for, written under FINOS_MCP_DISCOVERY_CACHE_DIR, or under finos-mcp/discovery in the user's cache directory when that is not set, for this user only; kept in memory when no directory can be used. Fresh, it answers a listing with source cache. Expired, it is served with source expired_cache when GitHub cannot be asked, and only for the same base_url, with one exception: a file that records none was written by a server from before the key existed and is read; the next write records the key (#261). Trusted because only this user can write it (#293): the directory is created 0700 and not used, the listing kept in memory instead, when it is another user's or the group or everyone can write it; the file is refused when it is a symlink, another user's, writable by the group or by everyone, or larger than 256 KiB (#294)."
+    },
+    {
+      "unique-id": "document-cache",
+      "node-type": "data-asset",
+      "name": "Document cache",
+      "description": "The in-process cache of parsed documents: one entry each, held for FINOS_MCP_CACHE_TTL_SECONDS, at most FINOS_MCP_CACHE_MAX_SIZE entries, never persisted. The reader gets a private copy. Nothing protects it, because nothing outside the process can reach it (#302)."
+    },
+    {
+      "unique-id": "static-catalog",
+      "node-type": "data-asset",
+      "name": "Static catalog",
+      "description": "The file lists built into the server, served with source static_fallback when GitHub cannot be asked and no list file exists for the configured base_url. Regenerated from upstream by scripts/update-static-fallback.py; the weekly validate-static-fallback workflow compares it with the live listing.",
+      "interfaces": [
+        {
+          "unique-id": "static-lists",
+          "module": "src/finos_mcp/content/static_catalog.py",
+          "names": ["STATIC_FRAMEWORK_FILES", "STATIC_RISK_FILES", "STATIC_MITIGATION_FILES"]
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "client-connects-over-stdio",
+      "description": "The client starts the server and speaks MCP over its standard input and output.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "mcp-client" },
+          "destination": { "node": "finos-mcp-server", "interfaces": ["stdio"] }
+        }
+      }
+    },
+    {
+      "unique-id": "client-connects-over-http",
+      "description": "The client calls the MCP endpoint of a networked transport with a bearer token. Without a valid token the answer is 401 pointing at the metadata document.",
+      "protocol": "HTTP",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "mcp-client" },
+          "destination": { "node": "finos-mcp-server", "interfaces": ["mcp-http", "mcp-sse"] }
+        }
+      },
+      "controls": {
+        "authentication": {
+          "description": "A networked transport does not start without authentication configured, and every call carries a token whose issuer, audience, expiry and subject are checked, and its scopes when FINOS_MCP_MCP_AUTH_REQUIRED_SCOPES is set. Rate and concurrency limits are counted per token subject, and one log line records each tool call, resource read and prompt request with its caller, name and outcome.",
+          "requirements": [
+            {
+              "requirement-url": "calm/controls/authentication.requirement.json",
+              "config": {
+                "control-id": "authentication",
+                "name": "Bearer token checked on every networked call",
+                "description": "FinosJWTVerifier (security/jwt_verifier.py, a fastmcp JWTVerifier that also requires exp and sub and honours nbf) or RemoteAuthProvider around it, built in app.py from the MCP auth settings; the startup check in config.py refuses a networked transport without them.",
+                "token-format": "JWT bearer token",
+                "verified-claims": ["iss", "aud", "exp", "sub"],
+                "scope-checked-when": "FINOS_MCP_MCP_AUTH_REQUIRED_SCOPES",
+                "key-sources": ["FINOS_MCP_MCP_AUTH_JWKS_URI", "FINOS_MCP_MCP_AUTH_PUBLIC_KEY"],
+                "required-on-transports": ["http", "streamable-http", "sse"],
+                "exempt-transports": ["stdio"],
+                "insecure-override-setting": "FINOS_MCP_ALLOW_INSECURE_HTTP"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "unique-id": "client-reads-sign-in-metadata",
+      "description": "A client that follows the MCP authorization flow reads the metadata document to learn which authorization server to sign in with.",
+      "protocol": "HTTP",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "mcp-client" },
+          "destination": { "node": "finos-mcp-server", "interfaces": ["oauth-protected-resource-metadata"] }
+        }
+      }
+    },
+    {
+      "unique-id": "client-obtains-token",
+      "description": "The client obtains a token from the authorization server the metadata document names. This exchange is outside the server; the server sees only the token.",
+      "protocol": "HTTPS",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "mcp-client" },
+          "destination": { "node": "authorization-server", "interfaces": ["issuer"] }
+        }
+      }
+    },
+    {
+      "unique-id": "platform-polls-health",
+      "description": "The deployment platform polls the two health URLs without a token.",
+      "protocol": "HTTP",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "deployment-platform" },
+          "destination": { "node": "finos-mcp-server", "interfaces": ["healthz", "readyz"] }
+        }
+      },
+      "controls": {
+        "open-health-urls": {
+          "description": "The recorded exemption from authentication for the deployment platform; the sign-in metadata document, which a client reads before it has a token, is the only other interface served without one. Both URLs answer with a status code and an empty body, so they tell an unauthenticated caller only whether the server is up and whether it can reach its content host. They are not rate limited by the server, and a bearer header sent to them is verified although none is needed: a token naming an unknown key id can make the server fetch the JWKS, at most once a minute (#285). The deployment guide says to rate limit unauthenticated requests at the proxy.",
+          "requirements": [
+            {
+              "requirement-url": "calm/controls/open-health-urls.requirement.json",
+              "config": {
+                "control-id": "open-health-urls",
+                "name": "Health URLs served without a token",
+                "description": "Registered in http_health.py as custom routes outside the MCP surface (#255).",
+                "paths": ["/healthz", "/readyz"],
+                "authentication": "none",
+                "response-body": "empty",
+                "exemption-recorded-in": "docs/deployment.md, section Health checking"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "unique-id": "server-fetches-signing-keys",
+      "description": "The server fetches the signing keys from the JWKS URI at the first token verification, then for a key id the set it holds does not name and once that set is older than an hour, at most once in 60 seconds (#285). The URI must be a public address unless FINOS_MCP_ALLOW_INSECURE_JWKS_URI is set.",
+      "protocol": "HTTPS",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "finos-mcp-server" },
+          "destination": { "node": "authorization-server", "interfaces": ["jwks"] }
+        }
+      }
+    },
+    {
+      "unique-id": "server-lists-repository",
+      "description": "The server asks the GitHub REST API for the contents of the three document directories when the list file is missing or expired. It is the only request the server makes to this host: a document body is never fetched here.",
+      "protocol": "HTTPS",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "finos-mcp-server" },
+          "destination": { "node": "github-api", "interfaces": ["rest-api"] }
+        }
+      }
+    },
+    {
+      "unique-id": "server-fetches-documents",
+      "description": "The server fetches one document at a time from the content host, and probes index.md there for /readyz, again FINOS_MCP_READINESS_PROBE_INTERVAL_SECONDS (30 by default) after each probe ends.",
+      "protocol": "HTTPS",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "finos-mcp-server" },
+          "destination": { "node": "content-host", "interfaces": ["raw-documents"] }
+        }
+      }
+    },
+    {
+      "unique-id": "server-reads-list-file",
+      "description": "The server reads and writes the discovery list file.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "finos-mcp-server" },
+          "destination": { "node": "discovery-list-file" }
+        }
+      }
+    },
+    {
+      "unique-id": "server-reads-document-cache",
+      "description": "The server reads a fetched document from the cache before it fetches, and writes each fetched document into it.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "finos-mcp-server" },
+          "destination": { "node": "document-cache" }
+        }
+      }
+    },
+    {
+      "unique-id": "server-falls-back-to-static-catalog",
+      "description": "With no list file for the configured base_url and GitHub unable to answer, or with a base_url the GitHub API cannot address (a mirror), the server lists from the static catalog.",
+      "relationship-type": {
+        "connects": {
+          "source": { "node": "finos-mcp-server" },
+          "destination": { "node": "static-catalog", "interfaces": ["static-lists"] }
+        }
+      }
+    }
+  ],
+  "flows": [
+    {
+      "unique-id": "list-then-get",
+      "name": "A client lists documents and reads one",
+      "description": "The normal path. The listing comes from the list file or the GitHub REST API (source cache or github_api); the document from the cache or the content host.",
+      "transitions": [
+        {
+          "relationship-unique-id": "client-connects-over-http",
+          "sequence-number": 1,
+          "description": "The client calls a list tool, for example list_frameworks, with a bearer token."
+        },
+        {
+          "relationship-unique-id": "server-reads-list-file",
+          "sequence-number": 2,
+          "description": "A fresh list file for this base_url answers the listing; source is cache."
+        },
+        {
+          "relationship-unique-id": "server-lists-repository",
+          "sequence-number": 3,
+          "description": "Otherwise the GitHub REST API lists the directory and the list file is rewritten; source is github_api."
+        },
+        {
+          "relationship-unique-id": "client-connects-over-http",
+          "sequence-number": 4,
+          "description": "The client calls a get tool, for example get_framework, with an id from the listing."
+        },
+        {
+          "relationship-unique-id": "server-reads-document-cache",
+          "sequence-number": 5,
+          "description": "An unexpired cache entry answers the call."
+        },
+        {
+          "relationship-unique-id": "server-fetches-documents",
+          "sequence-number": 6,
+          "description": "Otherwise the document is fetched from the content host over HTTPS, the one host a body comes from, and written to the cache. A content host that does not serve it is the end of the call: no other host is asked."
+        },
+        {
+          "relationship-unique-id": "client-connects-over-http",
+          "sequence-number": 7,
+          "direction": "destination-to-source",
+          "description": "The document goes back to the client, and one log line records the call with its caller, tool and outcome."
+        }
+      ]
+    },
+    {
+      "unique-id": "list-when-github-cannot-be-asked",
+      "name": "A client lists documents while GitHub cannot be asked",
+      "description": "The fallback path. GitHub is rate limited, answers 5xx or does not answer, and the list file is expired or missing. The listing says where it came from: expired_cache or static_fallback.",
+      "transitions": [
+        {
+          "relationship-unique-id": "client-connects-over-http",
+          "sequence-number": 1,
+          "description": "The client calls a list tool with a bearer token."
+        },
+        {
+          "relationship-unique-id": "server-lists-repository",
+          "sequence-number": 2,
+          "description": "The GitHub REST API refuses or does not answer, and a backoff starts."
+        },
+        {
+          "relationship-unique-id": "server-reads-list-file",
+          "sequence-number": 3,
+          "description": "An expired list file for this base_url is served; source is expired_cache."
+        },
+        {
+          "relationship-unique-id": "server-falls-back-to-static-catalog",
+          "sequence-number": 4,
+          "description": "With no list file for this base_url, or a base_url on a host the GitHub API cannot address (a mirror, which is listed this way on every call and must hold the same names), the static catalog is served; source is static_fallback."
+        },
+        {
+          "relationship-unique-id": "client-connects-over-http",
+          "sequence-number": 5,
+          "direction": "destination-to-source",
+          "description": "The listing goes back to the client with its source field set, so the client can tell a degraded answer from a live one."
+        }
+      ]
+    }
+  ]
+}

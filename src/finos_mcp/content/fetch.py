@@ -1,6 +1,9 @@
+# Copyright 2025 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
 """HTTP client with timeout, retry logic, and circuit breaker for FINOS MCP Server.
 
-Copyright 2024 Hugo Calderon
+Copyright 2025 FINOS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +28,6 @@ This module provides a robust HTTP client that handles:
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -39,96 +41,94 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from .. import __version__
 from ..config import Settings, get_settings
 from ..error_boundary import CircuitBreaker
-from ..exceptions import CircuitBreakerError
+from ..exceptions import CircuitBreakerError, HTTPClientError
 from ..logging import get_logger, log_http_request
-from ..security.content_filter import content_security_validator
+from ..loop_binding import must_rebind
+from ..security.content_filter import (
+    content_security_validator,
+    is_allowed_fetch_target,
+)
+from ..security.repo_target import why_not_a_fetch_target
 
+# Module-level logger for code that has no HTTPClient instance to borrow one
+# from -- HTTPClientManager in particular. Mirrors cache.py, so these records
+# stay inside the project's structured logging rather than arriving from a bare
+# logging.getLogger() that is not a child of the app logger. Named for the
+# manager rather than "http_client", which HTTPClient's own per-instance logger
+# already uses, so a discarded-client record is told apart from a request log.
 logger = get_logger("http_client_manager")
 
+# Content hosts this server is allowed to reach. The host from the configured
+# base_url is added at runtime so GitHub Enterprise and mirror deployments work
+# without widening the default.
+_DEFAULT_FETCH_HOSTS = frozenset({"raw.githubusercontent.com", "api.github.com"})
 
-@dataclass
-class ConnectionPoolStats:
-    """Statistics for dynamic connection pool management."""
-
-    active_requests: int = 0
-    peak_requests: int = 0
-    total_requests: int = 0
-    failed_requests: int = 0
-    avg_response_time: float = 0.0
-    pool_utilization: float = 0.0
-    last_adjustment: float = 0.0
+#: Headers that described the wire form of a body ``_whole`` has decoded.
+_WIRE_FRAMING_HEADERS = frozenset(
+    {b"content-encoding", b"content-length", b"transfer-encoding"}
+)
 
 
-class HTTPClient:  # pylint: disable=too-many-instance-attributes
-    """Robust HTTP client with retry logic, circuit breaker, and dynamic connection pooling.
+class HTTPClient:
+    """HTTP client with retry logic, a per-host circuit breaker and one connection pool.
 
     Features:
     - Exponential backoff with jitter
     - Circuit breaker protection
-    - Dynamic connection pooling with adaptive sizing (15-20% resource efficiency)
     - Comprehensive timeout handling
     - Structured logging integration
-    - Pool utilization monitoring and auto-scaling
     """
 
     def __init__(self, settings: Settings | None = None) -> None:
-        """Initialize HTTP client with dynamic connection pooling configuration."""
+        """Initialize HTTP client."""
         self.settings = settings or get_settings()
         self.logger = get_logger("http_client")
+
+        # Hosts this client may fetch from (SSRF allowlist)
+        base_host = urlparse(self.settings.base_url).hostname
+        self._allowed_fetch_hosts = _DEFAULT_FETCH_HOSTS | (
+            {base_host} if base_host else set()
+        )
 
         # Circuit breakers per host
         self._circuit_breakers: dict[str, CircuitBreaker] = {}
 
-        # Dynamic connection pool statistics
-        self._pool_stats = ConnectionPoolStats()
-
-        # Dynamic pool sizing parameters
-        self._min_connections = 5
-        self._max_connections = 200
-        self._initial_connections = 20
-        self._pool_adjustment_interval = 30.0  # seconds
-        self._high_utilization_threshold = 0.8
-        self._low_utilization_threshold = 0.3
-
-        # Create httpx client with connection pooling and timeouts
         timeout_config = httpx.Timeout(
-            connect=10.0,  # Connection timeout
-            read=30.0,  # Read timeout
-            write=10.0,  # Write timeout
-            pool=5.0,  # Pool timeout
+            connect=min(10.0, self.settings.http_timeout / 3),
+            read=self.settings.http_timeout,
+            write=10.0,
+            pool=5.0,
         )
 
-        # Override with settings if available
-        if hasattr(self.settings, "http_timeout"):
-            timeout_config = httpx.Timeout(
-                connect=min(10.0, self.settings.http_timeout / 3),
-                read=self.settings.http_timeout,
-                write=10.0,
-                pool=5.0,
-            )
-
-        # Initialize with dynamic connection limits
-        self._current_max_connections = self._initial_connections
-        self._current_max_keepalive = min(self._initial_connections, 10)
-
+        # The one client, for the life of this object. A pool that resized
+        # itself rebuilt this on the first request and closed the client in
+        # use under requests in flight (#306); the readiness probe and the
+        # "redirects are not followed" control both read this object.
         self._client = httpx.AsyncClient(
             timeout=timeout_config,
             limits=httpx.Limits(
-                max_keepalive_connections=self._current_max_keepalive,
-                max_connections=self._current_max_connections,
+                max_keepalive_connections=10,
+                max_connections=20,
                 keepalive_expiry=30.0,
             ),
-            # Redirects are followed manually in _make_request after the
-            # redirect target passes is_safe_url() validation, preventing
-            # SSRF via redirect chains to internal infrastructure.
+            # Redirects are NOT followed, so a redirect chain cannot be used to
+            # reach internal infrastructure. Callers surface an unfollowed 3xx as
+            # an error rather than treating the empty body as content.
             follow_redirects=False,
-            headers={"User-Agent": f"finos-mcp/{self.settings.server_version}"},
+            headers={"User-Agent": f"finos-mcp/{__version__}"},
         )
 
-    def _get_circuit_breaker(self, url: str) -> CircuitBreaker:
-        """Get or create circuit breaker for host."""
+    def circuit_breaker(self, url: str) -> CircuitBreaker:
+        """The breaker for ``url``'s host, made on first ask.
+
+        The one breaker a document fetch passes (#307): fed once per call,
+        whatever the call's attempts, and read by ``/readyz`` through
+        ``is_refusing`` and by ``get_service_health`` through the content
+        service. Five failed calls in a row open it for 60 seconds.
+        """
         parsed = urlparse(url)
         host_key = f"{parsed.scheme}://{parsed.netloc}"
 
@@ -137,234 +137,195 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
 
         return self._circuit_breakers[host_key]
 
-    def _update_pool_stats(self, response_time: float, success: bool) -> None:
-        """Update connection pool statistics for dynamic scaling."""
-        self._pool_stats.total_requests += 1
-        if not success:
-            self._pool_stats.failed_requests += 1
+    def is_refusing(self, url: str) -> bool:
+        """Whether a request to ``url``'s host would be refused now, changing nothing."""
+        return self.circuit_breaker(url).is_refusing()
 
-        # Update rolling average response time
-        if self._pool_stats.total_requests == 1:
-            self._pool_stats.avg_response_time = response_time
-        else:
-            # Exponential moving average
-            alpha = 0.1  # Smoothing factor
-            self._pool_stats.avg_response_time = (
-                alpha * response_time + (1 - alpha) * self._pool_stats.avg_response_time
+    @staticmethod
+    def _says_the_host_is_failing(status: int) -> bool:
+        """Whether an answer is evidence against the host, for the breaker.
+
+        A 429 or a 5xx is the host saying it will not serve. Any other answer
+        is the host serving, however unusable the document: a 404, a 403, a
+        redirect. Those are the document's failure, and five of them for one
+        document must not refuse every other document and turn ``/readyz`` to
+        503 (#284). No answer at all is counted by the caller.
+        """
+        return status == 429 or status >= 500
+
+    def _refuse_unsafe_target(self, url: str) -> None:
+        """Raise ``ValueError`` for a URL this client must not request.
+
+        SSRF protection, applied before every HTTP call so that manipulated URLs
+        (e.g. from a compromised upstream response) cannot reach internal
+        infrastructure. Two layers, checked in this order so that an attempt on
+        an internal address is logged as such rather than as an allowlist miss:
+          1. reject non-globally-routable addresses
+          2. reject any host outside the content-host allowlist
+        """
+        reason = why_not_a_fetch_target(url)
+        if reason:
+            self.logger.warning("Blocked fetch target %s: %s", url, reason)
+            raise ValueError(f"Blocked unsafe URL: {url}: {reason}")
+
+        if not is_allowed_fetch_target(url, self._allowed_fetch_hosts):
+            raise ValueError(
+                f"Blocked fetch to non-allowlisted host: {urlparse(url).hostname}"
             )
 
-    async def _adjust_connection_pool(self) -> None:
-        """Dynamically adjust connection pool size based on usage patterns."""
-        current_time = time.time()
+    async def probe_status(self, url: str) -> int:
+        """Send one GET and return the status code, as an observer.
 
-        # Only adjust every interval to avoid thrashing
-        if (
-            current_time - self._pool_stats.last_adjustment
-        ) < self._pool_adjustment_interval:
-            return
+        For the readiness watch, which asks whether the host answers and must
+        not change how document fetches behave. So this is one attempt with no
+        retry, and it neither consults nor feeds the host's circuit breaker:
+        routed through ``get``, two unanswered probes opened that breaker and
+        the server refused document fetches for the next minute, including on
+        a deployment where nothing reads the readiness answer. The URL checks
+        are the ones every request gets.
 
-        # Calculate current utilization (active requests vs max connections)
-        utilization = self._pool_stats.active_requests / max(
-            self._current_max_connections, 1
+        Raises:
+            ValueError: If the URL is one this client must not request
+            httpx.RequestError: If no response arrives
+
+        """
+        self._refuse_unsafe_target(url)
+        response = await self._client.send(
+            self._client.build_request("GET", url), stream=True
         )
-        self._pool_stats.pool_utilization = utilization
+        # The status is all the probe uses; the body is not read (#291).
+        await response.aclose()
+        return response.status_code
 
-        old_max = self._current_max_connections
+    async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """One call: refused by the host's breaker, or made and counted once.
 
-        # Scale up if high utilization
-        if utilization > self._high_utilization_threshold:
-            new_max = min(
-                int(self._current_max_connections * 1.5), self._max_connections
+        The breaker is outside the retried request, so a call that got no
+        answer in three attempts is one failure, not three: five failed calls
+        open it, as the deployment guide says. What counts as a failure is no
+        answer (``httpx.RequestError`` after the retries) or an answer of 429
+        or 5xx; any other answer closes it. A URL this client refuses raises
+        ``ValueError`` from the request itself and counts for nothing.
+
+        The whole call, attempts and body included, ends when
+        ``FINOS_MCP_HTTP_TIMEOUT`` says (#291): the per-phase timeouts alone
+        let a host that sends one byte every 29 seconds hold a fetch for ever.
+        A call cut off that way is no answer. The body is read as it arrives
+        and refused past the size limit, so the answer returned here is whole
+        and bounded.
+        """
+        circuit_breaker = self.circuit_breaker(url)
+        if not circuit_breaker.can_execute():
+            raise CircuitBreakerError(
+                service_name=urlparse(url).netloc,
+                failure_count=circuit_breaker.failure_count,
+                retry_after=int(circuit_breaker.recovery_timeout),
             )
-            if new_max > self._current_max_connections:
-                self._current_max_connections = new_max
-                self._current_max_keepalive = min(new_max // 2, 50)
-                self.logger.info(
-                    "Scaling up connection pool: %s -> %s (utilization: %.1f%%)",
-                    old_max,
-                    new_max,
-                    utilization * 100,
+        try:
+            async with asyncio.timeout(self.settings.http_timeout):
+                response = await self._make_request(method, url, **kwargs)
+                if self._says_the_host_is_failing(response.status_code):
+                    circuit_breaker.on_failure(f"{response.status_code} from {url}")
+                else:
+                    circuit_breaker.on_success()
+                return await self._whole(response)
+        except (httpx.RequestError, TimeoutError) as e:
+            circuit_breaker.on_failure(e)
+            raise
+
+    @staticmethod
+    async def _whole(response: httpx.Response) -> httpx.Response:
+        """Read a streamed answer within the size limit and return it whole.
+
+        A ``Content-Length`` above the limit is refused before a body byte is
+        read; otherwise the body is counted as it arrives, after the transfer
+        decoding, so a small gzip body that decodes past the limit is refused
+        too, within one chunk of the limit. The answer comes back as a new
+        ``Response`` holding the decoded body, without the framing headers
+        that described the wire form, so callers read ``.text``, ``.json()``
+        and the headers as they always did.
+        """
+        limit = content_security_validator.max_content_size
+        url = str(response.request.url)
+        declared = response.headers.get("content-length", "")
+        chunks: list[bytes] = []
+        try:
+            if declared.isdigit() and int(declared) > limit:
+                raise HTTPClientError(
+                    url=url,
+                    status_code=response.status_code,
+                    details=f"Content-Length {declared} exceeds the limit of {limit} bytes",
                 )
-
-        # Scale down if low utilization and above minimum
-        elif (
-            utilization < self._low_utilization_threshold
-            and self._current_max_connections > self._min_connections
-        ):
-            new_max = max(
-                int(self._current_max_connections * 0.8), self._min_connections
-            )
-            if new_max < self._current_max_connections:
-                self._current_max_connections = new_max
-                self._current_max_keepalive = min(new_max // 2, 20)
-                self.logger.info(
-                    "Scaling down connection pool: %s -> %s (utilization: %.1f%%)",
-                    old_max,
-                    new_max,
-                    utilization * 100,
-                )
-
-        # Update client limits if changed.
-        # httpx does not expose a public API for modifying pool limits on a live
-        # client, so recreate the client with the new limits.  This is the
-        # documented approach and avoids accessing private internals (_transport,
-        # _pool, _max_connections) that are not stable across minor versions.
-        if self._current_max_connections != old_max:
-            await self._recreate_client_with_new_limits()
-
-        self._pool_stats.last_adjustment = current_time
-
-    async def _recreate_client_with_new_limits(self) -> None:
-        """Recreate HTTP client with new connection limits."""
-        old_client = self._client
-        # Use the same timeout the current client was initialised with.
-        # Re-derive from settings rather than reading _timeout (private attr).
-        if hasattr(self.settings, "http_timeout"):
-            timeout_config = httpx.Timeout(
-                connect=min(10.0, self.settings.http_timeout / 3),
-                read=self.settings.http_timeout,
-                write=10.0,
-                pool=5.0,
-            )
-        else:
-            timeout_config = httpx.Timeout(
-                connect=10.0,
-                read=30.0,
-                write=10.0,
-                pool=5.0,
-            )
-
-        self._client = httpx.AsyncClient(
-            timeout=timeout_config,
-            limits=httpx.Limits(
-                max_keepalive_connections=self._current_max_keepalive,
-                max_connections=self._current_max_connections,
-                keepalive_expiry=30.0,
-            ),
-            follow_redirects=False,
-            headers=old_client.headers,
-        )
-
-        # Close old client
-        await old_client.aclose()
-        self.logger.debug(
-            "Recreated HTTP client with new limits: max_connections=%d, max_keepalive=%d",
-            self._current_max_connections,
-            self._current_max_keepalive,
+            total = 0
+            async for chunk in response.aiter_bytes():
+                total += len(chunk)
+                if total > limit:
+                    raise HTTPClientError(
+                        url=url,
+                        status_code=response.status_code,
+                        details=f"the body exceeds the limit of {limit} bytes",
+                    )
+                chunks.append(chunk)
+        finally:
+            await response.aclose()
+        return httpx.Response(
+            response.status_code,
+            headers=[
+                (name, value)
+                for name, value in response.headers.raw
+                if name.lower() not in _WIRE_FRAMING_HEADERS
+            ],
+            content=b"".join(chunks),
+            request=response.request,
+            extensions=response.extensions,
         )
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential_jitter(initial=0.5, max=10.0, jitter=2.0),
+        wait=wait_exponential_jitter(multiplier=0.5, max=10.0, jitter=2.0),
         retry=retry_if_exception_type(
             (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError)
         ),
+        reraise=True,
         before_sleep=before_sleep_log(get_logger("http_client"), logging.WARNING),
         after=after_log(get_logger("http_client"), logging.INFO),
     )
     async def _make_request(
         self, method: str, url: str, **kwargs: Any
     ) -> httpx.Response:
-        """Make HTTP request with retry logic and dynamic pool management."""
-        # SSRF / redirect-chain protection: validate before every HTTP call so
-        # that manipulated URLs (e.g. from a compromised upstream response) cannot
-        # reach internal infrastructure even through redirect chains.
-        if not content_security_validator.is_safe_url(url):
-            raise ValueError(f"Blocked unsafe URL: {url}")
+        """Make one HTTP request, repeated up to twice when it gets no answer.
 
-        circuit_breaker = self._get_circuit_breaker(url)
-
-        # Track active request for pool scaling
-        self._pool_stats.active_requests += 1
-        self._pool_stats.peak_requests = max(
-            self._pool_stats.peak_requests, self._pool_stats.active_requests
-        )
-
-        # Check if we need to adjust pool size
-        await self._adjust_connection_pool()
-
-        # Check circuit breaker
-        if not circuit_breaker.can_execute():
-            host = urlparse(url).netloc
-            raise CircuitBreakerError(
-                service_name=host,
-                failure_count=circuit_breaker.failure_count,
-                retry_after=int(circuit_breaker.recovery_timeout),
-            )
-
+        The URL checks sit here, where the request is sent, so no route
+        around the breaker reaches the network unchecked.
+        """
+        self._refuse_unsafe_target(url)
         start_time = time.time()
 
         try:
-            response = await self._client.request(method, url, **kwargs)
-
-            # Circuit breaker success
-            circuit_breaker.on_success()
-
-            # Log successful request
-            elapsed = time.time() - start_time
+            # Streamed: the body is read, counted and bounded by ``_whole``.
+            response = await self._client.send(
+                self._client.build_request(method, url, **kwargs), stream=True
+            )
+        except httpx.RequestError as e:
             log_http_request(
                 self.logger,
                 method=method.upper(),
                 url=url,
-                status_code=response.status_code,
-                response_time=elapsed,
-                extra_data={
-                    "content_length": len(response.content) if response.content else 0,
-                    "circuit_breaker_state": circuit_breaker.state,
-                    "pool_max_connections": self._current_max_connections,
-                    "pool_utilization": self._pool_stats.pool_utilization,
-                },
+                status_code=None,
+                response_time=time.time() - start_time,
+                extra_data={"error": str(e), "error_type": type(e).__name__},
             )
-
-            # Update pool statistics
-            self._update_pool_stats(elapsed, success=True)
-
-            return response
-
-        except (
-            httpx.RequestError,
-            httpx.HTTPStatusError,
-            httpx.TimeoutException,
-            httpx.NetworkError,
-            httpx.ConnectError,
-            asyncio.CancelledError,
-            asyncio.TimeoutError,
-        ) as e:
-            # Circuit breaker failure
-            if isinstance(e, httpx.RequestError | httpx.HTTPStatusError):
-                circuit_breaker.on_failure(e)
-
-            # Log failed request
-            elapsed = time.time() - start_time
-            log_http_request(
-                self.logger,
-                method=method.upper(),
-                url=url,
-                status_code=(
-                    getattr(e, "response", {}).get("status_code")
-                    if hasattr(e, "response")
-                    else None
-                ),
-                response_time=elapsed,
-                extra_data={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "circuit_breaker_state": circuit_breaker.state,
-                    "pool_max_connections": self._current_max_connections,
-                    "pool_utilization": self._pool_stats.pool_utilization,
-                },
-            )
-
-            # Update pool statistics for failure
-            self._update_pool_stats(elapsed, success=False)
-
             raise
 
-        finally:
-            # Always decrement active requests
-            self._pool_stats.active_requests = max(
-                0, self._pool_stats.active_requests - 1
-            )
+        log_http_request(
+            self.logger,
+            method=method.upper(),
+            url=url,
+            status_code=response.status_code,
+            response_time=time.time() - start_time,
+            extra_data={"content_length": response.headers.get("content-length")},
+        )
+        return response
 
     async def get(
         self,
@@ -389,34 +350,22 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
             httpx.RequestError: If request fails after retries
 
         """
-        return await self._make_request(
-            "GET", url, params=params, headers=headers, **kwargs
-        )
+        return await self._request("GET", url, params=params, headers=headers, **kwargs)
 
-    async def post(
-        self,
-        url: str,
-        data: str | bytes | dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-        **kwargs: Any,
-    ) -> httpx.Response:
-        """Make POST request with retry and circuit breaker.
+    @staticmethod
+    def _check_response(response: httpx.Response) -> None:
+        """Raise if the response is an unfollowed redirect or an error status.
 
-        Args:
-            url: Request URL
-            data: Request body data
-            json: JSON data to send
-            headers: Additional headers
-            **kwargs: Additional httpx parameters
-
-        Returns:
-            HTTP response
-
+        Redirects are not followed (see client construction), and
+        raise_for_status() ignores 3xx, so without this an unfollowed redirect
+        would be returned to callers as empty content.
         """
-        return await self._make_request(
-            "POST", url, data=data, json=json, headers=headers, **kwargs
-        )
+        if response.is_redirect:
+            raise ValueError(
+                f"Unfollowed redirect from {response.request.url} to "
+                f"{response.headers.get('location', '<missing Location>')}"
+            )
+        response.raise_for_status()
 
     async def fetch_text(self, url: str, **kwargs: Any) -> str:
         """Fetch text content from URL.
@@ -429,166 +378,18 @@ class HTTPClient:  # pylint: disable=too-many-instance-attributes
             Text content
 
         Raises:
+            ValueError: If the response is an unfollowed redirect
             httpx.HTTPStatusError: If response indicates error
             CircuitBreakerError: If circuit breaker is open
 
         """
         response = await self.get(url, **kwargs)
-        response.raise_for_status()
+        self._check_response(response)
         return response.text
 
-    async def fetch_json(self, url: str, **kwargs: Any) -> dict[str, Any]:
-        """Fetch JSON content from URL.
-
-        Args:
-            url: URL to fetch
-            **kwargs: Additional request parameters
-
-        Returns:
-            Parsed JSON data
-
-        """
-        response = await self.get(url, **kwargs)
-        response.raise_for_status()
-        return response.json()
-
-    async def fetch_bytes(self, url: str, **kwargs: Any) -> bytes:
-        """Fetch binary content from URL.
-
-        Args:
-            url: URL to fetch
-            **kwargs: Additional request parameters
-
-        Returns:
-            Binary content
-
-        """
-        response = await self.get(url, **kwargs)
-        response.raise_for_status()
-        return response.content
-
-    def get_circuit_breaker_status(self, url: str) -> dict[str, Any]:
-        """Get circuit breaker status for URL.
-
-        Args:
-            url: URL to check
-
-        Returns:
-            Circuit breaker status information
-
-        """
-        circuit_breaker = self._get_circuit_breaker(url)
-
-        return {
-            "state": circuit_breaker.state,
-            "failure_count": circuit_breaker.failure_count,
-            "last_failure_time": circuit_breaker.last_failure_time,
-            "can_execute": circuit_breaker.can_execute(),
-            "time_until_retry": (
-                max(
-                    0,
-                    circuit_breaker.recovery_timeout
-                    - (time.time() - (circuit_breaker.last_failure_time or 0)),
-                )
-                if circuit_breaker.state == "open"
-                else 0
-            ),
-        }
-
-    async def health_check(self, url: str) -> dict[str, Any]:
-        """Perform health check on URL.
-
-        Args:
-            url: URL to check
-
-        Returns:
-            Health check results
-
-        """
-        start_time = time.time()
-
-        try:
-            response = await self.get(url)
-            elapsed = time.time() - start_time
-
-            return {
-                "healthy": response.status_code < 400,
-                "status_code": response.status_code,
-                "response_time": elapsed,
-                "circuit_breaker": self.get_circuit_breaker_status(url),
-            }
-
-        except (
-            httpx.RequestError,
-            httpx.HTTPStatusError,
-            httpx.TimeoutException,
-            httpx.NetworkError,
-            httpx.ConnectError,
-            CircuitBreakerError,
-            asyncio.CancelledError,
-            asyncio.TimeoutError,
-        ) as e:
-            elapsed = time.time() - start_time
-
-            return {
-                "healthy": False,
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "response_time": elapsed,
-                "circuit_breaker": self.get_circuit_breaker_status(url),
-            }
-
-    def get_pool_stats(self) -> dict[str, Any]:
-        """Get current connection pool statistics and performance metrics."""
-        return {
-            "current_max_connections": self._current_max_connections,
-            "current_max_keepalive": self._current_max_keepalive,
-            "active_requests": self._pool_stats.active_requests,
-            "peak_requests": self._pool_stats.peak_requests,
-            "total_requests": self._pool_stats.total_requests,
-            "failed_requests": self._pool_stats.failed_requests,
-            "success_rate": (
-                (
-                    (self._pool_stats.total_requests - self._pool_stats.failed_requests)
-                    / max(self._pool_stats.total_requests, 1)
-                )
-                if self._pool_stats.total_requests > 0
-                else 1.0
-            ),
-            "avg_response_time_ms": round(self._pool_stats.avg_response_time * 1000, 2),
-            "pool_utilization": round(self._pool_stats.pool_utilization, 3),
-            "last_adjustment": self._pool_stats.last_adjustment,
-            "pool_efficiency": {
-                "min_connections": self._min_connections,
-                "max_connections": self._max_connections,
-                "scale_threshold_high": self._high_utilization_threshold,
-                "scale_threshold_low": self._low_utilization_threshold,
-                "adjustment_interval": self._pool_adjustment_interval,
-            },
-        }
-
     async def close(self) -> None:
-        """Close HTTP client and cleanup resources."""
-        # Log final pool statistics
-        if hasattr(self, "_pool_stats"):
-            stats = self.get_pool_stats()
-            self.logger.info(
-                "HTTP client closing - Final stats: requests=%s, success_rate=%.1f%%, peak_connections=%s, avg_response_time=%.1fms",
-                stats["total_requests"],
-                stats["success_rate"] * 100,
-                stats["peak_requests"],
-                stats["avg_response_time_ms"],
-            )
-
+        """Close the connection pool."""
         await self._client.aclose()
-
-    async def __aenter__(self) -> "HTTPClient":
-        """Async context manager entry."""
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Async context manager exit."""
-        await self.close()
 
 
 class HTTPClientManager:
@@ -603,76 +404,103 @@ class HTTPClientManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    async def get_http_client(self, settings: Any | None = None) -> HTTPClient:
+    #: What dropping the client costs. ``close_http_client()`` names the same
+    #: loss on its own discard path; this is the acquisition-side wording.
+    _DISCARD_COST = (
+        "HTTPClient.close() does not run, so its connection pool is not closed."
+    )
+
+    async def get_http_client(self) -> HTTPClient:
         """Get shared HTTP client instance.
 
-        Args:
-            settings: Optional settings override
+        The loop-change test is ``must_rebind()`` rather than an inline
+        condition, so the abandoned client is recorded rather than dropped in
+        silence.
+
+        This is the third member of the family and the one #116 does not name.
+        It carries the branch inline rather than in an ``_ensure_loop_context()``
+        helper, which is why it stayed outside both the PR #111 diff -- that fixed
+        this class's *closer* -- and #116's text. Probed: after a loop change,
+        the caller gets a different client and ``aclose()`` never ran on the
+        first one.
+
+        The client is built from the process settings; a ``settings`` argument
+        used to be accepted and ignored after the first call (#313).
 
         Returns:
             Shared HTTP client instance
 
         """
         current_loop = asyncio.get_running_loop()
-        if (
-            self._loop is None
-            or self._loop.is_closed()
-            or self._loop is not current_loop
+        if must_rebind(
+            bound_loop=self._loop,
+            current_loop=current_loop,
+            resource=self._http_client,
+            resource_name="HTTP client",
+            cost=self._DISCARD_COST,
+            logger=logger,
         ):
             self._http_client = None
             self._loop = current_loop
 
         if self._http_client is None:
-            self._http_client = HTTPClient(settings)
+            self._http_client = HTTPClient()
 
         return self._http_client
 
     async def close_http_client(self) -> None:
-        """Close and cleanup global HTTP client.
+        """Close the global HTTP client, unless another loop created it.
 
-        Mirrors the loop-context guard in get_http_client(): if the client was
-        created in a different (or already-closed) event loop, its internal
-        transport is already torn down at the OS level.  Calling aclose() from
-        a different loop raises ``RuntimeError: Event loop is closed``, so we
-        discard the reference instead.
+        A client is closed only on the loop that built it: its transports
+        belong to that loop, and closing them from another raises. From any
+        other loop the reference is dropped instead, which is what frees the
+        socket (measured with ``lsof``: the connection is released when the
+        client object is collected), and the log line says the pool was not
+        closed.
+
+        The reference is cleared before ``aclose()`` is awaited, not in a
+        ``finally`` after it. ``aclose()`` marks the client closed before it
+        awaits the transport, so a transport failure would otherwise leave a
+        dead client on this manager for the next caller (#102); and while
+        the await was suspended, a caller racing the teardown was handed the
+        client being closed (#115, the cache's shape, probed here too). A
+        failure still propagates: ``cleanup_resources()`` reports what failed.
         """
         if self._http_client is None:
             return
 
-        current_loop = asyncio.get_running_loop()
-        if self._loop is not None and (
-            self._loop.is_closed() or self._loop is not current_loop
-        ):
-            # Client was created in a different/closed loop; its connections
-            # are already gone.  Discard without attempting aclose().
-            logger.debug(
-                "HTTP client created in a different event loop; "
-                "discarding reference without aclose()"
+        if self._loop is not asyncio.get_running_loop():
+            logger.info(
+                "Discarding HTTP client without closing it: created on a "
+                "different event loop, whose transports cannot be closed from "
+                "here. Its connection pool is not closed."
             )
             self._http_client = None
             self._loop = None
             return
 
-        await self._http_client.close()
+        dying = self._http_client
         self._http_client = None
         self._loop = None
+        await dying.close()
 
 
 # Global HTTP client manager instance
 _http_client_manager = HTTPClientManager()
 
 
-async def get_http_client(settings: Any | None = None) -> HTTPClient:
-    """Get shared HTTP client instance.
+async def get_http_client() -> HTTPClient:
+    """Get shared HTTP client instance."""
+    return await _http_client_manager.get_http_client()
 
-    Args:
-        settings: Optional settings override
 
-    Returns:
-        Shared HTTP client instance
+def running_http_client() -> HTTPClient | None:
+    """Return the shared HTTP client if one has been built, else None.
 
+    For a caller that reads the client's state and must not be the reason it
+    exists: ``/readyz`` asks whether the content host's breaker is refusing.
     """
-    return await _http_client_manager.get_http_client(settings)
+    return _http_client_manager._http_client
 
 
 async def close_http_client() -> None:

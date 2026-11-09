@@ -1,146 +1,184 @@
 # Framework System Architecture
 
-Runtime-accurate architecture for the FINOS AI Governance MCP Server.
+How this server is put together: what assembles the published surface, how a
+tool call reaches a document, and where each concern lives.
 
-## Runtime Overview
+Every symbol named here exists in `src/`, and
+`tests/unit/test_docs_truth.py` fails the build if one stops existing.
 
-The server is a FastMCP application exposing:
+---
 
-- 11 MCP tools
-- 3 MCP resources (`finos://frameworks/{id}`, `finos://risks/{id}`, `finos://mitigations/{id}`)
-- 3 MCP prompts
+## Assembly
 
-Core runtime module:
-- `src/finos_mcp/fastmcp_server.py`
+The server is one `FastMCP` instance, built once and decorated from several
+modules.
 
-## Layered Design (Runtime Truth)
+- **`app.py`** constructs it. It builds the authentication provider, applies the
+  DoS middleware, and passes `SERVER_TRUST_INSTRUCTIONS` as the server
+  instructions, which the client receives in the `initialize` result.
+- **`fastmcp_server.py`** assembles it. It imports the modules that register
+  tools, resources and prompts, and re-exports the finished `mcp` object.
 
-```mermaid
-graph TD
-    A["MCP Client"] --> B["FastMCP Server"]
-    B --> C["API Tool Handlers"]
-    C --> D["Application Use Cases"]
-    D --> E["Repositories"]
-    E --> F["Discovery Service"]
-    E --> G["Content Service"]
-    G --> H["Cache (TTL/LRU)"]
-    F --> I["GitHub API/Repo Content"]
-    G --> I
+**Importing a domain module is what registers its surface.** Each one decorates
+the single `mcp` object from `app.py`, so those imports are not tidy-up: dropping
+one removes its tools from the published server while leaving every name
+importable. That failure happened during the decomposition, which is why
+`tests/unit/test_published_surface.py` pins every tool by name and
+parameter.
 
-    B --> J["Security Guardrails"]
-    J --> K["DoS Protection"]
-    J --> L["Request/Response Size Validation"]
-    J --> M["Safe Error Sanitization"]
+Reach the assembled server through `fastmcp_server`, not `app`. Both expose the
+same object, but at import time `app.mcp` has not yet had the domain modules
+applied to it, so it publishes nothing.
 
-    B --> N["OpenEMCP Compatibility (Internal)"]
-    N --> O["Compatibility Events"]
-    N --> P["Observability Projection"]
+## The published surface
+
+| Module | Registers |
+|---|---|
+| `documents/tools.py` | the document tools — a list and a get, for each of the three document types |
+| `search/tools.py` | `search_frameworks`, the one search tool |
+| `health_tools.py` | the service tools — health and cache statistics |
+| `resources.py` | the document resources |
+| `prompts.py` | the analysis prompts |
+| `http_health.py` | the two HTTP routes `/healthz` and `/readyz`, which are not part of the MCP surface and need no token; see the [deployment guide](../deployment.md#health-checking) |
+
+The shape is deliberate: the document types are parallel, so the document tools
+are too, and a fourth type would add a list and a get to the first module rather
+than a new subsystem. Search exists for frameworks alone: the risk and
+mitigation catalogs are small enough for a caller to choose from their listings,
+while the framework bodies are too long to be chosen by title.
+
+`docs/api/mcp-tools.md` is the per-tool contract, and this page deliberately does
+not repeat the inventory.
+
+## How a tool call reaches a document
+
+Taking `get_framework` as the example — the other document tools follow the same
+path:
+
+1. **Middleware.** `DoSProtectionMiddleware` admits or rejects the call, using
+   `DoSProtector` for rate and concurrency limits and `RequestSizeValidator` for
+   payload size.
+2. **Parameter validation.** FastMCP checks the argument against the bound
+   the tool's parameter declares (a maximum length for every identifier) and
+   refuses it before the tool runs.
+3. **Service acquisition.** `get_service()` in `finos_mcp/service.py` returns the shared
+   `ContentService`.
+4. **Discovery.** `GitHubDiscoveryService` lists the files the upstream
+   repository holds, and the tool picks the one whose name gives the
+   identifier. An identifier is the filename without its prefix and extension,
+   so `nist-ai-600-1` stops working if upstream renames that file.
+5. **Retrieval.** `ContentService.get_document()` returns the document, from
+   cache when it can and over HTTP when it cannot.
+
+Nothing in that path is a framework-specific code path. Frameworks, risks and
+mitigations are three document types over one pipeline.
+
+## Content pipeline
+
+`ContentService` in `content/service.py` is the façade. Its public surface is
+exactly:
+
+`get_document`, `get_health_status`, `get_service_diagnostics`,
+`content_host_breaker`, `close`.
+
+`get_document` takes `doc_type` and `filename`, with optional `ttl_override` and
+`correlation_id`, and returns `None` when a document cannot be produced —
+callers must test for it. It raises in three cases: `GitHubRateLimitError`
+when the content host throttled the fetch and said when to retry,
+`ContentValidationError` when the fetched document cannot be parsed, and
+`ValueError` for a `doc_type` it does not know.
+
+Behind the façade:
+
+| Module | Role |
+|---|---|
+| `content/discovery.py` | `GitHubDiscoveryService` lists the upstream corpus; `DiscoveryServiceManager` owns its lifetime. The tools in `documents/tools.py` map an id to its filename |
+| `content/fetch.py` | `HTTPClient` and `HTTPClientManager` — one pooled httpx client, retries and a per-host circuit breaker |
+| `content/parse.py` | `FrontmatterParser` splits YAML frontmatter from body text |
+| `content/cache.py` | `TTLCache`, an in-process dict with a time to live and an LRU bound, managed by `CacheManager` |
+
+## Search
+
+Search is a separate package because finding text is a separate concern from
+retrieval. It is a literal find: nothing is scored or ranked, and results come
+back in catalog order.
+
+- **`search/engine.py`** searches one framework document.
+- **`search/ranking.py`** finds a phrase as whole words, counts its occurrences
+  and cuts the passage that appears in a result. The module keeps the name it
+  had when it ranked.
+
+## Data models
+
+`models.py` holds ten Pydantic models. The ones a caller sees most:
+
+```python
+class Framework(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
 ```
 
-## Components
+`FrameworkList` wraps `Framework` values with a `total_count` and a `source`
+field recording where the data came from — `github_api`, `cache`, `expired_cache` or
+`static_fallback`. `FrameworkContent`, `SearchResult`, `SearchResults`,
+`DocumentInfo`, `DocumentList`, `DocumentContent`, `ServiceHealth` and
+`CacheStats` complete the set.
 
-### 1. FastMCP Server Surface
+`source` is worth watching in tests: a response that is well-formed but served
+from `static_fallback` or `expired_cache` means live retrieval failed.
 
-Defined in `src/finos_mcp/fastmcp_server.py`:
+## Security
 
-- FastMCP app creation and runtime wiring
-- structured output models (`FrameworkList`, `DocumentList`, `ServiceHealth`, `CacheStats`)
-- tool declarations (`@mcp.tool`) and registration calls for prompts/resources
+| Module | Provides |
+|---|---|
+| `security/dos_middleware.py` | `DoSProtectionMiddleware` — the only place DoS limits are enforced, because a guard inside a tool body is swallowed by that tool's own error handling |
+| `security/request_validator.py` | `DoSProtector`, `RequestSizeValidator` |
+| `security/tool_call_log.py` | `ToolCallLogMiddleware` — one log line per tool call, resource read and prompt request, with the caller, the name and the outcome; registered before the DoS middleware so a refused call is logged too |
+| `security/content_filter.py` | `ContentSecurityValidator` — the body size limit and the fetch-target allowlist |
+| `security/prompt_safety.py` | `SERVER_TRUST_INSTRUCTIONS` — the trust boundary stated to every client at `initialize` |
+| `security/repo_target.py` | `RepoTarget` — the upstream repository a request is allowed to read |
 
-Prompt/resource declaration modules:
-- `src/finos_mcp/api/prompts/registry.py`
-- `src/finos_mcp/api/resources/registry.py`
+- **Input limits.** Every tool, prompt and resource parameter declares a
+  maximum length, and fastmcp refuses a longer value before the function runs.
+- **Error disclosure.** A client reads only the error sentences this server
+  writes for it; an exception's own words stay in the log.
 
-### 2. API Handlers
+## Resilience
 
-Thin payload builders in:
-- `src/finos_mcp/api/tools/governance_tool_handlers.py`
+- **`error_boundary.py`** — `CircuitBreaker`, kept per host by the HTTP
+  client and read by `/readyz` and `get_service_health`, and
+  `error_boundary`, which reports a failure in the structured form before
+  re-raising it. Retries live in the HTTP client (tenacity, three attempts
+  when a request gets no answer).
+- **`loop_binding.py`** — `must_rebind` decides when a cached client belongs to a
+  dead event loop and has to be rebuilt.
 
-Responsibilities:
-- invoke DoS checks
-- validate request parameters
-- delegate to application use-cases
-- return normalized payload dictionaries
+## The CALM architecture file
 
-### 3. Application Use-Cases
+`calm/architecture.json` describes the same server in FINOS CALM 1.2: the
+client and the deployment platform as actors; the server with its stdio, HTTP
+and SSE interfaces, the two health URLs and the sign-in metadata document; the
+content host, the GitHub REST API and the authorization server as the systems
+it talks to; the list file, the document cache and the built-in catalog as the
+data it keeps; one flow for the normal path and one for the path taken when
+GitHub cannot be asked; and three controls, each with a requirement schema under
+`calm/controls/` written for this repository, because FINOS publishes none for
+an MCP server. The file is for tooling that reads CALM; this page is for
+people.
 
-Business logic in:
-- `src/finos_mcp/application/use_cases/framework_use_cases.py`
-- `src/finos_mcp/application/use_cases/risk_mitigation_use_cases.py`
+`tests/unit/test_calm_architecture.py` compares the file with the code on
+every run: the transports the settings accept, the routes the server mounts,
+the listen address, the hosts the content client may reach, every setting the
+file names and the built-in catalog's lists. A route, host or transport that
+changes without the file fails the build. The CALM schema check itself needs
+Node and runs by hand; `docs/development.md` has the command.
 
-Key behavior:
-- runtime discovery-first catalogs
-- explicit degraded state signaling (`source: "unavailable"`, `message`)
-- deterministic shaping of list/get/search outputs
+## Extending it
 
-### 4. Repositories + Content/Discovery
+Adding a document type means adding a type to the content pipeline and a tool
+module that registers against `mcp`, not a new subsystem: discovery, fetching,
+parsing and caching are already shared across all three existing types.
 
-Repository adapters:
-- `src/finos_mcp/infrastructure/repositories/framework_repository.py`
-- `src/finos_mcp/infrastructure/repositories/risk_mitigation_repository.py`
-
-Data services:
-- discovery: `src/finos_mcp/content/discovery.py`
-- content fetch/service: `src/finos_mcp/content/service.py`
-- cache: `src/finos_mcp/content/cache.py`
-
-Runtime behavior:
-- live discovery against configured GitHub repository paths
-- cached discovery reuse where available
-- explicit unavailable responses when discovery cannot complete
-
-### 5. Security And Guardrails
-
-Security modules:
-- `src/finos_mcp/security/request_validator.py`
-- `src/finos_mcp/security/error_handler.py`
-
-Guardrails in runtime:
-- DoS/rate limiting and concurrency protection
-- request parameter size checks
-- resource/document payload size checks
-- sanitized external error messages
-
-### 6. Internal OpenEMCP Compatibility Layer
-
-Compatibility primitives and projections:
-- `src/finos_mcp/compat/*`
-- `src/finos_mcp/application/services/compat_event_service.py`
-- `src/finos_mcp/application/services/observability_projection_service.py`
-
-Current runtime use:
-- additive `observability` fields on:
-  - `get_service_health`
-  - `get_cache_stats`
-- canonical status normalization (`approved`, `rejected`, `modified`)
-- internal envelope event buffering for compatibility telemetry
-
-## Tool Category Mapping
-
-- Framework Access (5): `list_frameworks`, `get_framework`, `search_frameworks`, `list_risks`, `get_risk`
-- Risk & Mitigation (4): `search_risks`, `list_mitigations`, `get_mitigation`, `search_mitigations`
-- System Monitoring (2): `get_service_health`, `get_cache_stats`
-
-## Degraded-Mode Contract
-
-Runtime contract when upstream discovery is unavailable:
-
-- list/search tools: return structured empty results + message
-- get tools: return safe unavailable content
-- no static filename fallback catalogs are used in runtime responses
-
-## Configuration-Driven Behavior
-
-Key runtime controls from `src/finos_mcp/config.py`:
-
-- transport/binding (`FINOS_MCP_MCP_TRANSPORT`, host, port)
-- boundary auth (`FINOS_MCP_MCP_AUTH_*`)
-- discovery repo/path settings (`FINOS_MCP_GITHUB_*`)
-- cache controls (`FINOS_MCP_CACHE_*`)
-- DoS controls (`FINOS_MCP_DOS_*`)
-
-## Scope Clarification
-
-This document intentionally describes the implemented runtime architecture only.
-It does not describe hypothetical future components, alternate engines, or
-non-runtime conceptual designs.
+There is no plugin interface and no export feature. If you need either, they do
+not exist yet — this page previously described both, and neither was ever built.

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/finos/aigf-mcp-server/main/calm/controls/outbound-host-allowlist.requirement.json",
+  "title": "Outbound host allowlist",
+  "description": "Which hosts the server may send a request to. Written in this repository because FINOS publishes no control requirement for an MCP server (#270). The first three properties are the ones the CALM control-requirement meta-schema requires of every control.",
+  "type": "object",
+  "properties": {
+    "control-id": {
+      "type": "string",
+      "description": "The key of this control in the architecture file."
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "default-hosts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "hostname"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "The hosts allowed on every deployment, as the code lists them."
+    },
+    "configured-host-setting": {
+      "const": "FINOS_MCP_BASE_URL",
+      "description": "The setting whose host is added to the allowlist at startup."
+    },
+    "scheme": {
+      "const": "https",
+      "description": "The only scheme an outbound document request uses."
+    },
+    "redirects": {
+      "const": "not followed",
+      "description": "A redirect to another host is not followed."
+    }
+  },
+  "required": [
+    "control-id",
+    "name",
+    "description",
+    "default-hosts",
+    "configured-host-setting",
+    "scheme",
+    "redirects"
+  ],
+  "additionalProperties": false
+}
