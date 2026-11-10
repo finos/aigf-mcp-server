@@ -248,10 +248,10 @@ async def test_a_resource_does_not_pass_on_an_exception_nobody_planned_for(
     """Whatever reaches a resource that the tool did not turn into its own error."""
     from finos_mcp import resources
 
-    async def _broken(_risk_id: str) -> None:
+    async def _broken(_kind: object, _risk_id: str) -> None:
         raise RuntimeError("cannot read /srv/finos/content/cache.py at line 3")
 
-    monkeypatch.setattr(resources, "get_risk", _broken, raising=True)
+    monkeypatch.setattr(resources, "_get_document", _broken, raising=True)
 
     async with Client(mcp) as client:
         with pytest.raises(MCPError) as refusal:

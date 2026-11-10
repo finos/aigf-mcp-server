@@ -297,6 +297,10 @@ Get the complete content of one risk document.
   could not be served is an error, not a record with a title that says so.
 - `content` (string): The complete risk document, in Markdown
 - `sections` (array of strings): The document's section titles
+- `related_risks` (array of strings): Canonical risk ids declared as related
+- `mitigated_by` (array of strings): Canonical mitigation ids whose declared
+  `mitigates` links name this risk, in mitigation catalog order. The call fails
+  if the mitigation metadata cannot all be read and parsed.
 
 **Example**:
 ```

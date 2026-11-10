@@ -59,6 +59,7 @@ from ..models import (
     MitigationContent,
     MitigationInfo,
     MitigationList,
+    RiskContent,
 )
 from ..safety import (
     _exceeds_resource_limit,
@@ -419,6 +420,52 @@ async def _list_documents(kind: _Kind) -> DocumentList | MitigationList:
         raise _listing_failed(kind.listing_tool, e) from e
 
 
+def _valid_mitigation_metadata(metadata: object) -> bool:
+    """Absent links are valid; unread or unparseable links are unknown."""
+    if not isinstance(metadata, Mapping) or "_parsing_error" in metadata:
+        return False
+    references = metadata.get("mitigates")
+    return references is None or (
+        isinstance(references, list)
+        and all(isinstance(value, str) and value.strip() for value in references)
+    )
+
+
+async def _mitigated_by(
+    risk_id: str,
+    risk_files: list[GitHubFileInfo],
+    mitigation_files: list[GitHubFileInfo],
+) -> list[str]:
+    """Invert declared links only when every mitigation's metadata was read."""
+    listed = await _resolve_document_names(
+        "mitigation", [file.filename for file in mitigation_files]
+    )
+    # A throttle is actionable even if another document failed first.
+    for entry in listed:
+        if isinstance(entry.load_error, GitHubRateLimitError):
+            raise entry.load_error
+    resolved = []
+    for file, entry in zip(mitigation_files, listed, strict=True):
+        if not _valid_mitigation_metadata(entry.metadata):
+            logger.warning(
+                "Incomplete mitigation relationships for risk %s: %s",
+                risk_id,
+                file.filename,
+            )
+            raise ToolExecutionError(
+                "get_risk",
+                "The mitigation relationships could not be loaded completely. Retry later.",
+            )
+        mitigation_id = document_id_from_filename(
+            file.filename, _MITIGATION.directory.prefix
+        )
+        if risk_id in _relationship_ids(
+            entry.metadata, "mitigates", _RISK, risk_files, mitigation_id
+        ):
+            resolved.append(mitigation_id)
+    return resolved
+
+
 async def _get_document(
     kind: _Kind, document_id: str, *, include_relationships: bool = False
 ) -> DocumentContent:
@@ -516,9 +563,25 @@ async def _get_document(
                     document_id,
                 ),
             )
+        if include_relationships and kind == _RISK:
+            return RiskContent(
+                **result.model_dump(),
+                related_risks=_relationship_ids(
+                    doc.get("metadata"),
+                    "related_risks",
+                    _RISK,
+                    discovery_result.risk_files,
+                    document_id,
+                ),
+                mitigated_by=await _mitigated_by(
+                    document_id,
+                    discovery_result.risk_files,
+                    discovery_result.mitigation_files,
+                ),
+            )
         return result
 
-    except (UnknownDocumentError, DocumentUnavailableError):
+    except (UnknownDocumentError, DocumentUnavailableError, ToolExecutionError):
         # Raised, not returned as content: a record saying "not found" or
         # "could not be loaded" is a successful result, and a caller reads
         # that as the document (#193, #216).
@@ -604,7 +667,7 @@ async def get_risk(
             ),
         ),
     ],
-) -> DocumentContent:
+) -> RiskContent:
     """Get the complete content of a specific AI governance risk document for detailed threat analysis.
 
     Use this tool to retrieve comprehensive risk information including threat descriptions,
@@ -618,7 +681,8 @@ async def get_risk(
                           '16_bias-and-discrimination'
 
     Returns:
-        DocumentContent: Complete risk document with threat details, impact analysis, and assessment metadata.
+        RiskContent: Complete risk document, related risk ids and the mitigation
+        ids whose declared mitigates links name this risk.
         Includes structured content suitable for risk registers and security documentation.
 
     An id that no document has is an error, not a document: the message
@@ -626,7 +690,9 @@ async def get_risk(
     A document that exists and cannot be served is an error too: the
     message says whether it could not be loaded, is too large, or is empty.
     """
-    return await _get_document(_RISK, risk_id)
+    result = await _get_document(_RISK, risk_id, include_relationships=True)
+    assert isinstance(result, RiskContent)
+    return result
 
 
 @mcp.tool()

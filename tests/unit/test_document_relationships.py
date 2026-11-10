@@ -8,7 +8,6 @@ import pytest
 from finos_mcp import models
 from finos_mcp.documents import format as doc_format
 from finos_mcp.documents import tools as doc_tools
-from finos_mcp.service import _discovery_manager
 
 pytestmark = pytest.mark.unit
 
@@ -115,7 +114,11 @@ async def test_listing_retains_throttling_and_marks_skipped_metadata(
 
 def _catalog(monkeypatch, documents, source="github_api"):
     """A recording content service and discovery snapshot; no network or cache."""
-    from finos_mcp.content.discovery import DiscoveryResult, GitHubFileInfo
+    from finos_mcp.content.discovery import (
+        DiscoveryResult,
+        DiscoveryServiceManager,
+        GitHubFileInfo,
+    )
 
     calls = []
     discovery = DiscoveryResult(
@@ -148,17 +151,20 @@ def _catalog(monkeypatch, documents, source="github_api"):
     async def service():
         return Service()
 
-    async def discover():
+    async def discover(_self):
         return Discovery()
 
     monkeypatch.setattr(doc_tools, "get_service", service)
     monkeypatch.setattr(doc_format, "get_service", service)
-    monkeypatch.setattr(_discovery_manager, "get_discovery_service", discover)
+    monkeypatch.setattr(DiscoveryServiceManager, "get_discovery_service", discover)
     return calls
 
 
 def _document(metadata=None):
-    return {"content": "## Purpose\n\nDeclared control.\n", "metadata": metadata or {}}
+    return {
+        "content": "## Purpose\n\nDeclared control.\n",
+        "metadata": {} if metadata is None else metadata,
+    }
 
 
 async def test_mitigation_tools_publish_canonical_links_without_extra_listing_fetches(
@@ -255,3 +261,129 @@ async def test_static_discovery_does_not_hide_readable_relationships(monkeypatch
     listing = await doc_tools.list_mitigations()
     assert listing.source == "static_fallback"
     assert listing.documents[0].mitigates == ["1_risk"]
+
+
+async def test_risk_returns_related_and_inverse_links_in_catalog_order(monkeypatch):
+    documents = {
+        "ri-1_risk.md": _document({"related_risks": ["RI-10", "10_other", "ri-999"]}),
+        "ri-10_other.md": _document(),
+        "mi-2_control.md": _document({"mitigates": ["ri-1", "1", "ri-999"]}),
+        "mi-1_other.md": _document({"mitigates": ["ri-10"]}),
+        "mi-3_control.md": _document({"mitigates": ["1_risk"]}),
+        "mi-4_empty.md": _document(),
+    }
+    calls = _catalog(monkeypatch, documents)
+    result = await doc_tools.get_risk("RI-1")
+    assert result.document_id == "1_risk"
+    assert result.related_risks == ["10_other"]
+    assert result.mitigated_by == ["2_control", "3_control"]
+    assert calls == [
+        ("risk", "ri-1_risk.md"),
+        *[("mitigation", name) for name in documents if name.startswith("mi-")],
+    ]
+    listing = await doc_tools.list_risks()
+    assert "mitigates" not in listing.documents[0].model_dump()
+
+
+@pytest.mark.parametrize(
+    "bad_document",
+    [
+        None,
+        RuntimeError("private backend detail"),
+        _document({"_parsing_error": "private parser detail"}),
+        _document([]),
+        _document({"mitigates": "ri-1"}),
+        _document({"mitigates": ["ri-1", 1]}),
+        _document({"mitigates": [""]}),
+    ],
+)
+async def test_reverse_lookup_refuses_partial_or_malformed_metadata(
+    monkeypatch, bad_document
+):
+    from finos_mcp.exceptions import ToolExecutionError
+
+    _catalog(
+        monkeypatch,
+        {
+            "ri-1_risk.md": _document(),
+            "mi-1_good.md": _document({"mitigates": ["ri-1"]}),
+            "mi-2_bad.md": bad_document,
+            "mi-3_later.md": _document({"mitigates": ["ri-1"]}),
+        },
+    )
+    with pytest.raises(ToolExecutionError, match="relationships") as failure:
+        await doc_tools.get_risk("1")
+    assert "private" not in str(failure.value)
+
+
+@pytest.mark.parametrize("metadata", [{}, {"mitigates": None}, {"mitigates": []}])
+async def test_reverse_lookup_accepts_declared_absence(monkeypatch, metadata):
+    _catalog(
+        monkeypatch, {"ri-1_risk.md": _document(), "mi-1_empty.md": _document(metadata)}
+    )
+    result = await doc_tools.get_risk("1")
+    assert result.mitigated_by == result.related_risks == []
+
+
+async def test_reverse_lookup_preserves_throttle_retry_information(monkeypatch):
+    from finos_mcp.exceptions import DocumentThrottledError, GitHubRateLimitError
+
+    _catalog(
+        monkeypatch,
+        {
+            "ri-1_risk.md": _document(),
+            "mi-1_bad.md": _document({"mitigates": "invalid"}),
+            "mi-2_throttled.md": GitHubRateLimitError(
+                "private backend detail", retry_after=23
+            ),
+        },
+    )
+    with pytest.raises(DocumentThrottledError) as failure:
+        await doc_tools.get_risk("1")
+    assert failure.value.retry_after == 23
+    assert "private" not in str(failure.value)
+
+
+async def test_reverse_lookup_fails_when_fetch_ceiling_leaves_metadata_unread(
+    monkeypatch,
+):
+    from finos_mcp.exceptions import ToolExecutionError
+
+    monkeypatch.setattr(doc_format, "_TITLE_FETCH_MAX_DOCUMENTS", 1)
+    _catalog(
+        monkeypatch,
+        {
+            "ri-1_risk.md": _document(),
+            "mi-1_empty.md": _document(),
+            "mi-2_unread.md": _document({"mitigates": ["ri-1"]}),
+        },
+    )
+    with pytest.raises(ToolExecutionError, match="relationships"):
+        await doc_tools.get_risk("1")
+
+
+async def test_resource_reads_do_not_depend_on_other_documents(monkeypatch):
+    from finos_mcp.resources import get_mitigation_resource, get_risk_resource
+
+    documents = {
+        "ri-1_risk.md": _document(),
+        "mi-1_control.md": _document(),
+        "mi-2_bad.md": None,
+    }
+    calls = _catalog(monkeypatch, documents)
+    assert await get_risk_resource("1") == documents["ri-1_risk.md"]["content"]
+    assert await get_mitigation_resource("1") == documents["mi-1_control.md"]["content"]
+    assert calls == [("risk", "ri-1_risk.md"), ("mitigation", "mi-1_control.md")]
+
+
+async def test_inverse_results_follow_current_metadata_without_an_extra_cache(
+    monkeypatch,
+):
+    documents = {
+        "ri-1_risk.md": _document(),
+        "mi-1_control.md": _document({"mitigates": ["ri-1"]}),
+    }
+    _catalog(monkeypatch, documents)
+    assert (await doc_tools.get_risk("1")).mitigated_by == ["1_control"]
+    _catalog(monkeypatch, {**documents, "mi-1_control.md": _document()})
+    assert (await doc_tools.get_risk("1")).mitigated_by == []
