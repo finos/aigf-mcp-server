@@ -124,6 +124,21 @@ class DocumentList(BaseModel):
     source: ListingSource
 
 
+class MitigationInfo(DocumentInfo):
+    """A mitigation listing entry with its declared risk links."""
+
+    mitigates: list[str] = Field(default_factory=list)
+
+
+class MitigationList(BaseModel):
+    """Mitigation entries, typed so serialization retains their risk links."""
+
+    documents: list[MitigationInfo]
+    total_count: int
+    document_type: str
+    source: ListingSource
+
+
 class DocumentContent(BaseModel):
     """Document content with metadata."""
 
@@ -137,6 +152,20 @@ class DocumentContent(BaseModel):
     title: str
     content: str
     sections: list[str]
+
+
+class RiskContent(DocumentContent):
+    """A risk and its declared and inverse relationships."""
+
+    related_risks: list[str] = Field(default_factory=list)
+    mitigated_by: list[str] = Field(default_factory=list)
+
+
+class MitigationContent(DocumentContent):
+    """A mitigation and its declared relationships."""
+
+    mitigates: list[str] = Field(default_factory=list)
+    related_mitigations: list[str] = Field(default_factory=list)
 
 
 class ServiceHealth(BaseModel):
