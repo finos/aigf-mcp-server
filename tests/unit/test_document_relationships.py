@@ -1,13 +1,16 @@
 """Declared relationships survive retrieval, normalization and MCP serialization."""
 
+import json
 from collections.abc import Mapping
 from typing import Any
 
 import pytest
+from fastmcp import Client
 
 from finos_mcp import models
 from finos_mcp.documents import format as doc_format
 from finos_mcp.documents import tools as doc_tools
+from finos_mcp.fastmcp_server import mcp
 
 pytestmark = pytest.mark.unit
 
@@ -387,3 +390,77 @@ async def test_inverse_results_follow_current_metadata_without_an_extra_cache(
     assert (await doc_tools.get_risk("1")).mitigated_by == ["1_control"]
     _catalog(monkeypatch, {**documents, "mi-1_control.md": _document()})
     assert (await doc_tools.get_risk("1")).mitigated_by == []
+
+
+async def test_mcp_serializes_relationships_in_structured_and_text_results(monkeypatch):
+    _catalog(
+        monkeypatch,
+        {
+            "ri-1_risk.md": _document({"related_risks": ["ri-10"]}),
+            "ri-10_other.md": _document(),
+            "mi-1_control.md": _document(
+                {"mitigates": ["ri-1"], "related_mitigations": ["ct-2"]}
+            ),
+            "mi-2_other.md": _document(),
+        },
+    )
+    async with Client(mcp) as client:
+        assert len(await client.list_tools()) == 9
+        listing = await client.call_tool("list_mitigations", {})
+        mitigation = await client.call_tool("get_mitigation", {"mitigation_id": "ct-1"})
+        risk = await client.call_tool("get_risk", {"risk_id": "ri-1"})
+        for result in (listing, mitigation, risk):
+            assert not result.is_error
+            assert result.structured_content == json.loads(result.content[0].text)
+        assert listing.structured_content is not None
+        assert mitigation.structured_content is not None
+        assert risk.structured_content is not None
+        assert listing.structured_content["documents"][0]["mitigates"] == ["1_risk"]
+        assert mitigation.structured_content["mitigates"] == ["1_risk"]
+        assert mitigation.structured_content["related_mitigations"] == ["2_other"]
+        assert risk.structured_content["related_risks"] == ["10_other"]
+        assert risk.structured_content["mitigated_by"] == ["1_control"]
+
+
+async def test_mcp_refuses_incomplete_inverse_but_still_serves_the_resource(
+    monkeypatch,
+):
+    documents = {
+        "ri-1_risk.md": _document(),
+        "mi-1_unread.md": RuntimeError("private backend detail"),
+    }
+    calls = _catalog(monkeypatch, documents)
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_risk", {"risk_id": "1"}, raise_on_error=False
+        )
+        assert result.is_error
+        assert result.structured_content is None
+        assert "relationships" in result.content[0].text
+        assert "private" not in result.content[0].text
+        resource = await client.read_resource("finos://risks/1")
+        assert resource[0].text == documents["ri-1_risk.md"]["content"]
+        assert calls == [
+            ("risk", "ri-1_risk.md"),
+            ("mitigation", "mi-1_unread.md"),
+            ("risk", "ri-1_risk.md"),
+        ]
+
+
+async def test_published_schemas_limit_relationship_fields_to_their_tools():
+    schemas = {}
+    for tool in await mcp.list_tools():
+        assert tool.output_schema is not None
+        schemas[tool.name] = tool.output_schema
+    listing_properties = schemas["list_mitigations"]["properties"]
+    entry_properties = listing_properties["documents"]["items"]["properties"]
+    assert entry_properties["mitigates"]["items"] == {"type": "string"}
+    assert entry_properties["mitigates"]["type"] == "array"
+    risk_properties = schemas["get_risk"]["properties"]
+    mitigation_properties = schemas["get_mitigation"]["properties"]
+    assert {"related_risks", "mitigated_by"} <= set(risk_properties)
+    assert {"mitigates", "related_mitigations"} <= set(mitigation_properties)
+    assert "mitigates" not in risk_properties
+    assert "related_risks" not in mitigation_properties
+    risk_entry = schemas["list_risks"]["properties"]["documents"]["items"]["properties"]
+    assert "mitigates" not in risk_entry
