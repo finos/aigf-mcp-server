@@ -21,7 +21,7 @@ limitations under the License.
 
 import asyncio
 from collections.abc import Mapping
-from typing import Annotated, NamedTuple
+from typing import Annotated, NamedTuple, cast
 
 from pydantic import Field
 
@@ -624,9 +624,7 @@ async def list_risks() -> DocumentList:
         'description' is the opening of the document's own summary, or null.
         Use the 'id' field from results with get_risk() for the full document.
     """
-    result = await _list_documents(_RISK)
-    assert isinstance(result, DocumentList)
-    return result
+    return cast(DocumentList, await _list_documents(_RISK))
 
 
 @mcp.tool()
@@ -648,9 +646,7 @@ async def list_mitigations() -> MitigationList:
         'description' is the opening of the document's own purpose section, or null.
         Use the 'id' field from results with get_mitigation() for the full document.
     """
-    result = await _list_documents(_MITIGATION)
-    assert isinstance(result, MitigationList)
-    return result
+    return cast(MitigationList, await _list_documents(_MITIGATION))
 
 
 @mcp.tool()
@@ -690,9 +686,9 @@ async def get_risk(
     A document that exists and cannot be served is an error too: the
     message says whether it could not be loaded, is too large, or is empty.
     """
-    result = await _get_document(_RISK, risk_id, include_relationships=True)
-    assert isinstance(result, RiskContent)
-    return result
+    return cast(
+        RiskContent, await _get_document(_RISK, risk_id, include_relationships=True)
+    )
 
 
 @mcp.tool()
@@ -733,6 +729,7 @@ async def get_mitigation(
     A document that exists and cannot be served is an error too: the
     message says whether it could not be loaded, is too large, or is empty.
     """
-    result = await _get_document(_MITIGATION, mitigation_id, include_relationships=True)
-    assert isinstance(result, MitigationContent)
-    return result
+    return cast(
+        MitigationContent,
+        await _get_document(_MITIGATION, mitigation_id, include_relationships=True),
+    )
