@@ -25,7 +25,7 @@ from pydantic import Field
 
 from .app import mcp
 from .documents.tools import get_framework, list_mitigations, list_risks
-from .models import DocumentList
+from .models import DocumentList, MitigationList
 from .security.prompt_safety import (
     UNTRUSTED_CONTENT_DIRECTIVE,
     wrap_untrusted,
@@ -46,7 +46,7 @@ def _one_line(value: str) -> str:
     return " ".join(value.split())
 
 
-def _catalog_entries(listing: DocumentList) -> str:
+def _catalog_entries(listing: DocumentList | MitigationList) -> str:
     """Every listed document as an id, a title and its description.
 
     The whole catalog rather than a search over it (#208): the model reading

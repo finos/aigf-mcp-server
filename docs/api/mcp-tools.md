@@ -331,6 +331,8 @@ List every mitigation document.
   - `description` (string or null): The first paragraph of the document's
     opening `## Purpose` section, bounded as for `list_risks`. Null when the
     document could not be read or does not open with one
+  - `mitigates` (array of strings): Canonical risk ids declared by the mitigation.
+    Empty when none are declared or usable metadata could not be read.
 - `total_count` (integer): Number of mitigation documents listed
 - `document_type` (string): Always `"mitigation"`
 - `source` (string): Where the listing came from, as for `list_risks`
@@ -374,6 +376,8 @@ Get the complete content of one mitigation document.
 - `title` (string): The title the document declares, as for `get_risk`
 - `content` (string): The complete mitigation document, in Markdown
 - `sections` (array of strings): The document's section titles
+- `mitigates` (array of strings): Canonical risk ids declared by the mitigation
+- `related_mitigations` (array of strings): Canonical mitigation ids declared as related
 
 **Example**:
 ```

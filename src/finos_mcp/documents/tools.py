@@ -20,6 +20,7 @@ limitations under the License.
 """
 
 import asyncio
+from collections.abc import Mapping
 from typing import Annotated, NamedTuple
 
 from pydantic import Field
@@ -55,6 +56,9 @@ from ..models import (
     Framework,
     FrameworkContent,
     FrameworkList,
+    MitigationContent,
+    MitigationInfo,
+    MitigationList,
 )
 from ..safety import (
     _exceeds_resource_limit,
@@ -325,7 +329,50 @@ def _names_the_document(requested: str, document_id: str, kind: _Kind) -> bool:
     return asked == document_id.lower()
 
 
-async def _list_documents(kind: _Kind) -> DocumentList:
+def _relationship_ids(
+    metadata: object,
+    field: str,
+    kind: _Kind,
+    files: list[GitHubFileInfo],
+    owner_id: str,
+) -> list[str]:
+    """Resolve declared references against the catalog, never inventing ids."""
+    if not isinstance(metadata, Mapping) or "_parsing_error" in metadata:
+        if metadata is not None:
+            logger.warning("Invalid %s metadata on %s", field, owner_id)
+        return []
+    references = metadata.get(field)
+    if references is None:
+        return []
+    if not isinstance(references, list):
+        logger.warning("Invalid %s metadata on %s", field, owner_id)
+        return []
+    ids = [
+        document_id_from_filename(file.filename, kind.directory.prefix)
+        for file in files
+    ]
+    resolved = []
+    for reference in references:
+        if not isinstance(reference, str) or not reference.strip():
+            logger.warning("Invalid %s reference on %s", field, owner_id)
+            continue
+        matches = [
+            value for value in ids if _names_the_document(reference, value, kind)
+        ]
+        if len(matches) != 1:
+            logger.warning(
+                "Unresolved %s reference %s on %s (%d matches)",
+                field,
+                safe_title_fragment(reference),
+                owner_id,
+                len(matches),
+            )
+        elif matches[0] not in resolved:
+            resolved.append(matches[0])
+    return resolved
+
+
+async def _list_documents(kind: _Kind) -> DocumentList | MitigationList:
     """The listing both list tools publish: each document named by itself."""
     try:
         discovery_service = await _discovery_manager.get_discovery_service()
@@ -343,6 +390,25 @@ async def _list_documents(kind: _Kind) -> DocumentList:
             )
             for file_info, entry in zip(files, listed, strict=True)
         ]
+        if kind == _MITIGATION:
+            return MitigationList(
+                documents=[
+                    MitigationInfo(
+                        **document.model_dump(),
+                        mitigates=_relationship_ids(
+                            entry.metadata,
+                            "mitigates",
+                            _RISK,
+                            discovery_result.risk_files,
+                            document.id,
+                        ),
+                    )
+                    for document, entry in zip(documents, listed, strict=True)
+                ],
+                total_count=len(documents),
+                document_type=kind.doc_type,
+                source=discovery_result.source,
+            )
         return DocumentList(
             documents=documents,
             total_count=len(documents),
@@ -353,7 +419,9 @@ async def _list_documents(kind: _Kind) -> DocumentList:
         raise _listing_failed(kind.listing_tool, e) from e
 
 
-async def _get_document(kind: _Kind, document_id: str) -> DocumentContent:
+async def _get_document(
+    kind: _Kind, document_id: str, *, include_relationships: bool = False
+) -> DocumentContent:
     """Resolve the id, fetch, check, and build the document both get tools publish.
 
     An id that no document has is an error, not a document (#193). A
@@ -424,12 +492,31 @@ async def _get_document(kind: _Kind, document_id: str) -> DocumentContent:
         title = frontmatter_title(doc.get("metadata")) or safe_title_fragment(
             filename_stem(target_filename)
         )
-        return DocumentContent(
+        result = DocumentContent(
             document_id=document_id,
             title=title,
             content=content,
             sections=_section_headings(content),
         )
+        if include_relationships and kind == _MITIGATION:
+            return MitigationContent(
+                **result.model_dump(),
+                mitigates=_relationship_ids(
+                    doc.get("metadata"),
+                    "mitigates",
+                    _RISK,
+                    discovery_result.risk_files,
+                    document_id,
+                ),
+                related_mitigations=_relationship_ids(
+                    doc.get("metadata"),
+                    "related_mitigations",
+                    _MITIGATION,
+                    discovery_result.mitigation_files,
+                    document_id,
+                ),
+            )
+        return result
 
     except (UnknownDocumentError, DocumentUnavailableError):
         # Raised, not returned as content: a record saying "not found" or
@@ -474,11 +561,13 @@ async def list_risks() -> DocumentList:
         'description' is the opening of the document's own summary, or null.
         Use the 'id' field from results with get_risk() for the full document.
     """
-    return await _list_documents(_RISK)
+    result = await _list_documents(_RISK)
+    assert isinstance(result, DocumentList)
+    return result
 
 
 @mcp.tool()
-async def list_mitigations() -> DocumentList:
+async def list_mitigations() -> MitigationList:
     """List all available AI governance mitigation strategies for risk reduction and security controls.
 
     Use this tool to discover security controls, privacy safeguards, and compliance measures
@@ -492,11 +581,13 @@ async def list_mitigations() -> DocumentList:
     complete.
 
     Returns:
-        DocumentList: Structured list of mitigation documents with ids, names and descriptions.
+        MitigationList: Mitigation ids, names, descriptions and the risk ids each mitigates.
         'description' is the opening of the document's own purpose section, or null.
         Use the 'id' field from results with get_mitigation() for the full document.
     """
-    return await _list_documents(_MITIGATION)
+    result = await _list_documents(_MITIGATION)
+    assert isinstance(result, MitigationList)
+    return result
 
 
 @mcp.tool()
@@ -553,7 +644,7 @@ async def get_mitigation(
             ),
         ),
     ],
-) -> DocumentContent:
+) -> MitigationContent:
     """Get the complete content of a specific AI governance mitigation strategy for risk control implementation.
 
     Use this tool to retrieve detailed mitigation instructions including security controls,
@@ -567,7 +658,8 @@ async def get_mitigation(
                                 '14_encryption-of-ai-data-at-rest'
 
     Returns:
-        DocumentContent: Complete mitigation strategy with implementation guidance, control procedures, and monitoring details.
+        MitigationContent: Complete mitigation strategy, the risk ids it mitigates,
+        and its declared related mitigation ids.
         Includes actionable steps suitable for security implementation and compliance documentation.
 
     An id that no document has is an error, not a document: the message
@@ -575,4 +667,6 @@ async def get_mitigation(
     A document that exists and cannot be served is an error too: the
     message says whether it could not be loaded, is too large, or is empty.
     """
-    return await _get_document(_MITIGATION, mitigation_id)
+    result = await _get_document(_MITIGATION, mitigation_id, include_relationships=True)
+    assert isinstance(result, MitigationContent)
+    return result
