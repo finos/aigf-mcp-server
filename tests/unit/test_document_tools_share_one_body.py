@@ -11,7 +11,8 @@ in three places, so #193 and #216 were each fixed three times. The
 published tools keep their names and docstrings and hand everything to
 ``_get_document`` or ``_list_documents`` with a ``_Kind``. This test reads
 the bodies: a tool whose body is anything but a docstring and that one
-``return`` has grown a second copy.
+``return`` has grown a second copy. A type-only cast may narrow the shared
+body's result to the specialized response the public tool publishes.
 """
 
 from __future__ import annotations
@@ -54,6 +55,11 @@ def test_the_tool_is_one_return_of_the_shared_body(tool: str, shared: str) -> No
     statement = body[0]
     assert isinstance(statement, ast.Return), f"{tool}: {ast.dump(statement)[:80]}"
     value = statement.value
+    if isinstance(value, ast.Call):
+        assert isinstance(value.func, ast.Name) and value.func.id == "cast"
+        assert len(value.args) == 2 and not value.keywords
+        assert isinstance(value.args[0], ast.Name)
+        value = value.args[1]
     assert isinstance(value, ast.Await)
     call = value.value
     assert isinstance(call, ast.Call) and isinstance(call.func, ast.Name)

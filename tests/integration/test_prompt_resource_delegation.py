@@ -1,8 +1,8 @@
-"""Contract tests for prompts and resources that delegate to tool functions.
+"""Contract tests for prompts and resources that delegate to document functions.
 
-The three prompts and three resources all reach their data by calling a registered
-tool function. That delegation is the one part of this server with no always-on
-coverage, and it is exactly what the FastMCP 2.x -> 3.x upgrade breaks: in 3.x a
+The prompts and framework resource call registered tool functions; risk and
+mitigation resources call the shared document loader without relationship
+enrichment. The tool delegation is what the FastMCP 2.x -> 3.x upgrade breaks: in 3.x a
 `@mcp.tool()` decorator returns the original function rather than a component
 object, so any indirection through a `.fn` attribute raises AttributeError.
 
@@ -48,8 +48,7 @@ SENTINEL = "DELEGATION-SENTINEL-8fd21c"
 #: patching the aggregator would rebind a name that nothing reads.
 _BINDINGS = {
     "get_framework": (_prompts, _resources),
-    "get_risk": (_resources,),
-    "get_mitigation": (_resources,),
+    "_get_document": (_resources,),
     "list_risks": (_prompts,),
     "list_mitigations": (_prompts,),
 }
@@ -63,7 +62,7 @@ def _patch_everywhere(monkeypatch, name, value, **kwargs) -> None:
 
 @pytest.fixture
 def stub_upstream(monkeypatch):
-    """Replace the delegated tool functions with hermetic stubs.
+    """Replace delegated tools and the plain document loader with hermetic stubs.
 
     The prompts and resources look these up as module globals at call time, so
     patching the module attribute intercepts the delegation on both the 2.x
@@ -96,25 +95,16 @@ def stub_upstream(monkeypatch):
 
         return fake_list
 
-    async def fake_get_risk(risk_id, *_args, **_kwargs):
+    async def fake_get_document(kind, document_id, *_args, **_kwargs):
         return DocumentContent(
-            document_id=risk_id,
-            title=f"Risk {risk_id}",
-            content=f"{SENTINEL} risk body for {risk_id}",
-            sections=["s"],
-        )
-
-    async def fake_get_mitigation(mitigation_id, *_args, **_kwargs):
-        return DocumentContent(
-            document_id=mitigation_id,
-            title=f"Mitigation {mitigation_id}",
-            content=f"{SENTINEL} mitigation body for {mitigation_id}",
+            document_id=document_id,
+            title=document_id,
+            content=f"{SENTINEL} {kind.doc_type} body for {document_id}",
             sections=["s"],
         )
 
     _patch_everywhere(monkeypatch, "get_framework", fake_get_framework)
-    _patch_everywhere(monkeypatch, "get_risk", fake_get_risk)
-    _patch_everywhere(monkeypatch, "get_mitigation", fake_get_mitigation)
+    _patch_everywhere(monkeypatch, "_get_document", fake_get_document)
     _patch_everywhere(monkeypatch, "list_risks", _catalog("risk"))
     _patch_everywhere(monkeypatch, "list_mitigations", _catalog("mitigation"))
 
@@ -184,7 +174,7 @@ class TestPromptsDelegateToTools:
         } <= names
 
 
-class TestResourcesDelegateToTools:
+class TestResourcesDelegateToDocuments:
     """Assert on the body, never on truthiness."""
 
     @pytest.mark.parametrize(

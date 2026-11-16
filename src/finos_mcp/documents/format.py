@@ -569,6 +569,10 @@ class ListedDocument(NamedTuple):
     #: to publish ``"Risk document: <title>"`` here, which told a model choosing
     #: a document nothing the name had not (#191).
     description: str | None
+    #: None means unread or skipped; an empty mapping means no frontmatter.
+    #: Retained before title extraction, which can fail independently.
+    metadata: object = None
+    load_error: Exception | None = None
 
 
 #: What ``extract`` hands back: the declared title and the description, either
@@ -625,7 +629,9 @@ async def _resolve_titles(
             doc_type,
             e,
         )
-        return [ListedDocument(fallback(name), None) for name in filenames]
+        return [
+            ListedDocument(fallback(name), None, load_error=e) for name in filenames
+        ]
 
     budgeted = filenames[:_TITLE_FETCH_MAX_DOCUMENTS]
     semaphore = asyncio.Semaphore(_TITLE_FETCH_CONCURRENCY)
@@ -638,6 +644,8 @@ async def _resolve_titles(
         nonlocal failures, untitled, skipped, exhausted
         title = None
         description = None
+        metadata: object = None
+        load_error = None
         if exhausted:
             # The failure budget protects the circuit breaker shared with
             # ``get_*`` and ``search_*``.
@@ -664,6 +672,7 @@ async def _resolve_titles(
                         # not one: parse_yaml_document catches every Exception,
                         # MemoryError included, through _load_yaml.)
                         if isinstance(doc, Mapping):
+                            metadata = doc.get("metadata", {})
                             title, description = await extract(doc)
                     except Exception as e:
                         # Deliberately broad and deliberately not re-raised: one
@@ -672,6 +681,8 @@ async def _resolve_titles(
                         # that was fetched and did not parse (#366): local, so
                         # charged as untitled below, not to the fetch budget.
                         fetched = fetched or isinstance(e, ContentValidationError)
+                        if metadata is None:
+                            load_error = e
                         title = None
                         logger.debug(
                             "Title resolution raised for %s/%s: %s",
@@ -694,7 +705,9 @@ async def _resolve_titles(
                         failures += 1
                         if failures >= _TITLE_FETCH_FAILURE_BUDGET:
                             exhausted = True
-        return ListedDocument(title or fallback(filename), description)
+        return ListedDocument(
+            title or fallback(filename), description, metadata, load_error
+        )
 
     # One document, alone, before any fan-out. A wholly unavailable backend is
     # the common failure, and probing serially makes it cost a single failure

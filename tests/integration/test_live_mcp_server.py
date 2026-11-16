@@ -523,6 +523,25 @@ async def test_live_tools_and_content_flow() -> None:
             assert isinstance(mitigation["content"], str)
             assert len(mitigation["content"]) > 0
 
+            # Exact edges belong in deterministic fixtures; the live corpus
+            # may change its declarations, but both directions must agree.
+            risk_ids = {entry["id"] for entry in risks["documents"]}
+            mitigation_ids = {entry["id"] for entry in mitigations["documents"]}
+            assert any(entry["mitigates"] for entry in mitigations["documents"]), (
+                "the live mitigation catalog exposed no declared risk links"
+            )
+            for entry in mitigations["documents"]:
+                assert set(entry["mitigates"]) <= risk_ids
+            assert mitigation["mitigates"] == first_mitigation["mitigates"]
+            assert set(mitigation["related_mitigations"]) <= mitigation_ids
+            for risk_document in (risk, pinned_risk):
+                assert set(risk_document["related_risks"]) <= risk_ids
+                assert risk_document["mitigated_by"] == [
+                    entry["id"]
+                    for entry in mitigations["documents"]
+                    if risk_document["document_id"] in entry["mitigates"]
+                ]
+
             health_result: CallToolResult = await live_session.call_tool(
                 "get_service_health", {}
             )

@@ -34,7 +34,7 @@ from pydantic import Field
 from .app import mcp
 from .content.parse import document_id_from_filename, filename_stem
 from .documents.format import _format_framework_name
-from .documents.tools import get_framework, get_mitigation, get_risk
+from .documents.tools import _MITIGATION, _RISK, _get_document, get_framework
 from .exceptions import (
     DocumentUnavailableError,
     GitHubRateLimitError,
@@ -131,7 +131,7 @@ async def get_risk_resource(
         Risk document content as text.
     """
     try:
-        content = await get_risk(risk_id)
+        content = await _get_document(_RISK, risk_id)
         return content.content
     except UnknownDocumentError as e:
         # The body of a resource is the document. Returned as text, this
@@ -168,7 +168,7 @@ async def get_mitigation_resource(
         Mitigation document content as text.
     """
     try:
-        content = await get_mitigation(mitigation_id)
+        content = await _get_document(_MITIGATION, mitigation_id)
         return content.content
     except UnknownDocumentError as e:
         # The body of a resource is the document. Returned as text, this

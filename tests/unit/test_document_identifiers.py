@@ -306,7 +306,15 @@ async def test_every_published_id_is_well_formed_and_resolves(
 
         fetched.clear()
         content = await getattr(doc_tools, get_tool)(doc.id)
-        assert fetched == [doc.filename], (
+        expected_fetches = [
+            doc.filename,
+            *(
+                STATIC_MITIGATION_FILES
+                if doc_type == "risk" and not discovery_works
+                else []
+            ),
+        ]
+        assert fetched == expected_fetches, (
             f"{get_tool}({doc.id!r}) did not resolve to {doc.filename!r} -- it "
             f"fetched {fetched!r}. The id {list_tool} published is not one "
             f"{get_tool} can find, so this document is unreachable"

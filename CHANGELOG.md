@@ -38,6 +38,12 @@ detail of each change is in the git history and the issue it names.
 
 ### Added
 
+- **Declared risk and mitigation relationships**: `list_mitigations` entries
+  include `mitigates`; `get_mitigation` includes `mitigates` and
+  `related_mitigations`; `get_risk` includes `related_risks` and `mitigated_by`.
+  Links use published document ids. The server keeps its nine tools and uses
+  existing document fetches and caching. A reverse lookup fails if mitigation
+  metadata cannot all be read; Markdown resources remain document-only.
 - **Resources**: every framework, risk and mitigation is listed as a
   `finos://` resource, served as Markdown.
 - **The get tools accept the short ids the documents use**: `ri-10` and `10`

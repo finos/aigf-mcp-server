@@ -31,6 +31,13 @@ The server does not rank or interpret documents; the client's model does.
 3. **Get.** `get_framework`, `get_risk` or `get_mitigation` returns the whole
    document, by the id the list gave.
 
+For relationships, `list_mitigations` includes the risk ids each mitigation
+declares in `mitigates`. A client can use those links to choose controls for a
+risk without fetching each mitigation. `get_risk` also returns that risk's
+inverse mapping as `mitigated_by`; `get_mitigation` and `get_risk` include their
+declared related-document links. These are framework declarations, with no
+inferred or transitive links.
+
 ## Document ids
 
 One document has one id, which every tool and resource takes:
@@ -270,7 +277,7 @@ Get the complete content of one risk document.
 
 **Name**: `get_risk`
 
-**Description**: Returns one risk document in Markdown, with the titles of its sections.
+**Description**: Returns one risk document in Markdown, its section titles, related risk ids and the mitigation ids that address it.
 
 **Input Schema**:
 ```json
@@ -297,6 +304,16 @@ Get the complete content of one risk document.
   could not be served is an error, not a record with a title that says so.
 - `content` (string): The complete risk document, in Markdown
 - `sections` (array of strings): The document's section titles
+- `related_risks` (array of strings): Canonical risk ids declared as related
+- `mitigated_by` (array of strings): Canonical mitigation ids whose declared
+  `mitigates` links name this risk, in mitigation catalog order. The call fails
+  if the mitigation metadata cannot all be read and parsed.
+
+`mitigated_by` requires reading all mitigation metadata in the current catalog,
+using the existing document cache. A cold call can fetch those documents.
+Unread, skipped or malformed mitigation metadata makes the call fail rather
+than return a partial inverse mapping. The Markdown risk resource does not
+perform this lookup and can still serve the risk document.
 
 **Example**:
 ```
@@ -312,7 +329,7 @@ List every mitigation document.
 
 **Name**: `list_mitigations`
 
-**Description**: Returns every AI governance mitigation document, each with the opening of its own purpose section as its description.
+**Description**: Returns every AI governance mitigation document, each with the opening of its own purpose section and its declared risk ids.
 
 **Input Schema**:
 ```json
@@ -331,9 +348,17 @@ List every mitigation document.
   - `description` (string or null): The first paragraph of the document's
     opening `## Purpose` section, bounded as for `list_risks`. Null when the
     document could not be read or does not open with one
+  - `mitigates` (array of strings): Canonical risk ids declared by the mitigation.
+    Empty when none are declared or usable metadata could not be read.
 - `total_count` (integer): Number of mitigation documents listed
 - `document_type` (string): Always `"mitigation"`
 - `source` (string): Where the listing came from, as for `list_risks`
+
+Relationship metadata comes from the same document reads used for names and
+descriptions, with no additional document requests. The listing keeps every
+entry when a read fails or is skipped; those entries have empty `mitigates`
+arrays. A mapping from such a listing can therefore be incomplete. `source`
+describes catalog discovery, not whether every document's metadata was read.
 
 **Example**:
 ```
@@ -349,7 +374,7 @@ Get the complete content of one mitigation document.
 
 **Name**: `get_mitigation`
 
-**Description**: Returns one mitigation document in Markdown, with the titles of its sections.
+**Description**: Returns one mitigation document in Markdown, its section titles, the risk ids it addresses and its related mitigation ids.
 
 **Input Schema**:
 ```json
@@ -374,6 +399,8 @@ Get the complete content of one mitigation document.
 - `title` (string): The title the document declares, as for `get_risk`
 - `content` (string): The complete mitigation document, in Markdown
 - `sections` (array of strings): The document's section titles
+- `mitigates` (array of strings): Canonical risk ids declared by the mitigation
+- `related_mitigations` (array of strings): Canonical mitigation ids declared as related
 
 **Example**:
 ```

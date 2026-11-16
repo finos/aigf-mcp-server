@@ -212,6 +212,37 @@ A result is JSON. The `content` field of `get_risk`, `get_mitigation` and
 `get_framework` holds the document as Markdown. The `content` field of a
 `search_frameworks` result is a passage cut from that Markdown.
 
+### Relationship Fields
+
+Relationships are arrays of the canonical ids published by the listing tools,
+not frontmatter aliases such as `ri-1` or `mi-2`. Repeated references are
+deduplicated in declaration order; `mitigated_by` follows mitigation catalog
+order. Unknown or ambiguous targets are omitted and logged. Related-document
+links are not made symmetric, and no transitive relationships are inferred.
+
+Successfully read documents with no frontmatter or no relationship declaration
+produce empty arrays. Forward fields are best effort: invalid values are
+logged and omitted. Listings also use empty arrays when metadata could not be
+read or was skipped, so an empty listing field does not prove the absence of
+relationships. A built-in filename catalog does not itself provide metadata;
+readable document metadata is still used when discovery reports
+`static_fallback`.
+
+`get_risk.mitigated_by` is stricter. Every mitigation in the current catalog
+must have readable, parseable metadata and a valid `mitigates` list, or no
+declaration. A null value counts as no declaration. If any metadata is unread,
+skipped, or malformed, `get_risk` returns a tool error with no structured
+content. The message includes:
+
+```text
+The mitigation relationships could not be loaded completely. Retry later.
+```
+
+A throttle retains the existing temporary-throttle response and retry guidance.
+This dependency applies to the tool response; Markdown resources continue to
+read only the requested document. Relationship results use the existing
+document cache, with no separate inverse-map cache.
+
 ### Caching Behavior
 
 The server keeps two things:

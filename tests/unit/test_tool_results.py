@@ -30,6 +30,7 @@ from finos_mcp.models import (
     Framework,
     FrameworkContent,
     FrameworkList,
+    MitigationList,
     ServiceHealth,
 )
 
@@ -100,10 +101,10 @@ class TestFastMCPTools:
 
     @pytest.mark.asyncio
     async def test_list_mitigations(self):
-        """Test list_mitigations tool returns structured DocumentList."""
+        """Test list_mitigations tool returns its specialized listing."""
         result = await _invoke_direct_tool(list_mitigations)
 
-        assert isinstance(result, DocumentList)
+        assert isinstance(result, MitigationList)
         assert result.document_type == "mitigation"
         assert result.total_count > 0
         assert len(result.documents) == result.total_count
