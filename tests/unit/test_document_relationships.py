@@ -1,5 +1,6 @@
 """Declared relationships survive retrieval, normalization and MCP serialization."""
 
+import asyncio
 import json
 from collections.abc import Mapping
 from typing import Any
@@ -147,7 +148,7 @@ def _catalog(monkeypatch, documents, source="github_api"):
         async def get_document(self, kind, filename):
             calls.append((kind, filename))
             value = documents[filename]
-            if isinstance(value, Exception):
+            if isinstance(value, BaseException):
                 raise value
             return value
 
@@ -347,22 +348,237 @@ async def test_reverse_lookup_preserves_throttle_retry_information(monkeypatch):
     assert "private" not in str(failure.value)
 
 
-async def test_reverse_lookup_fails_when_fetch_ceiling_leaves_metadata_unread(
-    monkeypatch,
+@pytest.mark.parametrize("count", [0, 100, 101, 205])
+async def test_reverse_lookup_reads_the_complete_catalog_beyond_the_title_ceiling(
+    monkeypatch, count
 ):
-    from finos_mcp.exceptions import ToolExecutionError
-
     monkeypatch.setattr(doc_format, "_TITLE_FETCH_MAX_DOCUMENTS", 1)
-    _catalog(
+    documents = {
+        "ri-1_risk.md": _document(),
+        **{
+            f"mi-{number}_control.md": _document({"mitigates": ["ri-1"]})
+            for number in range(1, count + 1)
+        },
+    }
+    calls = _catalog(monkeypatch, documents)
+    async with Client(mcp) as client:
+        result = await client.call_tool("get_risk", {"risk_id": "1"})
+    assert result.structured_content is not None
+    assert result.structured_content["mitigated_by"] == [
+        f"{number}_control" for number in range(1, count + 1)
+    ]
+    assert calls == [
+        ("risk" if name.startswith("ri-") else "mitigation", name) for name in documents
+    ]
+
+
+@pytest.mark.parametrize("failure_kind", ["unread", "malformed", "throttled"])
+async def test_reverse_lookup_still_rejects_unreadable_links_beyond_document_100(
+    monkeypatch, failure_kind
+):
+    from finos_mcp.exceptions import (
+        DocumentThrottledError,
+        GitHubRateLimitError,
+        ToolExecutionError,
+    )
+
+    bad_document = {
+        "unread": None,
+        "malformed": _document({"mitigates": "invalid"}),
+        "throttled": GitHubRateLimitError("private throttle", retry_after=23),
+    }[failure_kind]
+    calls = _catalog(
         monkeypatch,
         {
             "ri-1_risk.md": _document(),
-            "mi-1_empty.md": _document(),
-            "mi-2_unread.md": _document({"mitigates": ["ri-1"]}),
+            **{f"mi-{number}_control.md": _document() for number in range(1, 101)},
+            "mi-101_bad.md": bad_document,
+        },
+    )
+    expected = (
+        DocumentThrottledError if failure_kind == "throttled" else ToolExecutionError
+    )
+    with pytest.raises(expected) as failure:
+        await doc_tools.get_risk("1")
+    if failure_kind == "throttled":
+        assert isinstance(failure.value, DocumentThrottledError)
+        assert failure.value.retry_after == 23
+    assert calls[-1] == ("mitigation", "mi-101_bad.md")
+
+
+async def test_reverse_lookup_reads_only_metadata_with_bounded_concurrency(monkeypatch):
+    documents = {
+        "ri-1_risk.md": _document(),
+        **{
+            f"mi-{number}_control.md": _document({"mitigates": ["ri-1"]})
+            for number in range(1, 24)
+        },
+    }
+    calls = _catalog(monkeypatch, documents)
+    active = 0
+    peak = 0
+
+    class Service:
+        async def get_document(self, kind, filename):
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            try:
+                await asyncio.sleep(0)
+                calls.append((kind, filename))
+                return documents[filename]
+            finally:
+                active -= 1
+
+    async def service():
+        return Service()
+
+    async def no_title_resolution(*_args, **_kwargs):
+        pytest.fail("reverse lookup must not resolve titles or descriptions")
+
+    monkeypatch.setattr(doc_tools, "get_service", service)
+    monkeypatch.setattr(doc_tools, "_resolve_document_names", no_title_resolution)
+    result = await doc_tools.get_risk("1")
+    assert len(result.mitigated_by) == 23
+    assert 1 < peak <= 4
+    assert active == 0
+    assert len(calls) == len(documents)
+
+
+@pytest.mark.parametrize("throttled", [True, False])
+async def test_reverse_lookup_stops_after_a_failed_batch_and_preserves_throttling(
+    monkeypatch, throttled
+):
+    from finos_mcp.exceptions import (
+        DocumentThrottledError,
+        GitHubRateLimitError,
+        ToolExecutionError,
+    )
+
+    documents = {
+        "ri-1_risk.md": _document(),
+        **{f"mi-{number}_control.md": _document() for number in range(1, 10)},
+        "mi-2_control.md": RuntimeError("private backend detail"),
+        "mi-3_control.md": GitHubRateLimitError("private throttle", retry_after=23)
+        if throttled
+        else _document(),
+    }
+    calls = _catalog(monkeypatch, documents)
+    expected = DocumentThrottledError if throttled else ToolExecutionError
+    with pytest.raises(expected) as failure:
+        await doc_tools.get_risk("1")
+    if throttled:
+        assert isinstance(failure.value, DocumentThrottledError)
+        assert failure.value.retry_after == 23
+    assert "private" not in str(failure.value)
+    assert calls == [
+        ("risk", "ri-1_risk.md"),
+        *[("mitigation", f"mi-{number}_control.md") for number in range(1, 6)],
+    ]
+
+
+async def test_reverse_lookup_stops_after_a_failed_serial_probe(monkeypatch):
+    from finos_mcp.exceptions import ToolExecutionError
+
+    calls = _catalog(
+        monkeypatch,
+        {
+            "ri-1_risk.md": _document(),
+            "mi-1_unread.md": None,
+            "mi-2_later.md": _document(),
         },
     )
     with pytest.raises(ToolExecutionError, match="relationships"):
         await doc_tools.get_risk("1")
+    assert calls == [("risk", "ri-1_risk.md"), ("mitigation", "mi-1_unread.md")]
+
+
+async def test_large_reverse_lookups_reuse_the_existing_document_cache(monkeypatch):
+    from finos_mcp.content.cache import TTLCache
+    from finos_mcp.content.service import ContentService
+
+    documents = {
+        "ri-1_risk.md": _document(),
+        **{
+            f"mi-{number}_control.md": _document({"mitigates": ["ri-1"]})
+            for number in range(1, 102)
+        },
+    }
+    _catalog(monkeypatch, documents)
+    cache = TTLCache[str, dict[str, Any]]()
+    for filename, document in documents.items():
+        kind = "risk" if filename.startswith("ri-") else "mitigation"
+        await cache.set(f"{kind}:{filename}", document)
+    cached_service = ContentService(cache=cache)
+
+    async def service():
+        return cached_service
+
+    async def no_fetch(*_args, **_kwargs):
+        pytest.fail("cached relationship reads must not fetch content")
+
+    monkeypatch.setattr(doc_tools, "get_service", service)
+    monkeypatch.setattr(cached_service, "_fetch_content_with_boundary", no_fetch)
+    for _ in range(2):
+        result = await doc_tools.get_risk("1")
+        assert result.mitigated_by == [f"{number}_control" for number in range(1, 102)]
+    assert cached_service.successful_requests == 204
+
+
+async def test_cancelling_reverse_lookup_cancels_pending_document_reads(monkeypatch):
+    documents = {
+        "ri-1_risk.md": _document(),
+        **{f"mi-{number}_control.md": _document() for number in range(1, 10)},
+    }
+    _catalog(monkeypatch, documents)
+    ready = asyncio.Event()
+    blocked = asyncio.Event()
+    active = 0
+
+    class Service:
+        async def get_document(self, kind, filename):
+            nonlocal active
+            if kind == "risk" or filename == "mi-1_control.md":
+                return documents[filename]
+            active += 1
+            try:
+                if active == 4:
+                    ready.set()
+                await blocked.wait()
+                return documents[filename]
+            finally:
+                active -= 1
+
+    async def service():
+        return Service()
+
+    monkeypatch.setattr(doc_tools, "get_service", service)
+    monkeypatch.setattr(doc_format, "get_service", service)
+    lookup = asyncio.create_task(doc_tools.get_risk("1"))
+    try:
+        await asyncio.wait_for(ready.wait(), timeout=5)
+    finally:
+        lookup.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await lookup
+    assert active == 0
+
+
+async def test_a_cancelled_document_read_is_not_reported_as_a_tool_error(monkeypatch):
+    calls = _catalog(
+        monkeypatch,
+        {
+            "ri-1_risk.md": _document(),
+            **{f"mi-{number}_control.md": _document() for number in range(1, 10)},
+            "mi-2_control.md": asyncio.CancelledError(),
+        },
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await doc_tools.get_risk("1")
+    assert calls == [
+        ("risk", "ri-1_risk.md"),
+        *[("mitigation", f"mi-{number}_control.md") for number in range(1, 6)],
+    ]
 
 
 async def test_resource_reads_do_not_depend_on_other_documents(monkeypatch):

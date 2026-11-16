@@ -67,6 +67,7 @@ from ..safety import (
     _section_headings,
 )
 from ..service import _discovery_manager, get_service
+from .relationships import mitigation_metadata
 
 logger = get_logger("documents.tools")
 
@@ -437,16 +438,16 @@ async def _mitigated_by(
     mitigation_files: list[GitHubFileInfo],
 ) -> list[str]:
     """Invert declared links only when every mitigation's metadata was read."""
-    listed = await _resolve_document_names(
-        "mitigation", [file.filename for file in mitigation_files]
-    )
-    # A throttle is actionable even if another document failed first.
-    for entry in listed:
-        if isinstance(entry.load_error, GitHubRateLimitError):
-            raise entry.load_error
+    service = await get_service()
+    metadata = [
+        entry
+        async for entry in mitigation_metadata(
+            service, [file.filename for file in mitigation_files]
+        )
+    ]
     resolved = []
-    for file, entry in zip(mitigation_files, listed, strict=True):
-        if not _valid_mitigation_metadata(entry.metadata):
+    for file, entry in zip(mitigation_files, metadata, strict=True):
+        if not _valid_mitigation_metadata(entry):
             logger.warning(
                 "Incomplete mitigation relationships for risk %s: %s",
                 risk_id,
@@ -460,7 +461,7 @@ async def _mitigated_by(
             file.filename, _MITIGATION.directory.prefix
         )
         if risk_id in _relationship_ids(
-            entry.metadata, "mitigates", _RISK, risk_files, mitigation_id
+            entry, "mitigates", _RISK, risk_files, mitigation_id
         ):
             resolved.append(mitigation_id)
     return resolved
